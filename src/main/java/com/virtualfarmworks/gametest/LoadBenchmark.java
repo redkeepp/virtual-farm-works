@@ -1,7 +1,7 @@
 /*
  * LoadBenchmark — dev-only load test (`gradlew runBenchmark`): measures how much server time a Starter Farm Matrix
  * costs per tick while growing, waiting, harvesting and exporting, and writes a table to the log and to
- * run/vfw-benchmark.txt. Never fails on numbers: timings depend on the computer running it.
+ * run-gametest/vfw-benchmark.txt. Never fails on numbers: timings depend on the computer running it.
  */
 package com.virtualfarmworks.gametest;
 

@@ -31,10 +31,16 @@ Run from the repository root (this folder). `JAVA_HOME` must point to JDK 25 (al
 .\gradlew.bat test                # JUnit tests of the Minecraft-free simulation core (seconds). Results:
                                   # build/test-results/test/*.xml
 .\gradlew.bat runGameTestServer   # headless: boots the mod, runs game tests, exits (exit code 0 = all passed). Use it to
-                                  # catch registry/datapack errors without opening the client; check run/logs/latest.log.
+                                  # catch registry/datapack errors without opening the client; check
+                                  # run-gametest/logs/latest.log.
 .\gradlew.bat runBenchmark        # headless load benchmark (gametest/LoadBenchmark, runs alone): cost per machine per
-                                  # tick; table in the log and in run/vfw-benchmark.txt. Close runClient first (CPU noise).
+                                  # tick; table in the log and in run-gametest/vfw-benchmark.txt. Close the game first
+                                  # (CPU noise).
 ```
+
+Game tests and the benchmark run in `run-gametest/` (own config = defaults, own world and logs; mods copied from
+`run/mods` by the `syncTestMods` task). Never point them back to `run/`: `run/config` holds the owner's manual test
+values (a changed `upgradesPerSlot` made two tests fail), and test runs used to rewrite the owner's config file.
 
 Dev mods for testing (Mystical Agriculture, Mystical Agradditions, ...) go as jars in `run/mods/` (26.1 is unobfuscated,
 so production jars load in dev). `run/` is git-ignored.
@@ -302,14 +308,18 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Detached machines ticked directly (ticker work only, vanilla BE-ticking overhead excluded), warm-up + best of 3;
   scenarios: growing 1 vs 64 plots, OUTPUT FULL waiting, harvest tick (wheat x64/x1, MA x64), busy farm average,
   revalidation, auto-export into a real chest. Never fails on numbers (machine-dependent).
-  Results 2026-09-26 (owner's PC, 16 threads, Java 25, owner's game open at the same time): growing 0.013-0.021 us
-  per machine-tick (1 and 64 plots alike), OUTPUT FULL waiting 0.020 us, harvest tick 103 us (64 wheat plots, 64
-  loot rolls), 7.4 us (1 wheat plot), 7.8 us (64 MA Inferium plots, formula), busy farm (64 wheat, 3x, harvests
-  included) 0.36 us average -> ~2,800 busy machines per 1 ms of tick, 1,000 = 0.7% of a 50 ms tick; revalidation
-  2.6 us; auto-export of 9 full stacks into a chest 127 us per export (~14 us per stack, NeoForge transfer + vanilla
-  chest; the priciest part when a buffer is always full, tunable with output.autoExportIntervalTicks).
-  Dev tip: the owner often has `runClient` open on the same `run/` folder. An old build running there reverts new
-  config keys (its file watcher "corrects" the shared TOML), and both processes write `run/logs/latest.log`.
+  Results 2026-09-26, owner's PC with the game closed (16 threads, Java 25), average of the owner's last 3 runs
+  (owner's choice; a run of mine with the game open was ~20% slower): growing 0.009-0.015 us per machine-tick (1
+  and 64 plots alike), OUTPUT FULL waiting 0.013 us, harvest tick 78 us (64 wheat plots, 64 loot rolls), 5.3 us
+  (1 wheat plot), 5.2 us (64 MA Inferium plots, formula), busy farm (64 wheat, 3x, harvests included) 0.30 us
+  average -> ~3,400 busy machines per 1 ms of tick, 1,000 = 0.6% of a 50 ms tick; revalidation 1.5 us; auto-export
+  of 9 full stacks into a chest 118 us per export (~13 us per stack, NeoForge transfer + vanilla chest; the priciest
+  part when a buffer is always full, tunable with output.autoExportIntervalTicks).
+  Dev tip: the owner often has `runClient` open on `run/`. An old build running there reverts new config keys (its
+  file watcher "corrects" the TOML), so ask the owner to restart the client after code changes. Game tests no longer
+  share that folder (`run-gametest/`). When the owner edits the TOML by hand: a value with a leading zero (`05.0`)
+  makes NeoForge back the file up and recreate it with DEFAULTS; an edited comment or out-of-range value gets
+  "corrected" and rewritten. Either way VS Code then refuses to save ("the content of the file is newer").
 
 ## GUI gotchas (26.1)
 

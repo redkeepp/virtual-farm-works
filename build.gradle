@@ -82,15 +82,21 @@ neoForge {
         // This run config launches GameTestServer and runs all registered gametests, then exits.
         // By default, the server will crash when no gametests are provided.
         // The gametest system is also enabled by default for other run configs under the /test command.
+        // VFW: runs in its OWN folder, run-gametest/, not run/. The tests need the default config, while run/config
+        // holds the owner's manual test values (e.g. an overclock), and the tests must never rewrite the owner's
+        // files. The owner's test mods are copied from run/mods before each run (syncTestMods below).
         gameTestServer {
             type = "gameTestServer"
+            gameDirectory = project.file('run-gametest')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
-        // VFW load benchmark (`gradlew runBenchmark`): the same headless game test server, but it registers only the
-        // benchmark (gametest/LoadBenchmark), which writes a cost table to the log and to run/vfw-benchmark.txt.
+        // VFW load benchmark (`gradlew runBenchmark`): the same headless game test server and folder, but it registers
+        // only the benchmark (gametest/LoadBenchmark), which writes a cost table to the log and to
+        // run-gametest/vfw-benchmark.txt.
         benchmark {
             type = "gameTestServer"
+            gameDirectory = project.file('run-gametest')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
             systemProperty 'virtualfarmworks.benchmark', 'true'
         }
@@ -128,6 +134,17 @@ neoForge {
             sourceSet(sourceSets.main)
         }
     }
+}
+
+// The game tests and the benchmark use run-gametest/ (see the runs above). Copy the owner's test mods (Mystical
+// Agriculture, Agradditions, Jade, JEI...) from run/mods into it before every run; Sync also removes jars the owner
+// deleted from run/mods. Only the mods are shared: config, worlds and logs stay separate.
+var syncTestMods = tasks.register('syncTestMods', Sync) {
+    from 'run/mods'
+    into 'run-gametest/mods'
+}
+tasks.matching { it.name == 'runGameTestServer' || it.name == 'runBenchmark' }.configureEach {
+    dependsOn syncTestMods
 }
 
 // Sets up a dependency configuration called 'localRuntime'.

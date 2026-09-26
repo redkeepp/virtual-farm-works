@@ -35,6 +35,8 @@ bin/
 ### Minecraft Modding ###
 run/
 !**/src/**/run/
+# Game tests and the load benchmark run here (own config, mods copied from run/mods), see build.gradle.
+run-gametest/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
