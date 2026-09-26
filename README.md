@@ -8,6 +8,11 @@ Designed for large modpacks and for compatibility with modded crops, especially 
 
 **Status:** early development (scaffolding). See [CLAUDE.md](CLAUDE.md) for the design and project status.
 
+## License
+
+MIT, for both code and assets (textures, models, JSON). See [LICENSE](LICENSE).
+Build files derived from the NeoForge MDK keep their original notice in [TEMPLATE_LICENSE.txt](TEMPLATE_LICENSE.txt).
+
 ## Building
 
 Requires JDK 25.

@@ -14,6 +14,9 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
 - Target now: **Minecraft 26.1.2 / NeoForge 26.1.2.109 / Java 25** (other versions are planned later, keep
   version-specific code isolated where reasonable). The original spec said "1.21.2"; the owner confirmed 26.1.2.
 - Build system: ModDevGradle 2.0.147 (from the official NeoForge MDK), Gradle wrapper 9.2.1.
+- License: **MIT** for everything (code and assets; the owner confirmed all art is their own). `LICENSE` is the VFW
+  license; `TEMPLATE_LICENSE.txt` is the NeoForged MDK notice and must be kept. Do not copy code or assets from
+  other mods into this repo without checking their license.
 - Mojang mappings are unobfuscated in 26.1 (official parameter names are available).
 
 ## Commands
