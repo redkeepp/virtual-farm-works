@@ -105,7 +105,8 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
   Final order: MISSING SEED > MISSING SOIL > INVALID SOIL > MISSING HOE > MISSING CRUX > MISSING FE.
 - IMPLEMENTED priority (step 4, `sim/MachineStatus`): SHUTDOWN (player's explicit choice) > the missing hierarchy
   above > OUTPUT FULL (only matters once the machine could grow) > RUNNING.
-- OUTPUT FULL happens when a due harvest does not fit the buffer; the bar stays at 100% until it fits.
+- OUTPUT FULL happens when the next part of a due harvest does not fit the output (visible + hidden slots); the bar
+  stays at 100% until the whole harvest is stored (see "Output" below).
 
 ## Machine behavior
 
@@ -118,6 +119,9 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
 - Auto-export ON by default on all 6 faces; player can disable per face. Pushes output buffer items into adjacent
   inventories (e.g. a chest).
 - Output buffer (9 slots): output only. Players/automation can extract, nothing can be inserted.
+- Hidden output slots (owner, step 8; Starter default 27, config `machines.<tier>.internalBufferSlots`): harvests fill
+  the 9 visible slots first, then the hidden ones; the hidden slots refill the visible ones as those empty. Nobody
+  sees or reaches them (no GUI, no capability).
 
 ## DECIDED numbers (defaults; all configurable)
 
@@ -128,7 +132,8 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
 - **Soil growth bonuses** (soilMultiplier = 1 + bonus): Inferium Farmland +15%, Prudentium +20%, Tertium +25%,
   Imperium +30%, Supremium +35% (Mystical Agriculture), Insanium Farmland +40% (Mystical Agradditions — must be
   supported too). Shipped as datapack-editable defaults, never hard-coded.
-- **Output full**: machine stops completely; drops already in the buffer stay there; no partial harvest, nothing voided.
+- **Output full**: machine stops growing; drops already in the buffers stay there; ripe plots wait on the plant; nothing
+  voided (step 8 details in "Output" below).
 
 ## Harvest (implemented, milestone 1 step 5)
 
@@ -147,7 +152,26 @@ crop (owner decision, step 8: the machine is just faster, no growth-time imitati
 - The hoe never changes yields (no Fortune, tier irrelevant — owner rule).
 - Pack-maker multipliers: production (main product) and secondary (extra seeds, by-products), see
   `configurability.md`.
-- Storage is all-or-nothing (NeoForge transaction). If the harvest does not fit: OUTPUT FULL, bar held at 100%.
+- Storage is all-or-nothing per batch (NeoForge transaction), see "Output" below.
+
+## Output: visible slots, hidden slots, plants (owner design, step 8)
+
+Why: the first version stored a whole harvest all-or-nothing, so a harvest bigger than the whole buffer (high
+multipliers, future tiers with thousands of plots) never fit, even in an empty buffer: permanent OUTPUT FULL (owner's
+overclock test). The owner rejected a big hidden overflow inventory and chose this middle ground:
+1. Harvests fill the 9 visible slots first, then the hidden slots (27 on the Starter); the hidden slots refill the
+   visible ones as those empty.
+2. When both are full, the ripe plots not harvested yet wait on the plant: their items do not exist yet, the machine
+   only counts them. The bar stays at 100% and the next cycle starts only once every plot is harvested, so nothing
+   accumulates.
+3. A due cycle is harvested in batches sized to the free slots (usually one batch with every plot; several only while
+   the output is the bottleneck; at most one per tick). Each batch is rolled once and stored all-or-nothing.
+4. Extreme case (owner: "pode segurar"): a batch too big even for EMPTY buffers (one plot yielding more than every
+   slot, only with absurd multipliers) is stored as far as it fits; the rest is held with the machine (saved) and
+   stored first.
+5. Breaking the machine (owner): the inputs and the 9 visible slots drop; the hidden slots, held items and ripe plots
+   are deleted.
+No GUI or Jade indicator for waiting plots or hidden items (owner: "não, esquece isso").
 
 ## Machine behavior details (implemented, milestone 1 step 6)
 
@@ -157,7 +181,8 @@ crop (owner decision, step 8: the machine is just faster, no growth-time imitati
 - **Auto-export**: every `output.autoExportIntervalTicks` (default 20), the buffer is pushed into adjacent inventories
   on each enabled face. Faces are relative to the machine's front, as the player sees it standing in front of the
   machine: LEFT is the player's left. Keeps running while the machine is SHUTDOWN (it only empties the buffer).
-- **Breaking the machine** drops every stored item (inputs and buffer).
+- **Breaking the machine** drops the inputs and the 9 visible output slots; the hidden output slots are deleted
+  (owner, step 8).
 - **Hoe wear** (config, off by default): over time (owner decision) — 1 durability every `hoe.wearIntervalTicks`
   (default 1200 = 1 minute) of RUNNING, only while the soil needs the hoe.
 
@@ -178,7 +203,8 @@ crop (owner decision, step 8: the machine is just faster, no growth-time imitati
 - Owner additions (step 8): a **Fertilized Essence** ON/OFF switch in the old ON/OFF position (light pink = Mystical
   Agriculture crops produce Fertilized Essence, dark pink = they do not; no effect without MA; tooltip
   "Drops Fertilized Essence: ON/OFF"), and the machine ON/OFF right below it, 3 px apart like every other box (the
-  owner first said 5 px, then corrected it to 3). Title moved up 1 px, "Seeds" line down 1 px.
+  owner first said 5 px, then corrected it to 3). Title moved up 1 px, "Seeds" line down 1 px; later status,
+  hydration and seeds up 1 px again (final y: status 57, hydration 66, seeds 76, growth 86, title 8).
 - Owner addition (step 8): right-clicking the machine (GUI closed) while holding a Water Provider, Growth Speed or
   Crux Provider Upgrade pulls in as many as fit; if none fits, the GUI opens instead.
 - Recipes (owner): Starter Farm Matrix, Starter Water Provider, Starter Growth Speed, Crux Provider — see
@@ -198,9 +224,13 @@ crop (owner decision, step 8: the machine is just faster, no growth-time imitati
 - **Soil growth multipliers** (mechanism): NeoForge data map on items (`virtualfarmworks:soil_properties`, e.g.
   `growth_bonus`), shipped defaults for the MA/Agradditions farmlands above; optional entries so VFW does not
   hard-depend on those mods.
-- **Output full** (mechanism): compute the whole cycle's drops, simulate insertion into the buffer; if everything fits,
-  commit; otherwise hold at 100% with `OUTPUT FULL` and retry only when the buffer changes (event-driven).
-- **Removing seeds**: PENDING plots are removed first, then ACTIVE.
+- **Output full** (mechanism, step 8): the due cycle is harvested in batches sized to the free slots
+  (`sim/HarvestBatching`, measured yield per plot in `sim/YieldSample`); each batch is rolled once and stored in one
+  transaction, and its plots count as harvested only after the commit (`GrowthCycle#harvestPlots`, saved as
+  "harvested"). A batch that does not fit is kept and retried only when the output or inputs change (event-driven).
+  The first version rolled the whole cycle at once and deadlocked when it was bigger than the buffer.
+- **Removing seeds**: PENDING plots are removed first, then ACTIVE (mid-harvest: already harvested plots before the
+  ripe ones, so the ripe crops stay).
 - **Hoe wear (when enabled by config)**: time-based, see "Machine behavior details" (the first idea, 1 durability per
   harvest cycle, was replaced by the owner in step 7).
 - **Mystical Agriculture effective farmland** (owner, step 8): VFW has its own switch

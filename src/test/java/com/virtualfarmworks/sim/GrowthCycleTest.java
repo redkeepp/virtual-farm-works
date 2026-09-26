@@ -295,4 +295,112 @@ class GrowthCycleTest {
         assertEquals(40, restored.activePlots());
         assertEquals(24, restored.pendingPlots());
     }
+
+    // --- batched harvests (owner design, step 8) --------------------------------------------------------------------
+
+    @Test
+    void nothingToHarvestWhileGrowing() {
+        GrowthCycle cycle = new GrowthCycle(1);
+        cycle.setPlots(0, 64, false);
+        cycle.advance(0.99);
+
+        assertEquals(0, cycle.plotsToHarvest());
+        cycle.harvestPlots(0, 10); // ignored: no harvest is due
+        cycle.advance(0.01);
+        assertEquals(64, cycle.plotsToHarvest());
+    }
+
+    @Test
+    void aDueHarvestCanBeHarvestedInBatches() {
+        GrowthCycle cycle = new GrowthCycle(1);
+        cycle.setPlots(0, 64, false);
+        cycle.advance(1.0);
+
+        cycle.harvestPlots(0, 20);
+        assertEquals(44, cycle.plotsToHarvest());
+        assertTrue(cycle.isHarvestDue(), "the bar stays at 100% while ripe plots wait");
+        cycle.advance(0.5);
+        assertEquals(44, cycle.plotsToHarvest(), "no growth while plots wait on the plant");
+
+        cycle.harvestPlots(0, 1_000); // never more than what is left
+        assertEquals(0, cycle.plotsToHarvest());
+        assertTrue(cycle.isHarvestDue(), "completion is the machine's call (held drops may still wait)");
+
+        assertTrue(cycle.completeHarvest());
+        assertFalse(cycle.isHarvestDue());
+        assertEquals(64, cycle.activePlots());
+        assertEquals(0, cycle.group(0).harvested(), "a new cycle starts with nothing harvested");
+    }
+
+    @Test
+    void seedsAddedMidHarvestWaitForTheNextCycle() {
+        GrowthCycle cycle = new GrowthCycle(1);
+        cycle.setPlots(0, 40, false);
+        cycle.advance(1.0);
+        cycle.harvestPlots(0, 10);
+
+        cycle.setPlots(0, 64, false);
+
+        assertEquals(30, cycle.plotsToHarvest(), "new plots never join a harvest in progress");
+        assertEquals(24, cycle.pendingPlots());
+    }
+
+    @Test
+    void removingSeedsMidHarvestTakesAlreadyHarvestedPlotsFirst() {
+        GrowthCycle cycle = new GrowthCycle(1);
+        cycle.setPlots(0, 64, false);
+        cycle.advance(1.0);
+        cycle.harvestPlots(0, 30); // 30 harvested, 34 ripe
+
+        cycle.setPlots(0, 44, false); // 20 seeds taken out: all from the harvested ones
+        assertEquals(34, cycle.plotsToHarvest(), "the ripe plots are kept");
+        assertEquals(10, cycle.group(0).harvested());
+
+        cycle.setPlots(0, 20, false); // 24 more: the last 10 harvested, then 14 ripe
+        assertEquals(20, cycle.plotsToHarvest());
+        assertEquals(0, cycle.group(0).harvested());
+        assertEquals(20, cycle.activePlots());
+    }
+
+    @Test
+    void changingThePlantMidHarvestUprootsEverything() {
+        GrowthCycle cycle = new GrowthCycle(1);
+        cycle.setPlots(0, 64, false);
+        cycle.advance(1.0);
+        cycle.harvestPlots(0, 30);
+
+        cycle.setPlots(0, 64, true);
+
+        assertFalse(cycle.isHarvestDue());
+        assertEquals(0, cycle.group(0).harvested());
+        assertEquals(0.0, cycle.progress(), EPS);
+    }
+
+    @Test
+    void harvestedCountersSurviveSaveAndLoad() {
+        GrowthCycle original = new GrowthCycle(1);
+        original.setPlots(0, 64, false);
+        original.advance(1.0);
+        original.harvestPlots(0, 25);
+
+        GrowthCycle restored = new GrowthCycle(1);
+        restored.load(original.progress(), original.activeCounts(), original.pendingCounts(),
+                original.harvestedCounts());
+
+        assertEquals(39, restored.plotsToHarvest(), "a reload must never harvest the same plots twice");
+    }
+
+    @Test
+    void loadRepairsImpossibleHarvestedCounters() {
+        GrowthCycle cycle = new GrowthCycle(1);
+        cycle.load(1.0, new int[] {10}, new int[] {0}, new int[] {99});
+        assertEquals(10, cycle.group(0).harvested(), "harvested is capped at active");
+        assertEquals(0, cycle.plotsToHarvest());
+
+        cycle.load(1.0, new int[] {10}, new int[] {0}, new int[] {-3});
+        assertEquals(10, cycle.plotsToHarvest(), "negative harvested becomes 0");
+
+        cycle.load(1.0, new int[] {10}, new int[] {0});
+        assertEquals(10, cycle.plotsToHarvest(), "old saves have nothing harvested");
+    }
 }

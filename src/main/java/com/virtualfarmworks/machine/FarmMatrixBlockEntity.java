@@ -1,6 +1,7 @@
 /*
- * FarmMatrixBlockEntity — the running Farm Matrix: owns the inventories, the global growth cycle, the cached analysis
- * of its slots, the transactional harvest, auto-export and persistence. One per machine block, server-ticked only.
+ * FarmMatrixBlockEntity — the running Farm Matrix: owns the inventories (inputs, visible output, hidden output), the
+ * global growth cycle, the cached analysis of its slots, the transactional batched harvest, auto-export and
+ * persistence. One per machine block, server-ticked only.
  */
 package com.virtualfarmworks.machine;
 
@@ -8,6 +9,8 @@ import java.util.List;
 
 import org.jspecify.annotations.Nullable;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.virtualfarmworks.block.FarmMatrixBlock;
 import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.config.VfwServerConfig;
@@ -21,8 +24,10 @@ import com.virtualfarmworks.registry.ModBlockEntities;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.GrowthCycle;
 import com.virtualfarmworks.sim.GrowthSpeed;
+import com.virtualfarmworks.sim.HarvestBatching;
 import com.virtualfarmworks.sim.MachineConditions;
 import com.virtualfarmworks.sim.MachineStatus;
+import com.virtualfarmworks.sim.YieldSample;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -55,25 +60,44 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  *   <li>If something relevant changed since the last tick (a slot, the config generation, a tag/datapack reload),
  *       {@link #revalidate()} once. That is where all expensive work happens: pairing seed and soil, speed, drop
  *       source, status. Nothing expensive runs on a normal tick.</li>
+ *   <li>If the visible output changed: refill it from the hidden buffer ({@link #refillVisibleOutput}).</li>
  *   <li>RUNNING and bar below 100%: {@code cycle.advance(progressPerTick)} — one addition.</li>
- *   <li>Bar at 100%: harvest (see below). Otherwise the bar simply waits.</li>
- *   <li>Every {@code output.autoExportIntervalTicks}: push the output buffer to adjacent inventories on enabled faces.</li>
+ *   <li>Bar at 100%: harvest one batch (see below). Otherwise the bar simply waits.</li>
+ *   <li>Every {@code output.autoExportIntervalTicks}: push the visible output to adjacent inventories on enabled
+ *       faces.</li>
  * </ol>
  *
- * <h2>Harvest (anti-dupe)</h2>
- * The drops are rolled ONCE when the bar reaches 100% and kept in {@link #pendingHarvest}. {@code Harvester#tryStore}
- * then stores them all-or-nothing in a NeoForge transaction. Success: the cycle completes in the same call. Failure:
- * status OUTPUT FULL, the bar stays at 100%, and the machine retries the SAME drops only when the buffer or the inputs
- * changed ({@link #harvestRetryRequested}) — no loot re-rolls per retry. The pending roll is dropped when the plot
- * count or the seed/soil/config/tags it was rolled for change ({@link HarvestKey}); it is never saved (after a reload
- * it is simply rolled again — nothing was produced yet, so nothing can be duplicated or lost).
+ * <h2>Output: visible buffer, hidden buffer, plants (owner design, step 8)</h2>
+ * Harvests fill the 9 visible slots ({@link OutputBuffer}) first, then the hidden ones ({@link InternalBuffer}, 27 on
+ * the Starter by default); the hidden slots refill the visible ones as those empty. When both are full, the ripe
+ * plots not harvested yet simply wait on the plant ({@code GrowthCycle#plotsToHarvest}): their items do not exist, so
+ * nothing is stored anywhere else and nothing accumulates (the bar stays at 100% and the next cycle only starts once
+ * every plot is harvested). This replaced a single all-or-nothing harvest that deadlocked when a harvest was bigger
+ * than the whole output.
+ *
+ * <h2>Harvest batches (anti-dupe)</h2>
+ * A due cycle is harvested in batches sized to the free output slots ({@code sim.HarvestBatching}): usually ONE batch
+ * with every plot, several only while the output is the bottleneck, at most one batch per tick. Each batch is rolled
+ * ONCE and kept in {@link #pendingBatch}; {@code Harvester#tryStore} stores it all-or-nothing in a NeoForge
+ * transaction and only then are its plots counted as harvested. If it does not fit, status OUTPUT FULL and the SAME
+ * drops are retried only when the output or the inputs changed ({@link #harvestRetryRequested}) — no loot re-rolls per
+ * retry. The pending roll is dropped when the seed/soil/config/tags/Fertilized Essence switch it was rolled for change
+ * ({@link HarvestKey}) or fewer plots are left; it is never saved (after a reload it is rolled again — nothing was
+ * produced yet, so nothing can be duplicated or lost).
+ *
+ * <p>Extreme case (owner-approved): a batch too big even for EMPTY buffers (one plot yielding more than every output
+ * slot, only possible with absurd multipliers) is stored as far as it fits and the rest is kept in {@link #heldDrops},
+ * which is saved, stored before anything else, and blocks the cycle until empty.
  *
  * <h2>Persistence</h2>
- * Saved: inventories, progress, active/pending counters, on/off switch, auto-output faces, Fertilized Essence switch.
- * NOT saved (rebuilt by
- * {@link #revalidate()}): analysis, speed, status, drop source, pending harvest. Slot changes and harvests mark the
+ * Saved: inventories (inputs, visible and hidden output), held drops, progress, active/pending/harvested counters,
+ * on/off switch, auto-output faces, Fertilized Essence switch. NOT saved (rebuilt by {@link #revalidate()} or
+ * relearned): analysis, speed, status, drop source, pending batch, yield sample. Slot changes and harvests mark the
  * chunk for saving immediately; plain progress at most once per {@link #PROGRESS_SAVE_INTERVAL} ticks (losing < 1 s
  * of progress on a crash is harmless, marking every tick is not free).
+ *
+ * <h2>Breaking the machine</h2>
+ * Inputs and the 9 visible output slots drop; the hidden buffer, held drops and ripe plots are deleted (owner rule).
  *
  * <h2>Chunk unload</h2>
  * No ticking while unloaded, no catch-up when reloaded, no chunk loading (owner rules).
@@ -83,10 +107,22 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private static final int PLOT_GROUPS = 1;
     private static final int PROGRESS_SAVE_INTERVAL = 20;
 
+    /** Saved form of {@link #heldDrops}: item and amount (amounts can exceed a stack, so not ItemStacks). */
+    private static final Codec<List<DropTally.Entry<ItemResource>>> HELD_DROPS_CODEC = RecordCodecBuilder
+            .<DropTally.Entry<ItemResource>>create(instance -> instance.group(
+                    ItemResource.CODEC.fieldOf("item").forGetter(DropTally.Entry::key),
+                    Codec.LONG.fieldOf("amount").forGetter(DropTally.Entry::amount))
+                    .apply(instance, DropTally.Entry::new))
+            .listOf();
+
     // --- persistent state -------------------------------------------------------------------------------------------
     private final MachineTier tier;
     private final MachineInventory inputs;
     private final OutputBuffer output;
+    /** Hidden output slots behind the visible buffer (owner design, step 8); size from the tier config. */
+    private final InternalBuffer internal;
+    /** Extreme case only (see class doc): produced items that did not fit even into empty buffers. Stored first. */
+    private List<DropTally.Entry<ItemResource>> heldDrops = List.of();
     private final GrowthCycle cycle = new GrowthCycle(PLOT_GROUPS);
     private boolean enabled = true;
     private int outputFaces = RelativeSide.ALL;
@@ -110,20 +146,30 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     // Config values cached at revalidation (no config reads in the per-tick path).
     private int exportInterval;
     private int maxLootRolls;
+    private int internalSlots;
     private boolean hoeWears;
     private int hoeWearInterval;
     /** Ticks of RUNNING-with-a-needed-hoe since the hoe last lost durability (not saved: at most one interval lost). */
     private int hoeWearTicks;
 
     // --- harvest / export runtime state -----------------------------------------------------------------------------
-    private @Nullable List<DropTally.Entry<ItemResource>> pendingHarvest;
-    private @Nullable HarvestKey pendingHarvestKey;
+    /** The next batch, rolled once and kept until stored (see class doc). */
+    private @Nullable List<DropTally.Entry<ItemResource>> pendingBatch;
+    private int pendingBatchPlots;
+    private @Nullable HarvestKey pendingBatchKey;
+    /** What one plot yields with the current drop source, measured from the rolled batches; sizes the next batch. */
+    private final YieldSample yieldSample = new YieldSample();
+    private @Nullable HarvestKey yieldSampleKey;
     private boolean harvestBlocked;
     /**
-     * Set when something that may let a blocked harvest succeed has changed: the output buffer (space may have
-     * appeared) or the inputs (fewer plots, other seed...). A blocked machine retries only when this is set.
+     * Set when something that may let a blocked harvest succeed has changed: the output (space may have appeared) or
+     * the inputs (fewer plots, other seed...). A blocked machine retries only when this is set.
      */
     private boolean harvestRetryRequested;
+    /** The visible output changed: move what fits from the hidden buffer into it on the next tick. */
+    private boolean refillRequested;
+    /** True while the machine itself refills the visible output (its change callback must not ask for another one). */
+    private boolean refilling;
     private int exportCooldown;
     private int ticksSinceProgressSave;
     /** Capability caches of the 6 neighbours, by world direction ordinal; created lazily on the server. */
@@ -135,10 +181,10 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * What a rolled harvest depends on: its drop source inputs, the number of ACTIVE plots it was rolled for, and the
-     * Fertilized Essence switch (turning it off while a harvest waits must drop the essence from that harvest).
+     * What a rolled batch (and the yield sample) depends on: its drop source inputs and the Fertilized Essence switch
+     * (turning it off while a batch waits must drop the essence from that batch).
      */
-    private record HarvestKey(SourceKey source, int plots, boolean fertilizedEssence) {
+    private record HarvestKey(@Nullable SourceKey source, boolean fertilizedEssence) {
     }
 
     public FarmMatrixBlockEntity(BlockPos pos, BlockState state) {
@@ -146,6 +192,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         this.tier = state.getBlock() instanceof FarmMatrixBlock block ? block.tier() : MachineTier.STARTER;
         this.inputs = new MachineInventory(tier, this::onInputsChanged);
         this.output = new OutputBuffer(this::onOutputChanged);
+        this.internal = new InternalBuffer(this::markForSave);
     }
 
     // =================================================================================================================
@@ -158,10 +205,13 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
                 || validatedTagGeneration != SoilRules.cacheGeneration()) {
             revalidate();
         }
+        if (refillRequested) {
+            refillVisibleOutput();
+        }
 
-        if (cycle.isHarvestDue()) {
-            if (canTryHarvest()) {
-                tryHarvest(level);
+        if (hasOutputToStore()) {
+            if (canStoreOutput()) {
+                storeOutput(level);
             }
         } else if (status.isRunning()) {
             cycle.advance(progressPerTick);
@@ -178,40 +228,134 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         autoExport(level);
     }
 
+    /** Held drops, or a due harvest: the machine stores before it grows again (the bar waits at 100%). */
+    private boolean hasOutputToStore() {
+        return !heldDrops.isEmpty() || cycle.isHarvestDue();
+    }
+
     /**
-     * A due harvest is attempted when every input requirement is met (RUNNING, or OUTPUT FULL which only means "the
-     * last attempt did not fit"), and — if the last attempt failed — only once something changed that could make it
-     * succeed ({@link #harvestRetryRequested}). A full machine therefore costs nothing per tick while it waits.
+     * Held drops are stored whatever the machine's state (they were already produced). A due harvest is harvested
+     * when every input requirement is met (RUNNING, or OUTPUT FULL which only means "the last attempt did not fit").
+     * After a failed attempt, only once something changed that could make it succeed ({@link #harvestRetryRequested}),
+     * so a full machine costs nothing per tick while it waits.
      */
-    private boolean canTryHarvest() {
-        if (status != MachineStatus.RUNNING && status != MachineStatus.OUTPUT_FULL) {
+    private boolean canStoreOutput() {
+        if (heldDrops.isEmpty() && !inputsAllowHarvest()) {
             return false;
         }
         return !harvestBlocked || harvestRetryRequested;
     }
 
-    private void tryHarvest(ServerLevel level) {
+    private boolean inputsAllowHarvest() {
+        return status == MachineStatus.RUNNING || status == MachineStatus.OUTPUT_FULL;
+    }
+
+    /**
+     * One storing step: held drops first, then at most one harvest batch; completes the cycle once every plot is
+     * harvested and stored. Sets {@link #harvestBlocked} (OUTPUT FULL) when something is left waiting for space.
+     */
+    private void storeOutput(ServerLevel level) {
         harvestRetryRequested = false;
-        HarvestKey key = new HarvestKey(dropSourceKey, cycle.activePlots(), fertilizedEssence);
-        if (pendingHarvest == null || !key.equals(pendingHarvestKey)) {
-            pendingHarvest = dropSource == null
+        boolean blocked = false;
+        if (!heldDrops.isEmpty()) {
+            heldDrops = Harvester.storeWhatFits(heldDrops, fillTargets());
+            markForSave();
+            blocked = !heldDrops.isEmpty();
+        }
+        if (!blocked && cycle.plotsToHarvest() > 0 && inputsAllowHarvest()) {
+            blocked = !harvestNextBatch(level) || !heldDrops.isEmpty();
+        }
+        if (cycle.isHarvestDue() && cycle.plotsToHarvest() == 0 && heldDrops.isEmpty()) {
+            cycle.completeHarvest(); // every plot of the cycle harvested AND stored: the bar starts again
+            markForSave();
+        }
+        harvestBlocked = blocked;
+        updateStatus();
+    }
+
+    /**
+     * Rolls the next batch (once, see class doc) and stores it all-or-nothing. Its plots count as harvested only after
+     * a committed store.
+     *
+     * @return true when the batch was stored (or, in the extreme case, stored in part with the rest held — the caller
+     *         then sees the held drops); false when it does not fit yet: the batch is kept and the ripe plots wait
+     */
+    private boolean harvestNextBatch(ServerLevel level) {
+        int plotsLeft = cycle.plotsToHarvest(0);
+        HarvestKey key = new HarvestKey(dropSourceKey, fertilizedEssence);
+        if (!key.equals(yieldSampleKey)) {
+            yieldSample.reset(); // other seed/soil/config/tags/switch: the old measurements say nothing
+            yieldSampleKey = key;
+        }
+        if (pendingBatch == null || !key.equals(pendingBatchKey) || pendingBatchPlots > plotsLeft) {
+            int plots = HarvestBatching.batchSize(plotsLeft, freeOutputSlots(), yieldSample);
+            pendingBatch = dropSource == null
                     ? List.of()
-                    : Harvester.roll(dropSource, cycle.activePlots(), tier,
+                    : Harvester.roll(dropSource, plots, tier,
                             new DropSource.Context(level, worldPosition, level.getRandom(), maxLootRolls,
                                     fertilizedEssence));
-            pendingHarvestKey = key;
+            pendingBatchPlots = plots;
+            pendingBatchKey = key;
+            yieldSample.record(plots, Harvester.slotsFilled(pendingBatch), pendingBatch.size());
         }
 
-        if (Harvester.tryStore(pendingHarvest, output)) {
-            cycle.completeHarvest(); // only after a committed store: a harvest is produced exactly once
-            pendingHarvest = null;
-            pendingHarvestKey = null;
-            harvestBlocked = false;
-            markForSave();
-        } else {
-            harvestBlocked = true;
+        List<ResourceHandler<ItemResource>> targets = fillTargets();
+        if (!Harvester.tryStore(pendingBatch, targets)) {
+            if (Harvester.slotsNeeded(pendingBatch) <= totalOutputSlots()) {
+                return false; // fits once space frees up: keep this roll and wait (OUTPUT FULL)
+            }
+            // Extreme case (owner: hold it): not even empty buffers could take this batch. Store what fits now and
+            // hold the rest; it is stored before anything else and blocks the cycle until then.
+            heldDrops = Harvester.storeWhatFits(pendingBatch, targets);
         }
-        updateStatus();
+        cycle.harvestPlots(0, pendingBatchPlots); // only after a committed store: a plot is harvested exactly once
+        pendingBatch = null;
+        pendingBatchKey = null;
+        markForSave();
+        return true;
+    }
+
+    /** Where harvests go, in order: the visible buffer, then the usable hidden slots (owner design). */
+    private List<ResourceHandler<ItemResource>> fillTargets() {
+        return List.of(output, internal.fillView());
+    }
+
+    /** Empty slots a harvest could use right now (partly filled stacks are not counted). */
+    private int freeOutputSlots() {
+        int empty = internal.emptyUsableSlots();
+        for (int i = 0; i < output.size(); i++) {
+            if (output.getAmountAsLong(i) == 0) {
+                empty++;
+            }
+        }
+        return empty;
+    }
+
+    /** Every slot a harvest may fill, visible and hidden. */
+    private int totalOutputSlots() {
+        return output.size() + internal.usableSlots();
+    }
+
+    /**
+     * Moves what fits from the hidden buffer into the visible one (owner design: the hidden slots unload into the
+     * visible slots as those empty). Runs on the tick after the visible buffer changed; one NeoForge transaction.
+     */
+    private void refillVisibleOutput() {
+        refillRequested = false;
+        if (internal.isEmpty()) {
+            return;
+        }
+        int moved;
+        refilling = true;
+        try {
+            moved = ResourceHandlerUtil.moveStacking(internal, output, resource -> true, Integer.MAX_VALUE, null);
+        } finally {
+            refilling = false;
+        }
+        if (moved > 0) {
+            harvestRetryRequested = true;              // room appeared in the hidden buffer
+            internal.setUsableSlots(internalSlots);    // drops slots beyond a lowered config once they are empty
+        }
     }
 
     /**
@@ -274,6 +418,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         maxLootRolls = VfwServerConfig.MAX_LOOT_ROLLS_PER_HARVEST.get();
         hoeWears = VfwServerConfig.HOE_CONSUMES_DURABILITY.get();
         hoeWearInterval = VfwServerConfig.HOE_WEAR_INTERVAL_TICKS.get();
+        internalSlots = settings.internalBufferSlots.get();
+        internal.setUsableSlots(internalSlots); // a lowered value never deletes items, see InternalBuffer
+        refillRequested = true;                 // a raised or lowered size may change what can move
 
         // Drop source: rebuilt only when what it depends on changed (not for upgrade changes).
         SourceKey sourceKey = new SourceKey(seedItem, soil.isEmpty() ? null : soil.getItem(),
@@ -286,13 +433,17 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             dropSourceKey = sourceKey;
         }
 
-        // Harvest bookkeeping. No harvest due any more (e.g. every seed removed at 100%): nothing is blocked. Still
-        // due but blocked: the inputs changed, so the (possibly smaller or different) harvest deserves a retry.
+        // Harvest bookkeeping. No harvest due any more (e.g. every seed removed at 100%): no batch to keep, and nothing
+        // blocked unless held drops still wait. Still blocked: the inputs changed, so the (possibly smaller or
+        // different) batch deserves a retry.
         if (!cycle.isHarvestDue()) {
-            harvestBlocked = false;
-            pendingHarvest = null;
-            pendingHarvestKey = null;
-        } else if (harvestBlocked) {
+            pendingBatch = null;
+            pendingBatchKey = null;
+            if (heldDrops.isEmpty()) {
+                harvestBlocked = false;
+            }
+        }
+        if (harvestBlocked) {
             harvestRetryRequested = true;
         }
 
@@ -374,6 +525,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     private void onOutputChanged() {
         harvestRetryRequested = true;
+        if (!refilling) {
+            refillRequested = true; // room may have appeared for the hidden buffer's items
+        }
         markForSave();
     }
 
@@ -394,9 +548,14 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         // Persisted format: keep these keys stable.
         inputs.serialize(out.child("inputs"));
         output.serialize(out.child("output"));
+        internal.serialize(out.child("internal_output"));
+        if (!heldDrops.isEmpty()) {
+            out.store("held_drops", HELD_DROPS_CODEC, heldDrops);
+        }
         out.putDouble("progress", cycle.progress());
         out.putIntArray("active", cycle.activeCounts());
         out.putIntArray("pending", cycle.pendingCounts());
+        out.putIntArray("harvested", cycle.harvestedCounts());
         out.putBoolean("enabled", enabled);
         out.putInt("output_faces", outputFaces);
         out.putBoolean("fertilized_essence", fertilizedEssence);
@@ -409,23 +568,29 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         inputs.ensureMinimumSize();
         in.child("output").ifPresent(output::deserialize);
         output.ensureMinimumSize();
+        in.child("internal_output").ifPresent(internal::deserialize);
+        heldDrops = in.read("held_drops", HELD_DROPS_CODEC).map(List::copyOf).orElse(List.of());
+        // "harvested" is missing in saves from before batched harvests: nothing was harvested yet, 0 is right.
         cycle.load(in.getDoubleOr("progress", 0.0), in.getIntArray("active").orElse(new int[0]),
-                in.getIntArray("pending").orElse(new int[0]));
+                in.getIntArray("pending").orElse(new int[0]), in.getIntArray("harvested").orElse(new int[0]));
         enabled = in.getBooleanOr("enabled", true);
         outputFaces = in.getIntOr("output_faces", RelativeSide.ALL) & RelativeSide.ALL;
         fertilizedEssence = in.getBooleanOr("fertilized_essence", true);
-        // Everything derived is rebuilt on the next tick; a harvest that was blocked is simply retried.
+        // Everything derived is rebuilt on the next tick; a batch that was blocked is simply rolled again.
         inputsDirty = true;
         plantedSeed = null;
-        pendingHarvest = null;
-        pendingHarvestKey = null;
+        pendingBatch = null;
+        pendingBatchKey = null;
+        yieldSample.reset();
+        yieldSampleKey = null;
         harvestBlocked = false;
         harvestRetryRequested = false;
     }
 
     /**
-     * The block is being removed (broken, replaced): drop every stored item — inputs and output buffer — so nothing is
-     * lost. A rolled but unstored harvest is not dropped: it was never produced.
+     * The block is being removed (broken, replaced): drop the inputs and the 9 visible output slots. The hidden
+     * output slots, held drops and ripe plots are deleted (owner rule, step 8). A rolled but unstored batch was never
+     * produced.
      */
     @Override
     public void preRemoveSideEffects(BlockPos pos, BlockState state) {
@@ -478,9 +643,24 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         return output;
     }
 
-    /** Capability exposed on every face: extract-only view of the output buffer. */
+    /** Capability exposed on every face: extract-only view of the VISIBLE output buffer (the hidden one is private). */
     public ResourceHandler<ItemResource> externalOutput() {
         return output.externalView();
+    }
+
+    /** The hidden output slots. For game tests and debugging only: nothing outside the machine may use them. */
+    public InternalBuffer internalOutput() {
+        return internal;
+    }
+
+    /** Items held in the extreme case (see class doc); empty in normal play. Read-only. */
+    public List<DropTally.Entry<ItemResource>> heldDrops() {
+        return heldDrops;
+    }
+
+    /** Ripe plots of the due harvest still waiting on the plant (0 while growing). */
+    public int plotsToHarvest() {
+        return cycle.plotsToHarvest();
     }
 
     public MachineStatus status() {
@@ -547,7 +727,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * Fertilized Essence switch. Server side only. A harvest already rolled and waiting (OUTPUT FULL) is re-rolled with
+     * Fertilized Essence switch. Server side only. A batch already rolled and waiting (OUTPUT FULL) is re-rolled with
      * the new setting because the switch is part of {@link HarvestKey}; asking for a retry makes that happen at once.
      */
     public void toggleFertilizedEssence() {

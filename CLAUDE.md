@@ -277,21 +277,26 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Provider (+ recipe-book unlocks); Fertilized Essence switch per machine (persisted, button id 7, part of the
   pending-harvest key, `DropSource.Context#fertilizedEssence`); right-click with an upgrade pulls it in
   (`FarmMatrixBlock#useItemOn` -> `FarmMatrixBlockEntity#insertUpgradesFrom`, falls through to the GUI when nothing
-  fits); title y 8, seeds line y 77.
+  fits); info lines y 57/66/76/86 (status, hydration, seeds, growth), title y 8.
   JEI: `client/compat/VfwJeiPlugin` (exclusion areas from `FarmMatrixScreen#extraAreas`). Jade: `compat/jade/`
   (server data provider + client tooltip, same lines as the GUI via `menu/DisplayFormats`; plugin load confirmed in
   the game-test log). Both compileOnly (maven.blamejared.com, Modrinth maven). EMI: no 26.1.2 release exists yet —
   add an exclusion-area plugin when it does.
   MA effective farmland: VFW switch `mysticalagriculture.requiresEffectiveFarmland` (default off, see the MA findings
   above). Owner corrections: 3 px between the two ON/OFF boxes (not 5; all side boxes are now 3 px apart), and the
-  Fertilized Essence tooltip reads "Drops Fertilized Essence: ON/OFF". 18 game tests (17 VFW + 1 vanilla), 47 JUnit.
+  Fertilized Essence tooltip reads "Drops Fertilized Essence: ON/OFF".
   Owner verified by hand: editing the config with the game open affects machines at once, and the dedicated server
   works (no automated reload test needed). Deferred by the owner: EMI, publishing metadata.
-  Still to do: load benchmark.
-  KNOWN BUG (under discussion, do not fix without the owner's go-ahead): a harvest is stored all-or-nothing, so a
-  harvest bigger than the whole 9-slot buffer (e.g. high production multipliers, future tiers with thousands of
-  plots) never fits, even in an empty buffer: permanent OUTPUT FULL. Owner rejects a big hidden overflow inventory.
+  Output deadlock FIXED (owner's overclock report): a whole harvest was stored all-or-nothing, so one bigger than the
+  9-slot buffer never fit, even when empty. Owner's design (rejected a big hidden inventory, then chose this middle
+  ground): visible 9 slots -> hidden `machine/InternalBuffer` (config `machines.<tier>.internalBufferSlots`, Starter
+  27, refills the visible slots, invisible to GUI and capabilities, DELETED on break) -> ripe plots wait on the plant
+  (`GrowthCycle#plotsToHarvest`, harvested counter saved). Batches sized by `sim/HarvestBatching` + `sim/YieldSample`,
+  each rolled once and stored all-or-nothing; extreme case (one batch bigger than empty buffers) stores what fits and
+  keeps the rest in `heldDrops` (saved, stored first, owner-approved). No GUI/Jade indicator (owner). Details: spec,
+  section "Output". 21 game tests (20 VFW + 1 vanilla), 63 JUnit.
   Also decided: the machine does not imitate natural growth times; config comments must not promise a "physical farm".
+  Still to do: load benchmark (after this fix, since it changed the harvest code the benchmark measures).
   Dev tip: the owner often has `runClient` open on the same `run/` folder. An old build running there reverts new
   config keys (its file watcher "corrects" the shared TOML), and both processes write `run/logs/latest.log`.
 
@@ -314,24 +319,31 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 - MAIN vs SECONDARY: planting-item surplus is SECONDARY only if the planting item is in `#c:seeds`; items in
   `#virtualfarmworks:harvest_byproducts` are SECONDARY; the rest is MAIN. MAIN x global x tier production multiplier,
   SECONDARY x `secondaryDropMultiplier`; `DropTally.finish` rounds stochastically (expected value exact).
-- Implemented in `FarmMatrixBlockEntity` (keep it this way): roll once when the harvest becomes due, keep the rolled
-  drops in memory (`pendingHarvest` + `HarvestKey`) and retry only `tryStore` when the buffer or inputs change (no
-  re-rolling per retry: cost + bias). `GrowthCycle#completeHarvest()` only after `tryStore` returned true, in the same
-  call. Hoe durability (config `hoe.consumeDurability`, off by default) wears over TIME (owner decision): 1 point
-  every `hoe.wearIntervalTicks` of RUNNING while the soil needs the hoe — not per harvest.
-- A harvest is usually several item types (wheat + seeds): OUTPUT FULL can persist with free slots if not ALL types
-  fit. That is correct all-or-nothing behavior (a game test checks it).
-- Never call `tryStore` inside another transaction (it refuses): a rolled-back outer transaction would void a harvest
-  whose cycle was already completed.
+- Implemented in `FarmMatrixBlockEntity` (keep it this way): a due cycle is harvested in batches (usually one). Each
+  batch is rolled once and kept in memory (`pendingBatch` + `HarvestKey`); only `tryStore` is retried when the output
+  or inputs change (no re-rolling per retry: cost + bias). `GrowthCycle#harvestPlots` only after `tryStore` returned
+  true (or the extreme-case partial store), `completeHarvest()` only when no plot is left and `heldDrops` is empty.
+  Never discard a rolled batch because it did not fit (that would bias yields down). Hoe durability (config
+  `hoe.consumeDurability`, off by default) wears over TIME (owner decision): 1 point every `hoe.wearIntervalTicks` of
+  RUNNING while the soil needs the hoe — not per harvest.
+- Fill order: visible `OutputBuffer` first, then `InternalBuffer#fillView` (usable hidden slots); the hidden buffer
+  refills the visible one on the tick after the visible one changed (`refillVisibleOutput`). A batch is several item
+  types (wheat + seeds): it can wait with free slots if not ALL of it fits (all-or-nothing per batch).
+- Never call `tryStore`/`storeWhatFits` inside another transaction (they refuse): a rolled-back outer transaction
+  would void a batch whose plots were already counted.
+- Game tests that change the config must restore it in the SAME tick (call `serverTick` directly in a loop, see
+  `MachineGameTests#bigHarvestDoesNotDeadlock`): tests of one batch run at the same time and would see the change.
 
 ## Simulation rules — quick reference (`sim/GrowthCycle`)
 
-- Machine tick (step 6): if status RUNNING and harvest not due -> `advance(progressPerTick)`; if due -> try the
-  transactional harvest of `activePlots()` plots; on success `completeHarvest()`, on failure OUTPUT FULL (bar frozen at
-  100%, retried only when the output buffer changes).
+- Machine tick: if status RUNNING and nothing to store -> `advance(progressPerTick)`; if due -> store held drops,
+  then one batch of `plotsToHarvest()`; when none is left, `completeHarvest()`; on failure OUTPUT FULL (bar frozen at
+  100%, retried only when the output or inputs change).
 - `setPlots(group, min(seeds, soils), plantChanged)` on every slot change: new plots are PENDING unless the machine
-  is empty (then ACTIVE at 0%); removal takes PENDING first; an empty machine resets progress; plant change uproots.
-- Persist `progress`, `activeCounts()`, `pendingCounts()`; restore with `load(...)` (repairs corrupted data).
+  is empty (then ACTIVE at 0%); removal takes PENDING first, then already-harvested ACTIVE plots, then ripe ones; an
+  empty machine resets progress; plant change uproots.
+- Persist `progress`, `activeCounts()`, `pendingCounts()`, `harvestedCounts()`; restore with `load(...)` (repairs
+  corrupted data; saves without "harvested" load as nothing harvested).
 
 ## Plant/soil rules — quick reference
 
@@ -352,8 +364,9 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 
 - `src/main/java/com/virtualfarmworks/` — mod code (main class `VirtualFarmWorks`, only wires registries).
   - `machine/MachineTier` — tier enum; order = progression; `accepts()` implements the upgrade compatibility gate.
-  - `machine/FarmMatrixBlockEntity` — the running machine; `MachineInventory`, `OutputBuffer`, `MachineSlots` (slot
-    indices, persisted — never reorder), `RelativeSide` (faces relative to the front; bit order persisted).
+  - `machine/FarmMatrixBlockEntity` — the running machine; `MachineInventory`, `OutputBuffer` (9 visible slots),
+    `InternalBuffer` (hidden output slots), `MachineSlots` (slot indices, persisted — never reorder), `RelativeSide`
+    (faces relative to the front; bit order persisted).
   - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
   - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`. Items carry no behavior.
   - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
@@ -369,7 +382,7 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
     `MysticalCompatImpl` (MA API calls, only loaded when MA is present). MA is `compileOnly` from maven.blakesmods.com.
   - `gametest/` — `VfwGameTests` (dev only). Run `gradlew runGameTestServer`; exit code 0 = all passed.
   - `sim/` — Minecraft-free simulation core: `GrowthCycle`, `PlotGroup`, `GrowthSpeed`, `MachineStatus`,
-    `MachineConditions`, `HarvestMath`, `DropTally`.
+    `MachineConditions`, `HarvestMath`, `DropTally`, `HarvestBatching` + `YieldSample` (batch sizes).
   - `harvest/` — `DropSource`, `LootDropSource`, `HarvestPlans`, `Harvester` (drops + transactional storage).
   - `gametest/MysticalHarvestTests` — MA-only game test (references MA classes; called only when MA is loaded).
   - `gametest/MachineGameTests` — tests on a placed machine. Register new tests in `VfwGameTests.TESTS` with a

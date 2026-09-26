@@ -66,10 +66,12 @@ public final class VfwServerConfig {
         public final ModConfigSpec.IntValue growthTicks;
         public final ModConfigSpec.DoubleValue noWaterSpeedMultiplier;
         public final ModConfigSpec.DoubleValue productionMultiplier;
+        public final ModConfigSpec.IntValue internalBufferSlots;
         public final ModConfigSpec.ConfigValue<List<? extends String>> seedBlacklist;
         public final ModConfigSpec.ConfigValue<List<? extends String>> soilBlacklist;
 
-        private MachineSettings(ModConfigSpec.Builder b, MachineTier tier, int defaultGrowthTicks) {
+        private MachineSettings(ModConfigSpec.Builder b, MachineTier tier, int defaultGrowthTicks,
+                                int defaultInternalBufferSlots) {
             b.push(tier.getSerializedName());
             growthTicks = b
                     .comment("Ticks for one full growth cycle at 1.0x speed (Water Provider installed, no Growth Speed",
@@ -86,6 +88,14 @@ public final class VfwServerConfig {
                     .comment("Yield multiplier for this tier (multiplied with the global one). Independent from speed:",
                             "changes how much each harvest produces, not how often it happens.")
                     .defineInRange("productionMultiplier", 1.0, 0.0, 1000.0);
+            // Owner design (step 8): a hidden buffer behind the 9 visible output slots, deleted when the machine breaks.
+            internalBufferSlots = b
+                    .comment("Hidden output slots behind the 9 visible ones. Harvests fill the visible slots first,",
+                            "then these; they refill the visible slots as those empty. Players and pipes cannot see or",
+                            "reach them, and their contents are DELETED when the machine is broken (only the 9 visible",
+                            "slots drop). When both are full, ripe plots simply wait to be harvested: nothing is lost.",
+                            "0 = no hidden slots.")
+                    .defineInRange("internalBufferSlots", defaultInternalBufferSlots, 0, 256);
             seedBlacklist = b
                     .comment("Seeds/plantables that this tier refuses, on top of the global blacklist.",
                             "Entries: \"modid:item\", \"modid:*\" (whole mod) or \"#namespace:tag\" (item tag).",
@@ -215,8 +225,9 @@ public final class VfwServerConfig {
 
         b.comment("Per-tier machine settings").push("machines");
         Map<MachineTier, MachineSettings> machines = new EnumMap<>(MachineTier.class);
-        // Starter: 30 s per cycle (owner decision). Add other tiers here when their specs arrive.
-        machines.put(MachineTier.STARTER, new MachineSettings(b, MachineTier.STARTER, 600));
+        // Starter: 30 s per cycle and 27 hidden output slots (owner decisions). Add other tiers here when their specs
+        // arrive.
+        machines.put(MachineTier.STARTER, new MachineSettings(b, MachineTier.STARTER, 600, 27));
         MACHINES = Map.copyOf(machines);
         b.pop();
 

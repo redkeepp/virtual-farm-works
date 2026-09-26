@@ -23,6 +23,7 @@ Implemented in milestone 1 step 2. Server config file: `config/virtualfarmworks-
 | Harvest cost on huge machines | Max loot-table evaluations per harvest (sampled and scaled, expected yield exact) | `performance.maxLootRollsPerHarvest` |
 | Multiplier without Water Provider, per tier | Server config per tier (default 0.25) | `machines.<tier>.noWaterSpeedMultiplier` |
 | Auto-output interval or disable | Server config (default 20, 0 = off) | `output.autoExportIntervalTicks` |
+| Hidden output slots behind the 9 visible ones, per tier (Starter 27; deleted when the machine breaks) | Server config per tier (0..256, 0 = none) | `machines.<tier>.internalBufferSlots` |
 | Secondary drops multiplier (extra seeds, Fertilized Essence, by-products) | Server config (default 1.0) | `drops.secondaryDropMultiplier` |
 | Global and per-tier production (yield) multiplier | Server config | `drops.productionMultiplier`, `machines.<tier>.productionMultiplier` |
 | Growth Speed Upgrade bonus (default +50% each) | Server config | `growth.bonusPerUpgrade` |

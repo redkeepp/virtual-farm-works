@@ -1,6 +1,7 @@
 /*
- * GrowthCycle — the single global growth cycle of a Farm Matrix: progress bar, plot groups (ACTIVE/PENDING counters)
- * and the anti-exploit rules. Part of the Minecraft-free simulation core (package sim), unit-tested in src/test/java.
+ * GrowthCycle — the single global growth cycle of a Farm Matrix: progress bar, plot groups (ACTIVE/PENDING counters),
+ * batched harvests and the anti-exploit rules. Part of the Minecraft-free simulation core (package sim), unit-tested in
+ * src/test/java.
  */
 package com.virtualfarmworks.sim;
 
@@ -17,6 +18,9 @@ import java.util.Arrays;
  *   <li>Plots live in {@link PlotGroup}s that only count ACTIVE and PENDING plots.</li>
  *   <li>At 100%: ACTIVE plots are harvested (by the machine, see {@link #completeHarvest()}), PENDING plots only become
  *       ACTIVE, and the bar starts again.</li>
+ *   <li>Batched harvests (owner design, step 8): when the output cannot take the whole harvest, the machine harvests
+ *       it in parts ({@link #harvestPlots}); the other ripe plots wait on the plant ({@link #plotsToHarvest()}) and the
+ *       bar stays at 100% until the machine completes the cycle.</li>
  * </ul>
  *
  * <h2>Performance</h2>
@@ -86,9 +90,40 @@ public final class GrowthCycle {
     }
 
     /**
-     * Closes the cycle AFTER the machine has successfully stored the harvest of {@link #activePlots()} plots (the
-     * harvest itself is transactional and happens outside this class). PENDING plots become ACTIVE and the bar
-     * restarts, keeping the small overshoot (see {@link #MAX_CARRY}).
+     * ACTIVE plots of the due harvest that are not harvested yet (the ripe plots waiting for output space); 0 while no
+     * harvest is due.
+     */
+    public int plotsToHarvest() {
+        if (!isHarvestDue()) {
+            return 0;
+        }
+        int sum = 0;
+        for (PlotGroup group : groups) {
+            sum += group.unharvested();
+        }
+        return sum;
+    }
+
+    /** Same as {@link #plotsToHarvest()}, for one group. */
+    public int plotsToHarvest(int groupIndex) {
+        return isHarvestDue() ? groups[groupIndex].unharvested() : 0;
+    }
+
+    /**
+     * Records that the machine stored the harvest of {@code count} more plots of a group (one batch, see the class
+     * doc). Ignored while no harvest is due; never counts more plots than are left. The cycle does NOT complete here:
+     * the machine calls {@link #completeHarvest()} once nothing is left to harvest or to store.
+     */
+    public void harvestPlots(int groupIndex, int count) {
+        if (isHarvestDue()) {
+            groups[groupIndex].harvest(count);
+        }
+    }
+
+    /**
+     * Closes the cycle AFTER the machine has successfully stored the harvest of every ACTIVE plot, in one go or in
+     * batches (the harvest itself is transactional and happens outside this class). PENDING plots become ACTIVE, the
+     * harvested counters reset and the bar restarts, keeping the small overshoot (see {@link #MAX_CARRY}).
      *
      * @return false (and changes nothing) when no harvest was due — protects against double completion.
      */
@@ -136,14 +171,21 @@ public final class GrowthCycle {
         normalize();
     }
 
+    /** {@link #load(double, int[], int[], int[])} with nothing harvested yet (saves from before batched harvests). */
+    public void load(double savedProgress, int[] active, int[] pending) {
+        load(savedProgress, active, pending, new int[0]);
+    }
+
     /**
      * Restores saved state (NBT). Corrupted values are repaired instead of crashing: negative counts become 0, a
-     * non-finite progress becomes 0, progress is clamped to {@code 0..1}. Arrays shorter than the group count leave the
-     * missing groups empty (e.g. a machine saved by an older version with fewer groups).
+     * non-finite progress becomes 0, progress is clamped to {@code 0..1}, harvested never exceeds active. Arrays
+     * shorter than the group count leave the missing groups empty (e.g. a machine saved by an older version with fewer
+     * groups).
      */
-    public void load(double savedProgress, int[] active, int[] pending) {
+    public void load(double savedProgress, int[] active, int[] pending, int[] harvested) {
         for (int i = 0; i < groups.length; i++) {
-            groups[i].set(i < active.length ? active[i] : 0, i < pending.length ? pending[i] : 0);
+            groups[i].set(i < active.length ? active[i] : 0, i < pending.length ? pending[i] : 0,
+                    i < harvested.length ? harvested[i] : 0);
         }
         progress = Double.isFinite(savedProgress) ? Math.clamp(savedProgress, 0.0, 1.0) : 0.0;
         normalize();
@@ -193,6 +235,10 @@ public final class GrowthCycle {
 
     public int[] pendingCounts() {
         return Arrays.stream(groups).mapToInt(PlotGroup::pending).toArray();
+    }
+
+    public int[] harvestedCounts() {
+        return Arrays.stream(groups).mapToInt(PlotGroup::harvested).toArray();
     }
 
     // --- internals --------------------------------------------------------------------------------------------------

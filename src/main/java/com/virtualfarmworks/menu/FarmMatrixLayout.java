@@ -45,12 +45,12 @@ public final class FarmMatrixLayout {
 
     /**
      * Info lines inside the info panel (frame (7,53)-(168,106), interior x 8..167). Owner-tuned positions: x = 11,
-     * and one y per line — status 58, hydration 67, seeds 76, growth 86 (uneven on purpose, owner's choice).
+     * and one y per line — status 57, hydration 66, seeds 76, growth 86 (uneven on purpose, owner's choice).
      * {@link #INFO_WIDTH} is the room up to x 166; longer texts (translations) are scaled down to fit.
      */
     public static final int INFO_X = 11;
-    /** Owner-tuned: status 58, hydration 67, seeds 77, growth 86. */
-    public static final int[] INFO_LINE_Y = {58, 67, 77, 86};
+    /** Owner-tuned (step 8: status, hydration and seeds moved up 1 px; growth unchanged). */
+    public static final int[] INFO_LINE_Y = {57, 66, 76, 86};
     public static final int INFO_WIDTH = 156;
 
     /** Owner-tuned (moved up 1 px after the second in-game review). */

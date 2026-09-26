@@ -83,7 +83,11 @@ public final class VfwGameTests {
             // finishing touches (step 8)
             test("machine_inserts_upgrades_from_hand", MachineGameTests::insertsUpgradesFromHand, 20),
             test("recipes_are_loaded", MachineGameTests::recipesAreLoaded, 20),
-            test("mystical_effective_farmland", VfwGameTests::mysticalEffectiveFarmland, 20));
+            test("mystical_effective_farmland", VfwGameTests::mysticalEffectiveFarmland, 20),
+            // output: hidden slots and batched harvests (step 8, owner's deadlock report)
+            test("machine_big_harvest_does_not_deadlock", MachineGameTests::bigHarvestDoesNotDeadlock, 20),
+            test("machine_extreme_harvest_holds_the_rest", MachineGameTests::extremeHarvestHoldsTheRest, 20),
+            test("machine_hidden_slots_refill_visible", MachineGameTests::hiddenSlotsRefillTheVisibleOnes, 20));
 
     private VfwGameTests() {
     }

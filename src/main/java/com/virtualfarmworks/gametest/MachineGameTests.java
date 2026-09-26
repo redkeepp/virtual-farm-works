@@ -1,11 +1,13 @@
 /*
  * MachineGameTests — game tests of the placed Farm Matrix: a full growth cycle into the buffer, status reporting,
- * OUTPUT FULL holding the harvest, save/load, auto-export per face, contents dropped on break, slot rules, and the
- * server side of the GUI menu (buttons, shift-click, output slots, synced data).
+ * OUTPUT FULL holding the harvest, batched harvests bigger than the output, the hidden output slots, save/load,
+ * auto-export per face, what drops on break, slot rules, and the server side of the GUI menu (buttons, shift-click,
+ * output slots, synced data).
  */
 package com.virtualfarmworks.gametest;
 
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
+import com.virtualfarmworks.config.VfwServerConfig;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineInventory;
 import com.virtualfarmworks.machine.MachineSlots;
@@ -15,6 +17,7 @@ import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModItems;
+import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.MachineStatus;
 
 import net.minecraft.core.BlockPos;
@@ -23,6 +26,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.crafting.Recipe;
@@ -40,7 +44,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.item.ItemResource;
+import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 import net.neoforged.neoforge.transfer.transaction.Transaction;
 
 /**
@@ -116,8 +122,9 @@ final class MachineGameTests {
     }
 
     /**
-     * A due harvest that does not fit waits at 100% with OUTPUT FULL and nothing is lost or partially stored; as soon
-     * as there is room for all of it, the same harvest is stored.
+     * Visible AND hidden output slots full: the due harvest waits at 100% with OUTPUT FULL, all ripe plots stay on the
+     * plant and nothing is stored. Once the hidden slots have room, the harvest goes there (the visible slots are still
+     * full), in one or more batches, and the cycle completes with exactly one wheat per plot.
      */
     static void outputFullHoldsTheHarvest(GameTestHelper helper) {
         FarmMatrixBlockEntity machine = placeMachine(helper);
@@ -125,31 +132,167 @@ final class MachineGameTests {
         put(inputs, MachineSlots.SEED, Items.WHEAT_SEEDS, 10);
         put(inputs, MachineSlots.SOIL, Items.FARMLAND, 10);
         put(inputs, MachineSlots.WATER_PROVIDER, ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.STARTER).get(), 1);
-        for (int i = 0; i < MachineSlots.OUTPUT_COUNT; i++) {
-            machine.output().set(i, ItemResource.of(Items.DIRT), 64);
-        }
-        disableAllOutputs(machine); // keep the dirt in the buffer
-        machine.revalidate();
+        disableAllOutputs(machine); // keep the dirt in the buffers
+        machine.revalidate();       // also sizes the hidden slots from the config (27 on the Starter)
+        fill(machine.output(), Items.DIRT);
+        fill(machine.internalOutput(), Items.DIRT);
         machine.setProgressForTesting(1.0);
 
         helper.runAfterDelay(5, () -> {
             check(helper, machine.status() == MachineStatus.OUTPUT_FULL, "expected OUTPUT_FULL, got " + machine.status());
             check(helper, machine.progress() >= 0.999, "the bar must stay at 100% while blocked");
-            check(helper, count(machine, Items.WHEAT) == 0, "a blocked harvest must not store anything");
-            // Free ONE slot first: a wheat harvest is two item types (wheat + extra seeds), so it still must not fit,
-            // and nothing may be stored partially.
-            machine.output().set(0, ItemResource.EMPTY, 0);
-        });
-        helper.runAfterDelay(10, () -> {
-            check(helper, machine.status() == MachineStatus.OUTPUT_FULL, "one free slot is not enough for 2 item types");
-            check(helper, count(machine, Items.WHEAT) == 0, "no partial storage: wheat alone must not be stored");
-            machine.output().set(1, ItemResource.EMPTY, 0); // now wheat and seeds both have room
+            check(helper, machine.plotsToHarvest() == 10, "every ripe plot must wait, got " + machine.plotsToHarvest());
+            check(helper, wheatIn(machine) == 0, "a blocked harvest must not store anything");
+            // Empty the hidden slots. In play only the machine changes them (and asks itself for a retry when it
+            // does), so the test asks for the retry through revalidate().
+            clear(machine.internalOutput());
+            machine.revalidate();
         });
         helper.succeedWhen(() -> {
-            check(helper, count(machine, Items.WHEAT) == 10, "harvest must be stored once space appears");
+            check(helper, countIn(machine.internalOutput(), Items.WHEAT) == 10,
+                    "the harvest must go to the hidden slots, have " + countIn(machine.internalOutput(), Items.WHEAT));
+            check(helper, count(machine, Items.WHEAT) == 0, "the visible slots were full of dirt");
             check(helper, machine.progress() < 0.5, "cycle must complete after storing");
             check(helper, machine.status() == MachineStatus.RUNNING, "expected RUNNING again");
         });
+    }
+
+    /**
+     * The owner's bug (step 8): a harvest bigger than every output slot (64 plots x 50 wheat = 3,200 wheat = 50 slots,
+     * 36 exist) used to deadlock at OUTPUT FULL with an EMPTY buffer. Now batches fill the visible then the hidden
+     * slots, the other ripe plots wait on the plant, a save/load in the middle keeps that state, and draining the
+     * visible slots like a pipe lets the harvest finish with exactly 3,200 wheat.
+     *
+     * <p>Runs synchronously ({@code serverTick} called directly), so the raised multiplier is restored before any other
+     * test runs; config changes that last across ticks would leak into tests running at the same time.
+     */
+    static void bigHarvestDoesNotDeadlock(GameTestHelper helper) {
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        MachineInventory inputs = machine.inputs();
+        put(inputs, MachineSlots.SEED, Items.WHEAT_SEEDS, 64);
+        put(inputs, MachineSlots.SOIL, Items.FARMLAND, 64);
+        put(inputs, MachineSlots.WATER_PROVIDER, ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.STARTER).get(), 1);
+        disableAllOutputs(machine);
+        machine.revalidate();
+        machine.setProgressForTesting(1.0);
+        ServerLevel level = helper.getLevel();
+
+        var multiplier = VfwServerConfig.GLOBAL_PRODUCTION_MULTIPLIER;
+        double original = multiplier.get();
+        multiplier.set(50.0); // in memory only: nothing written to disk, no reload event
+        try {
+            for (int tick = 0; tick < 40; tick++) {
+                machine.serverTick(level);
+            }
+            int waiting = machine.plotsToHarvest();
+            long stored = wheatIn(machine);
+            check(helper, machine.status() == MachineStatus.OUTPUT_FULL, "expected OUTPUT_FULL, got " + machine.status());
+            check(helper, waiting > 0, "with 36 slots for 50 slots of wheat, some ripe plots must wait");
+            check(helper, emptySlots(machine.output()) == 0, "the visible slots fill first");
+            check(helper, stored == 50L * (64 - waiting), "exactly 50 wheat per harvested plot: " + stored
+                    + " wheat for " + (64 - waiting) + " plots");
+            check(helper, machine.heldDrops().isEmpty(), "no plot is bigger than the output here");
+
+            FarmMatrixBlockEntity loaded = roundTrip(helper, machine);
+            check(helper, loaded.plotsToHarvest() == waiting, "ripe plots lost or duplicated by a save: "
+                    + loaded.plotsToHarvest() + " vs " + waiting);
+            check(helper, wheatIn(loaded) == stored, "hidden or visible slots lost by a save");
+
+            long drained = 0;
+            for (int tick = 0; tick < 2_000 && machine.progress() >= 0.999; tick++) {
+                drained += drainVisible(machine, Items.WHEAT);
+                machine.serverTick(level);
+            }
+            check(helper, machine.progress() < 0.5, "the harvest must finish once the output drains");
+            check(helper, drained + wheatIn(machine) == 3_200, "expected 3,200 wheat, got " + (drained + wheatIn(machine)));
+        } finally {
+            multiplier.set(original);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Owner-approved extreme case: ONE plot yielding more than every output slot (1,000 x 3 = 3,000 wheat = 47 slots,
+     * 36 exist). The machine stores what fits, holds the rest (saved with the machine), keeps the bar at 100% until the
+     * held wheat is stored, and ends with exactly 3,000 wheat. Synchronous, like the test above.
+     */
+    static void extremeHarvestHoldsTheRest(GameTestHelper helper) {
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        MachineInventory inputs = machine.inputs();
+        put(inputs, MachineSlots.SEED, Items.WHEAT_SEEDS, 1);
+        put(inputs, MachineSlots.SOIL, Items.FARMLAND, 1);
+        put(inputs, MachineSlots.WATER_PROVIDER, ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.STARTER).get(), 1);
+        disableAllOutputs(machine);
+        machine.revalidate();
+        machine.setProgressForTesting(1.0);
+        ServerLevel level = helper.getLevel();
+
+        var global = VfwServerConfig.GLOBAL_PRODUCTION_MULTIPLIER;
+        var perTier = VfwServerConfig.machine(MachineTier.STARTER).productionMultiplier;
+        double originalGlobal = global.get();
+        double originalTier = perTier.get();
+        global.set(1000.0);
+        perTier.set(3.0);
+        try {
+            machine.serverTick(level); // the only plot: too big even for empty buffers
+            long held = heldAmount(machine, Items.WHEAT);
+            check(helper, held > 0, "the part that does not fit must be held");
+            check(helper, machine.plotsToHarvest() == 0, "the plot counts as harvested");
+            check(helper, machine.progress() >= 0.999, "the cycle must wait for the held items");
+            check(helper, machine.status() == MachineStatus.OUTPUT_FULL, "expected OUTPUT_FULL, got " + machine.status());
+            check(helper, emptySlots(machine.output()) == 0 && emptySlots(machine.internalOutput()) == 0,
+                    "every visible and hidden slot is filled first");
+            check(helper, held + wheatIn(machine) == 3_000, "nothing lost: " + (held + wheatIn(machine)));
+
+            FarmMatrixBlockEntity loaded = roundTrip(helper, machine);
+            check(helper, heldAmount(loaded, Items.WHEAT) == held, "held items must be saved with the machine");
+
+            long drained = 0;
+            for (int tick = 0; tick < 2_000 && machine.progress() >= 0.999; tick++) {
+                drained += drainVisible(machine, Items.WHEAT);
+                machine.serverTick(level);
+            }
+            check(helper, machine.heldDrops().isEmpty(), "held items must be stored once there is room");
+            check(helper, machine.progress() < 0.5, "then the cycle completes");
+            check(helper, drained + wheatIn(machine) == 3_000, "expected 3,000 wheat, got " + (drained + wheatIn(machine)));
+        } finally {
+            global.set(originalGlobal);
+            perTier.set(originalTier);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The hidden slots unload into the visible ones as those empty (owner design), nothing is lost on the way, and the
+     * outside world (capability) only ever sees the 9 visible slots.
+     */
+    static void hiddenSlotsRefillTheVisibleOnes(GameTestHelper helper) {
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        disableAllOutputs(machine);
+        machine.revalidate();
+        check(helper, machine.internalOutput().usableSlots() == 27, "Starter default: 27 hidden slots, got "
+                + machine.internalOutput().usableSlots());
+        fill(machine.output(), Items.DIRT);
+        for (int i = 0; i < 5; i++) {
+            machine.internalOutput().set(i, ItemResource.of(Items.WHEAT), 64);
+        }
+
+        // A pipe takes two stacks of dirt; on the next tick two stacks of wheat move up.
+        var external = machine.externalOutput();
+        try (Transaction tx = Transaction.openRoot()) {
+            external.extract(0, ItemResource.of(Items.DIRT), 64, tx);
+            external.extract(1, ItemResource.of(Items.DIRT), 64, tx);
+            tx.commit();
+        }
+        machine.serverTick(helper.getLevel());
+
+        check(helper, count(machine, Items.WHEAT) == 128, "two stacks must move up, have " + count(machine, Items.WHEAT));
+        check(helper, countIn(machine.internalOutput(), Items.WHEAT) == 192, "three stacks must stay hidden");
+        check(helper, external.size() == MachineSlots.OUTPUT_COUNT, "the capability must only show the 9 visible slots");
+        try (Transaction tx = Transaction.openRoot()) {
+            check(helper, external.insert(ItemResource.of(Items.WHEAT), 1, tx) == 0, "nothing may be inserted");
+        }
+        helper.succeed();
     }
 
     /** Progress, ACTIVE/PENDING counters, inventories, on/off and output faces survive a save/load round trip. */
@@ -163,15 +306,11 @@ final class MachineGameTests {
         put(inputs, MachineSlots.SEED, Items.WHEAT_SEEDS, 64); // 24 new plots mid-cycle -> PENDING
         machine.revalidate();
         machine.output().set(3, ItemResource.of(Items.WHEAT), 12);
+        machine.internalOutput().set(20, ItemResource.of(Items.CARROT), 33);
         machine.toggleOutput(RelativeSide.LEFT);
         machine.setEnabled(false);
 
-        var registries = helper.getLevel().registryAccess();
-        CompoundTag saved = machine.saveWithFullMetadata(registries);
-        BlockState state = machine.getBlockState();
-        BlockEntity loadedEntity = BlockEntity.loadStatic(machine.getBlockPos(), state, saved, registries);
-        check(helper, loadedEntity instanceof FarmMatrixBlockEntity, "loaded block entity has the wrong type");
-        FarmMatrixBlockEntity loaded = (FarmMatrixBlockEntity) loadedEntity;
+        FarmMatrixBlockEntity loaded = roundTrip(helper, machine);
         loaded.revalidate();
 
         check(helper, Math.abs(loaded.progress() - 0.5) < 1e-9, "progress lost: " + loaded.progress());
@@ -179,6 +318,8 @@ final class MachineGameTests {
         check(helper, loaded.pendingPlots() == 24, "pending plots lost: " + loaded.pendingPlots());
         check(helper, loaded.inputs().getAmountAsInt(MachineSlots.SEED) == 64, "seed slot lost");
         check(helper, loaded.output().getAmountAsInt(3) == 12, "output buffer lost");
+        check(helper, loaded.internalOutput().getAmountAsInt(20) == 33
+                && loaded.internalOutput().getResource(20).is(Items.CARROT), "hidden output slots lost");
         check(helper, !loaded.isEnabled(), "on/off switch lost");
         check(helper, !loaded.isOutputEnabled(RelativeSide.LEFT) && loaded.isOutputEnabled(RelativeSide.RIGHT),
                 "output faces lost");
@@ -209,18 +350,24 @@ final class MachineGameTests {
         });
     }
 
-    /** Breaking the machine drops every stored item (inputs and output buffer). */
+    /**
+     * Breaking the machine drops the inputs and the 9 visible output slots; the hidden output slots are deleted (owner
+     * rule, step 8).
+     */
     static void dropsItsContents(GameTestHelper helper) {
         FarmMatrixBlockEntity machine = placeMachine(helper);
+        machine.revalidate(); // sizes the hidden slots
         put(machine.inputs(), MachineSlots.SEED, Items.WHEAT_SEEDS, 7);
         put(machine.inputs(), MachineSlots.SOIL, Items.FARMLAND, 3);
         machine.output().set(0, ItemResource.of(Items.WHEAT), 5);
+        machine.internalOutput().set(0, ItemResource.of(Items.DIAMOND), 5);
 
         helper.destroyBlock(MACHINE);
 
         helper.assertItemEntityPresent(Items.WHEAT_SEEDS, MACHINE, 2.0);
         helper.assertItemEntityPresent(Items.FARMLAND, MACHINE, 2.0);
         helper.assertItemEntityPresent(Items.WHEAT, MACHINE, 2.0);
+        helper.assertItemEntityNotPresent(Items.DIAMOND, MACHINE, 2.0);
         helper.succeed();
     }
 
@@ -391,14 +538,88 @@ final class MachineGameTests {
         }
     }
 
+    /** Amount of an item in the VISIBLE output slots. */
     private static int count(FarmMatrixBlockEntity machine, Item item) {
-        int total = 0;
-        for (int i = 0; i < machine.output().size(); i++) {
-            if (machine.output().getResource(i).is(item)) {
-                total += machine.output().getAmountAsInt(i);
+        return (int) countIn(machine.output(), item);
+    }
+
+    private static long countIn(ItemStacksResourceHandler handler, Item item) {
+        long total = 0;
+        for (int i = 0; i < handler.size(); i++) {
+            if (handler.getResource(i).is(item)) {
+                total += handler.getAmountAsLong(i);
             }
         }
         return total;
+    }
+
+    /** Wheat in the visible and hidden output slots. */
+    private static long wheatIn(FarmMatrixBlockEntity machine) {
+        return countIn(machine.output(), Items.WHEAT) + countIn(machine.internalOutput(), Items.WHEAT);
+    }
+
+    private static long heldAmount(FarmMatrixBlockEntity machine, Item item) {
+        long total = 0;
+        for (DropTally.Entry<ItemResource> drop : machine.heldDrops()) {
+            if (drop.key().is(item)) {
+                total += drop.amount();
+            }
+        }
+        return total;
+    }
+
+    private static int emptySlots(ItemStacksResourceHandler handler) {
+        int empty = 0;
+        for (int i = 0; i < handler.size(); i++) {
+            if (handler.getAmountAsLong(i) == 0) {
+                empty++;
+            }
+        }
+        return empty;
+    }
+
+    private static void fill(ItemStacksResourceHandler handler, Item item) {
+        for (int i = 0; i < handler.size(); i++) {
+            handler.set(i, ItemResource.of(item), 64);
+        }
+    }
+
+    private static void clear(ItemStacksResourceHandler handler) {
+        for (int i = 0; i < handler.size(); i++) {
+            handler.set(i, ItemResource.EMPTY, 0);
+        }
+    }
+
+    /**
+     * Empties the visible output through the capability, like a pipe, in one committed transaction.
+     *
+     * @return how many of {@code counted} were taken out
+     */
+    private static long drainVisible(FarmMatrixBlockEntity machine, Item counted) {
+        ResourceHandler<ItemResource> external = machine.externalOutput();
+        long taken = 0;
+        try (Transaction tx = Transaction.openRoot()) {
+            for (int i = 0; i < external.size(); i++) {
+                ItemResource resource = external.getResource(i);
+                if (!resource.isEmpty()) {
+                    int amount = external.extract(i, resource, external.getAmountAsInt(i), tx);
+                    if (resource.is(counted)) {
+                        taken += amount;
+                    }
+                }
+            }
+            tx.commit();
+        }
+        return taken;
+    }
+
+    /** Saves the machine and loads the result into a new, detached block entity. */
+    private static FarmMatrixBlockEntity roundTrip(GameTestHelper helper, FarmMatrixBlockEntity machine) {
+        var registries = helper.getLevel().registryAccess();
+        CompoundTag saved = machine.saveWithFullMetadata(registries);
+        BlockEntity loaded = BlockEntity.loadStatic(machine.getBlockPos(), machine.getBlockState(), saved, registries);
+        check(helper, loaded instanceof FarmMatrixBlockEntity, "loaded block entity has the wrong type");
+        return (FarmMatrixBlockEntity) loaded;
     }
 
     /** First plantable Mystical Agriculture seed that requires a crux, or null. */
