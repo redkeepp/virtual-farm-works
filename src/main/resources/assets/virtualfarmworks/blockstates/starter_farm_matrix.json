@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "virtualfarmworks:block/starter_farm_matrix" },
+    "facing=east":  { "model": "virtualfarmworks:block/starter_farm_matrix", "y": 90 },
+    "facing=south": { "model": "virtualfarmworks:block/starter_farm_matrix", "y": 180 },
+    "facing=west":  { "model": "virtualfarmworks:block/starter_farm_matrix", "y": 270 }
+  }
+}

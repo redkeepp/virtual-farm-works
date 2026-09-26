@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "virtualfarmworks:item/entropic_growth_upgrade"
+  }
+}

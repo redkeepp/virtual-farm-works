@@ -28,7 +28,33 @@ Run from the repository root (this folder). `JAVA_HOME` must point to JDK 25 (al
 .\gradlew.bat runClient     # launch dev client
 .\gradlew.bat runServer     # launch dev dedicated server (nogui)
 .\gradlew.bat runData       # run data generators
+.\gradlew.bat runGameTestServer   # headless: boots the mod, runs game tests, exits. Use it to catch registry/datapack
+                                  # errors without opening the client; then check run/logs/latest.log for ERROR/WARN.
 ```
+
+Dev mods for testing (Mystical Agriculture, Mystical Agradditions, ...) go as jars in `run/mods/` (26.1 is unobfuscated,
+so production jars load in dev). `run/` is git-ignored.
+
+## API gotchas (26.1.2) — verify against sources, do not trust memory of older versions
+
+- Read the real sources before using an API. Extract them (gitignored, deleted by `gradlew clean`):
+  `build/moddev/artifacts/minecraft-patched-26.1.2.109-sources.jar` -> `build/mcsrc/` (Minecraft + NeoForge patches) and
+  `~/.gradle/caches/modules-2/files-2.1/net.neoforged/neoforge/26.1.2.109/*/neoforge-26.1.2.109-sources.jar` ->
+  `build/neosrc/` (NeoForge's own classes, e.g. `DeferredRegister`). Use `tar -xf <jar>`.
+- `ResourceLocation` is renamed to `net.minecraft.resources.Identifier`.
+- `Item#appendHoverText(ItemStack, Item.TooltipContext, TooltipDisplay, Consumer<Component>, TooltipFlag)`.
+- Every block type needs a `MapCodec` (`codec()`); see `FarmMatrixBlock.CODEC`.
+- Item models: `assets/<ns>/items/<id>.json` (item definition) -> `models/item/<id>.json`. Both are required.
+- If `gradlew build` says UP-TO-DATE after code changes and the jar is stale, delete the project `.gradle/` folder
+  (configuration cache pointing at an old path) and rebuild.
+
+## Assets: hand-written JSON, no model datagen
+
+The owner authored the block models in Blockbench. NeoForge's `ModelProvider` datagen requires generating a model for
+every registered block/item, which would overwrite them. So blockstates, item definitions and simple item models are
+**hand-written JSON** in `src/main/resources`. When adding a block/item, add: `blockstates/` (blocks), `items/`,
+`models/item/` (flat items: parent `minecraft:item/generated`), lang keys in `en_us.json` AND `pt_br.json`, loot table
+and `mineable` tag (blocks).
 
 ## Working rules (owner requirements)
 
@@ -135,12 +161,22 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 
 - [x] Project scaffolded from official MDK 26.1.2, renamed to `virtualfarmworks`, builds successfully.
 - [x] Starter Farm Matrix spec received (`docs/specs/`). Open questions sent to the owner.
-- [ ] Owner answers + explicit go-ahead. **Do not start implementing until the owner says so.**
+- [x] Owner answered the open questions; go-ahead given for milestone 1.
+- Milestone 1 steps: (1) registration [done] (2) config + soil data map (3) plant/soil resolver (4) simulation core +
+  unit tests (5) aggregated transactional harvest (6) BlockEntity, persistence, I/O, auto-export (7) GUI (8) in-game test.
+- [x] Step 1: Starter Farm Matrix block (directional, no BE yet), all 5 tiers of Water Provider and Growth Speed
+  upgrades, Crux Provider Upgrade, creative tab, lang (en_us, pt_br), blockstate/item JSON, loot table, pickaxe tag.
+  Growth upgrades are registered as `<tier>_growth_upgrade` to match the owner's texture names. Recipes: none yet
+  (owner: ignore recipes for now; they will be datapack JSON only).
 - Milestone 1 scope (agreed): **Starter Farm Matrix only**, to validate the architecture before the other tiers.
   I/O by face, autocrafting and integrations come in later milestones.
 
 ## Layout
 
-- `src/main/java/com/virtualfarmworks/` — mod code (main class `VirtualFarmWorks`).
+- `src/main/java/com/virtualfarmworks/` — mod code (main class `VirtualFarmWorks`, only wires registries).
+  - `machine/MachineTier` — tier enum; order = progression; `accepts()` implements the upgrade compatibility gate.
+  - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
+  - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`. Items carry no behavior.
+  - `registry/` — `ModBlocks`, `ModItems`, `ModCreativeTabs` (DeferredRegisters).
 - `src/main/resources/assets/virtualfarmworks/` — lang, models, textures.
 - `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata (Gradle expands `${...}` from `gradle.properties`).
