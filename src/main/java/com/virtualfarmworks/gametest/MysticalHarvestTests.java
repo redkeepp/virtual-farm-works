@@ -99,7 +99,7 @@ final class MysticalHarvestTests {
         DropSource source = HarvestPlans.create(new ItemStack(seedItem), new ItemStack(farmland.asItem()));
         helper.assertTrue(source != null, Component.literal("no drop source for " + seedItem));
         DropTally<ItemResource> tally = new DropTally<>();
-        source.roll(SAMPLES, new DropSource.Context(level, farmlandPos, level.getRandom(), 64), tally);
+        source.roll(SAMPLES, new DropSource.Context(level, farmlandPos, level.getRandom(), 64, true), tally);
         double vfwEssence = tally.raw(ItemResource.of(essence), Category.MAIN);
         double vfwSeeds = tally.raw(ItemResource.of(seedItem), Category.SECONDARY);
         double vfwFertilized = tally.raw(ItemResource.of(fertilized), Category.SECONDARY);
@@ -108,6 +108,14 @@ final class MysticalHarvestTests {
         assertClose(helper, label + " essence/plot", maEssence, vfwEssence);
         assertClose(helper, label + " extra seeds/plot", maSeeds, vfwSeeds);
         assertClose(helper, label + " fertilized essence/plot", maFertilized, vfwFertilized);
+
+        // The machine's Fertilized Essence switch OFF: none at all, everything else unchanged.
+        DropTally<ItemResource> switchedOff = new DropTally<>();
+        source.roll(SAMPLES, new DropSource.Context(level, farmlandPos, level.getRandom(), 64, false), switchedOff);
+        helper.assertTrue(switchedOff.raw(ItemResource.of(fertilized), Category.SECONDARY) == 0.0,
+                Component.literal(label + ": Fertilized Essence switch OFF must produce none"));
+        assertClose(helper, label + " essence/plot with the switch OFF", maEssence,
+                switchedOff.raw(ItemResource.of(essence), Category.MAIN));
     }
 
     private static void assertClose(GameTestHelper helper, String what, double maTotal, double vfwTotal) {

@@ -45,6 +45,7 @@ import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.ResourceHandlerUtil;
 import net.neoforged.neoforge.transfer.item.ItemResource;
+import net.neoforged.neoforge.transfer.transaction.Transaction;
 
 /**
  * The machine. Design goal (owner): a machine with 6,000 plots must cost about the same per tick as one with 1.
@@ -68,7 +69,8 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  * it is simply rolled again — nothing was produced yet, so nothing can be duplicated or lost).
  *
  * <h2>Persistence</h2>
- * Saved: inventories, progress, active/pending counters, on/off switch, auto-output faces. NOT saved (rebuilt by
+ * Saved: inventories, progress, active/pending counters, on/off switch, auto-output faces, Fertilized Essence switch.
+ * NOT saved (rebuilt by
  * {@link #revalidate()}): analysis, speed, status, drop source, pending harvest. Slot changes and harvests mark the
  * chunk for saving immediately; plain progress at most once per {@link #PROGRESS_SAVE_INTERVAL} ticks (losing < 1 s
  * of progress on a crash is harmless, marking every tick is not free).
@@ -88,6 +90,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private final GrowthCycle cycle = new GrowthCycle(PLOT_GROUPS);
     private boolean enabled = true;
     private int outputFaces = RelativeSide.ALL;
+    /** GUI switch (owner spec): whether Mystical Agriculture crops produce Fertilized Essence. On by default. */
+    private boolean fertilizedEssence = true;
 
     // --- derived state (rebuilt by revalidate, never saved) ---------------------------------------------------------
     private boolean inputsDirty = true;
@@ -130,8 +134,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private record SourceKey(@Nullable Item seed, @Nullable Item soil, int configGeneration, int tagGeneration) {
     }
 
-    /** What a rolled harvest depends on: its drop source inputs plus the number of ACTIVE plots it was rolled for. */
-    private record HarvestKey(SourceKey source, int plots) {
+    /**
+     * What a rolled harvest depends on: its drop source inputs, the number of ACTIVE plots it was rolled for, and the
+     * Fertilized Essence switch (turning it off while a harvest waits must drop the essence from that harvest).
+     */
+    private record HarvestKey(SourceKey source, int plots, boolean fertilizedEssence) {
     }
 
     public FarmMatrixBlockEntity(BlockPos pos, BlockState state) {
@@ -185,12 +192,13 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     private void tryHarvest(ServerLevel level) {
         harvestRetryRequested = false;
-        HarvestKey key = new HarvestKey(dropSourceKey, cycle.activePlots());
+        HarvestKey key = new HarvestKey(dropSourceKey, cycle.activePlots(), fertilizedEssence);
         if (pendingHarvest == null || !key.equals(pendingHarvestKey)) {
             pendingHarvest = dropSource == null
                     ? List.of()
                     : Harvester.roll(dropSource, cycle.activePlots(), tier,
-                            new DropSource.Context(level, worldPosition, level.getRandom(), maxLootRolls));
+                            new DropSource.Context(level, worldPosition, level.getRandom(), maxLootRolls,
+                                    fertilizedEssence));
             pendingHarvestKey = key;
         }
 
@@ -391,6 +399,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         out.putIntArray("pending", cycle.pendingCounts());
         out.putBoolean("enabled", enabled);
         out.putInt("output_faces", outputFaces);
+        out.putBoolean("fertilized_essence", fertilizedEssence);
     }
 
     @Override
@@ -404,6 +413,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
                 in.getIntArray("pending").orElse(new int[0]));
         enabled = in.getBooleanOr("enabled", true);
         outputFaces = in.getIntOr("output_faces", RelativeSide.ALL) & RelativeSide.ALL;
+        fertilizedEssence = in.getBooleanOr("fertilized_essence", true);
         // Everything derived is rebuilt on the next tick; a harvest that was blocked is simply retried.
         inputsDirty = true;
         plantedSeed = null;
@@ -530,6 +540,43 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     public void toggleOutput(RelativeSide side) {
         outputFaces ^= side.bit();
         markForSave();
+    }
+
+    public boolean isFertilizedEssenceEnabled() {
+        return fertilizedEssence;
+    }
+
+    /**
+     * Fertilized Essence switch. Server side only. A harvest already rolled and waiting (OUTPUT FULL) is re-rolled with
+     * the new setting because the switch is part of {@link HarvestKey}; asking for a retry makes that happen at once.
+     */
+    public void toggleFertilizedEssence() {
+        fertilizedEssence = !fertilizedEssence;
+        harvestRetryRequested = true;
+        markForSave();
+    }
+
+    /**
+     * Right-click with an upgrade in hand (owner spec): moves as many upgrades as fit from {@code held} into the
+     * machine, each into its own slot kind (the inventory's slot rules decide, tiers included). Runs in one NeoForge
+     * transaction; the held stack is shrunk by exactly what was inserted, unless {@code consume} is false (creative).
+     * Server side only.
+     *
+     * @return how many items were inserted (0 = nothing fit, the caller opens the GUI instead)
+     */
+    public int insertUpgradesFrom(ItemStack held, boolean consume) {
+        if (held.isEmpty()) {
+            return 0;
+        }
+        int inserted;
+        try (Transaction transaction = Transaction.openRoot()) {
+            inserted = ResourceHandlerUtil.insertStacking(inputs, ItemResource.of(held), held.getCount(), transaction);
+            transaction.commit();
+        }
+        if (inserted > 0 && consume) {
+            held.shrink(inserted);
+        }
+        return inserted;
     }
 
     /**

@@ -18,7 +18,16 @@ import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.MachineStatus;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -265,6 +274,10 @@ final class MachineGameTests {
         check(helper, !machine.isOutputEnabled(RelativeSide.LEFT) && !menu.isOutputEnabled(RelativeSide.LEFT),
                 "face button must disable the left face");
         check(helper, !menu.clickMenuButton(player, 99), "unknown button ids must be ignored");
+        check(helper, machine.isFertilizedEssenceEnabled(), "Fertilized Essence must be ON by default");
+        menu.clickMenuButton(player, FarmMatrixMenu.BUTTON_FERTILIZED);
+        check(helper, !machine.isFertilizedEssenceEnabled() && !menu.isFertilizedEssenceEnabled(),
+                "Fertilized Essence button must switch it off");
 
         // Shift-click from the player's inventory (menu PLAYER_START = player inventory index 9).
         player.getInventory().setItem(9, new ItemStack(Items.WHEAT_SEEDS, 32));
@@ -296,6 +309,57 @@ final class MachineGameTests {
             menu.broadcastChanges(); // the copy refreshes every few ticks
         }
         check(helper, menu.status() == machine.status(), "menu status must mirror the machine");
+        helper.succeed();
+    }
+
+    /**
+     * Right-click with an upgrade in hand (owner spec): the machine pulls in as many as fit, the hand loses exactly
+     * that many; when nothing fits, or the item is not an upgrade, the click falls through (the GUI opens instead).
+     */
+    static void insertsUpgradesFromHand(GameTestHelper helper) {
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        BlockPos pos = helper.absolutePos(MACHINE);
+        BlockState state = helper.getLevel().getBlockState(pos);
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(pos), Direction.NORTH, pos, false);
+
+        ItemStack growth = new ItemStack(ModItems.GROWTH_SPEED_UPGRADES.get(MachineTier.STARTER).get(), 6);
+        InteractionResult first = state.useItemOn(growth, helper.getLevel(), player, InteractionHand.MAIN_HAND, hit);
+        check(helper, first.consumesAction(), "a growth upgrade in hand must be pulled in");
+        check(helper, growth.getCount() == 2, "4 slots x 1 upgrade: 4 pulled, 2 left in hand, got " + growth.getCount());
+        check(helper, machine.inputs().getAmountAsInt(MachineSlots.GROWTH_FIRST + 3) == 1, "last growth slot filled");
+
+        InteractionResult full = state.useItemOn(growth, helper.getLevel(), player, InteractionHand.MAIN_HAND, hit);
+        check(helper, full instanceof InteractionResult.TryEmptyHandInteraction && growth.getCount() == 2,
+                "when nothing fits, the click must fall through to the GUI and keep the items");
+
+        ItemStack water = new ItemStack(ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.ENTROPIC).get(), 3);
+        state.useItemOn(water, helper.getLevel(), player, InteractionHand.MAIN_HAND, hit);
+        check(helper, water.getCount() == 2 && machine.inputs().getAmountAsInt(MachineSlots.WATER_PROVIDER) == 1,
+                "exactly one water provider must be pulled in");
+
+        ItemStack crux = new ItemStack(ModItems.CRUX_PROVIDER_UPGRADE.get());
+        state.useItemOn(crux, helper.getLevel(), player, InteractionHand.MAIN_HAND, hit);
+        check(helper, crux.isEmpty() && machine.inputs().getAmountAsInt(MachineSlots.CRUX_PROVIDER) == 1,
+                "the crux provider must be pulled in");
+
+        ItemStack seeds = new ItemStack(Items.WHEAT_SEEDS, 10);
+        InteractionResult other = state.useItemOn(seeds, helper.getLevel(), player, InteractionHand.MAIN_HAND, hit);
+        check(helper, other instanceof InteractionResult.TryEmptyHandInteraction && seeds.getCount() == 10
+                        && machine.inputs().getAmountAsInt(MachineSlots.SEED) == 0,
+                "non-upgrade items must not be pulled in (the GUI opens instead)");
+        helper.succeed();
+    }
+
+    /** The four crafting recipes the owner specified are loaded (a JSON error would silently drop them). */
+    static void recipesAreLoaded(GameTestHelper helper) {
+        var recipes = helper.getLevel().getServer().getRecipeManager();
+        for (String name : new String[] {"starter_farm_matrix", "starter_water_provider_upgrade", "starter_growth_upgrade",
+                "crux_provider_upgrade"}) {
+            ResourceKey<Recipe<?>> key = ResourceKey.create(Registries.RECIPE,
+                    Identifier.fromNamespaceAndPath("virtualfarmworks", name));
+            check(helper, recipes.byKey(key).isPresent(), "recipe missing: " + name);
+        }
         helper.succeed();
     }
 

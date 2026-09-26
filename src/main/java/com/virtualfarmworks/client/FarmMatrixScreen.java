@@ -1,7 +1,8 @@
 /*
  * FarmMatrixScreen — the Farm Matrix GUI (client only): the owner's texture, the dynamic texts (title, status,
  * hydration, seeds, growth), the green progress bar, 40% ghost placeholders in empty slots, and the side column drawn
- * by code and glued to the texture (auto-output button + face box, 5-cell upgrade block, power button).
+ * by code and glued to the texture (auto-output button + face box, 5-cell upgrade block, Fertilized Essence switch,
+ * power button).
  */
 package com.virtualfarmworks.client;
 
@@ -111,6 +112,14 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
 
         extractPanelBox(graphics, x0, y0 + FarmMatrixLayout.UPGRADE_BOX_TOP, FarmMatrixLayout.UPGRADE_SLOTS,
                 FarmMatrixLayout.COLOR_BACKGROUND);
+
+        // Fertilized Essence switch: light pink = generated, dark pink = not generated (owner spec).
+        int fertilizedTop = y0 + FarmMatrixLayout.FERTILIZED_BOX_TOP;
+        boolean fertilized = menu.isFertilizedEssenceEnabled();
+        extractPanelBox(graphics, x0, fertilizedTop, 1,
+                fertilized ? FarmMatrixLayout.COLOR_FERTILIZED_ON : FarmMatrixLayout.COLOR_FERTILIZED_OFF);
+        extractCellLabel(graphics, Component.translatable(fertilized ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off"),
+                x0, FarmMatrixLayout.cellY(fertilizedTop, 0), 0xFFFFFFFF);
 
         int powerTop = y0 + FarmMatrixLayout.POWER_BOX_TOP;
         boolean on = menu.isEnabled();
@@ -271,6 +280,10 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         } else if (isOverBox(FarmMatrixLayout.POWER_BOX_TOP, 1, mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.power",
                     Component.translatable(menu.isEnabled() ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off")));
+        } else if (isOverBox(FarmMatrixLayout.FERTILIZED_BOX_TOP, 1, mouseX, mouseY)) {
+            lines.add(Component.translatable("gui.virtualfarmworks.fertilized_essence", Component.translatable(
+                    menu.isFertilizedEssenceEnabled() ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off")));
+            lines.add(Component.translatable("gui.virtualfarmworks.fertilized_essence.hint"));
         } else if (faceBoxOpen && faceAt(mouseX, mouseY) != null) {
             RelativeSide side = faceAt(mouseX, mouseY);
             lines.add(Component.translatable("gui.virtualfarmworks.output_side", Component.translatable(side.translationKey()),
@@ -319,6 +332,10 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
             }
             if (isOverBox(FarmMatrixLayout.POWER_BOX_TOP, 1, mouseX, mouseY)) {
                 sendButton(FarmMatrixMenu.BUTTON_POWER);
+                return true;
+            }
+            if (isOverBox(FarmMatrixLayout.FERTILIZED_BOX_TOP, 1, mouseX, mouseY)) {
+                sendButton(FarmMatrixMenu.BUTTON_FERTILIZED);
                 return true;
             }
             if (faceBoxOpen) {

@@ -48,10 +48,12 @@ public final class FarmMatrixLayout {
      * {@link #INFO_WIDTH} is the room up to x 166; longer texts (translations) are scaled down to fit.
      */
     public static final int INFO_X = 11;
-    public static final int[] INFO_LINE_Y = {58, 67, 76, 86};
+    /** Owner-tuned: status 58, hydration 67, seeds 77, growth 86. */
+    public static final int[] INFO_LINE_Y = {58, 67, 77, 86};
     public static final int INFO_WIDTH = 156;
 
-    public static final int TITLE_Y = 9;
+    /** Owner-tuned (moved up 1 px after the second in-game review). */
+    public static final int TITLE_Y = 8;
 
     // --- colors (sampled from the owner's texture) ------------------------------------------------------------------
     /** Background / slot interior of the owner's texture. */
@@ -63,6 +65,9 @@ public final class FarmMatrixLayout {
     public static final int COLOR_BAR = 0xFF3CCB5A;
     public static final int COLOR_ON = 0xFF2E8B57;
     public static final int COLOR_OFF = 0xFF8B2E2E;
+    /** Fertilized Essence button (owner spec): light pink = generated, dark pink = not generated. */
+    public static final int COLOR_FERTILIZED_ON = 0xFFF48FB1;
+    public static final int COLOR_FERTILIZED_OFF = 0xFF880E4F;
     public static final int COLOR_BUTTON_ACTIVE = 0xFF1C3144;
     /**
      * Ghost placeholders: the item is drawn, then covered by the slot background at 60% opacity, so it shows at
@@ -79,22 +84,26 @@ public final class FarmMatrixLayout {
     //   x = -1         blue frame line
     //   x =  0         the texture's white border, which is also the column's right border — so the column has NO
     //                  theme border on its right side and only one white line shows where they touch.
-    // Three boxes from top to bottom, 3 px apart: the "O" button (1 cell), the upgrade block (5 cells separated by a
-    // single blue line, no white lines between them) and the ON/OFF button (1 cell). Each box: white top line, blue
-    // line, cells, blue line, white bottom line.
+    // Four boxes from top to bottom: the "O" button (1 cell), 3 px gap, the upgrade block (5 cells separated by a
+    // single blue line, no white lines between them), 3 px gap, the Fertilized Essence ON/OFF button (1 cell), 5 px
+    // gap, the machine ON/OFF button (1 cell). Each box: white top line, blue line, cells, blue line, white bottom line.
     public static final int PANEL_BORDER_X = -19;
     public static final int PANEL_INTERIOR_X = -17;
     public static final int CELL = 16;
     /** Distance between two stacked cells of the upgrade block: 16 px interior + 1 shared blue line. */
     public static final int CELL_PITCH = CELL + 1;
     public static final int PANEL_BOX_GAP = 3;
+    /** Owner spec: the machine ON/OFF box sits 5 px below the Fertilized Essence box. */
+    public static final int POWER_BOX_GAP = 5;
     public static final int UPGRADE_SLOTS = MachineSlots.GROWTH_COUNT + 1; // 4 growth + 1 crux
 
     /** Top (white line) of the "O" box; its interior (y 26) lines up with the texture's top slot row (owner spec). */
     public static final int OUTPUT_BOX_TOP = 24;
     public static final int UPGRADE_BOX_TOP = OUTPUT_BOX_TOP + boxHeight(1) + PANEL_BOX_GAP;       // 47
-    public static final int POWER_BOX_TOP = UPGRADE_BOX_TOP + boxHeight(UPGRADE_SLOTS) + PANEL_BOX_GAP; // 138
-    public static final int PANEL_BOTTOM = POWER_BOX_TOP + boxHeight(1);                           // 158 (exclusive)
+    /** Fertilized Essence ON/OFF box: where the machine ON/OFF box used to be (owner spec). */
+    public static final int FERTILIZED_BOX_TOP = UPGRADE_BOX_TOP + boxHeight(UPGRADE_SLOTS) + PANEL_BOX_GAP; // 138
+    public static final int POWER_BOX_TOP = FERTILIZED_BOX_TOP + boxHeight(1) + POWER_BOX_GAP;     // 163
+    public static final int PANEL_BOTTOM = POWER_BOX_TOP + boxHeight(1);                           // 183 (exclusive)
 
     // Face box, opened by the "O" button, left of the column (3 px gap). 3x3 grid of 16 px cells, 2 px apart, 3 px
     // padding, inside a blue frame and a theme-color border. FACE_BOX_X/Y are the inner (blue frame) top-left corner.

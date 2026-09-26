@@ -37,6 +37,20 @@ drop entries (see NeoForge data map docs).
 | `virtualfarmworks/tags/block/supports_mushrooms.json` | Claude | Soils for mushrooms (default `#minecraft:overrides_mushroom_light_requirement`: mycelium, podzol, nylium). Replaces vanilla's "any solid block in the dark" rule, which would make almost any block a soil. |
 | `virtualfarmworks/tags/block/supports_glow_berries.json` | Claude | Blocks glow berries can hang from (overworld stone, moss, dirt). Replaces vanilla's "any sturdy bottom face" rule for the same reason. |
 
+### Recipes (owner-defined costs; datapack-replaceable)
+
+Crafting grid slots are numbered 1-9 left to right, top to bottom.
+
+| File | Author | Recipe |
+|---|---|---|
+| `virtualfarmworks/recipe/starter_farm_matrix.json` | Claude (owner's cost) | 1, 9 diamond; 2, 4, 6, 8 wheat seeds; 3, 7 redstone; 5 iron block |
+| `virtualfarmworks/recipe/starter_water_provider_upgrade.json` | Claude (owner's cost) | 1, 3, 7, 9 diamond; 2, 4, 6, 8 iron ingot; 5 water bucket (the empty bucket is returned) |
+| `virtualfarmworks/recipe/starter_growth_upgrade.json` | Claude (owner's cost) | 1, 3, 7, 9 redstone; 2, 4, 6, 8 diamond; 5 redstone block |
+| `virtualfarmworks/recipe/crux_provider_upgrade.json` | Claude (owner's cost) | 1-4, 6-9 netherite block; 5 nether star (expensive on purpose: only very rare seeds need a crux) |
+| `virtualfarmworks/advancement/recipes/misc/*.json` | Claude | Unlock each recipe in the recipe book when the player gets a key item (wheat seeds, a Starter Farm Matrix, a nether star). Crafting works without them. |
+
+Other tiers have no recipes yet (owner: only Starter and Crux for now).
+
 ## Other non-Java files
 
 | File | Purpose |

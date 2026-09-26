@@ -263,6 +263,14 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Tip: to check pixel geometry without the game, paint the same fills on the texture with a script and READ THE
   PIXELS — the image viewer downsizes previews and can hide 1 px lines.
 
+- [x] Step 8 (finishing, in progress): recipes for Starter Farm Matrix / Water Provider / Growth Speed and Crux
+  Provider (+ recipe-book unlocks); Fertilized Essence switch per machine (persisted, button id 7, part of the
+  pending-harvest key, `DropSource.Context#fertilizedEssence`); right-click with an upgrade pulls it in
+  (`FarmMatrixBlock#useItemOn` -> `FarmMatrixBlockEntity#insertUpgradesFrom`, falls through to the GUI when nothing
+  fits); title y 8, seeds line y 77. 17 game tests. Still to do: JEI/EMI exclusion areas, Jade provider, MA
+  "requiresEffectiveFarmland" option (VFW config, default off), config-reload test, load benchmark, dedicated-server
+  check (owner running it), publishing metadata (at release).
+
 ## GUI gotchas (26.1)
 
 - Rendering is the "extract" API: `GuiGraphicsExtractor` (not GuiGraphics), `extractBackground`, `extractLabels`

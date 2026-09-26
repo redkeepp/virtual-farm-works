@@ -60,6 +60,8 @@
   "gui.virtualfarmworks.output_sides": "Auto-output sides (click)",
   "gui.virtualfarmworks.output_side": "%s: auto-output %s",
   "gui.virtualfarmworks.power": "Machine: %s (click to switch)",
+  "gui.virtualfarmworks.fertilized_essence": "Fertilized Essence: %s (click to switch)",
+  "gui.virtualfarmworks.fertilized_essence.hint": "Mystical Agriculture crops only",
   "gui.virtualfarmworks.slot.seed": "Seed or plantable (up to 64)",
   "gui.virtualfarmworks.slot.soil": "Soil (up to 64)",
   "gui.virtualfarmworks.slot.water_provider": "Water Provider Upgrade (without it: reduced speed)",

@@ -79,7 +79,10 @@ public final class VfwGameTests {
             test("machine_drops_its_contents", MachineGameTests::dropsItsContents, 20),
             test("machine_slot_rules", MachineGameTests::slotRules, 20),
             // GUI, server side (step 7)
-            test("menu_actions", MachineGameTests::menuActions, 20));
+            test("menu_actions", MachineGameTests::menuActions, 20),
+            // finishing touches (step 8)
+            test("machine_inserts_upgrades_from_hand", MachineGameTests::insertsUpgradesFromHand, 20),
+            test("recipes_are_loaded", MachineGameTests::recipesAreLoaded, 20));
 
     private VfwGameTests() {
     }
@@ -305,7 +308,7 @@ public final class VfwGameTests {
         check(helper, source != null, pair + ": no drop source");
         var level = helper.getLevel();
         List<DropTally.Entry<ItemResource>> drops = Harvester.roll(source, 10, MachineTier.STARTER,
-                new DropSource.Context(level, helper.absolutePos(BlockPos.ZERO), level.getRandom(), 64));
+                new DropSource.Context(level, helper.absolutePos(BlockPos.ZERO), level.getRandom(), 64, true));
         long amount = drops.stream()
                 .filter(drop -> drop.key().is(product))
                 .mapToLong(DropTally.Entry::amount)

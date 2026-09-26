@@ -1,6 +1,7 @@
 /*
  * FarmMatrixBlock — the Farm Matrix machine block, one class for every tier: horizontal facing (front = placing
- * player), block codec, and its block entity (FarmMatrixBlockEntity), ticked on the server only.
+ * player), block codec, right-click behavior (upgrade in hand = insert it, otherwise open the GUI), and its block
+ * entity (FarmMatrixBlockEntity), ticked on the server only.
  */
 package com.virtualfarmworks.block;
 
@@ -8,6 +9,8 @@ import org.jspecify.annotations.Nullable;
 
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.virtualfarmworks.item.CruxProviderUpgradeItem;
+import com.virtualfarmworks.item.TieredUpgradeItem;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.menu.FarmMatrixMenu;
@@ -17,8 +20,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
@@ -83,8 +90,36 @@ public class FarmMatrixBlock extends HorizontalDirectionalBlock implements Entit
     }
 
     /**
-     * Right-click (empty hand or any item): open the machine GUI. Server side only; the client just reports success so
-     * the hand swings. The open packet carries the position and tier so the client can build its menu mirror.
+     * Right-click holding an upgrade (Water Provider, Growth Speed or Crux Provider — owner spec): the machine pulls
+     * as many as fit straight from the hand, no GUI needed. Anything else, or an upgrade that does not fit (slots full,
+     * tier too low), falls through to {@link #useWithoutItem} and opens the GUI, so the player can see why.
+     *
+     * <p>The server decides; the client only predicts a swing. Creative players (infinite materials) keep their items,
+     * like vanilla containers such as the composter.
+     */
+    @Override
+    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player,
+                                          InteractionHand hand, BlockHitResult hitResult) {
+        boolean isUpgrade = stack.getItem() instanceof TieredUpgradeItem
+                || stack.getItem() instanceof CruxProviderUpgradeItem;
+        if (!isUpgrade) {
+            return InteractionResult.TRY_WITH_EMPTY_HAND;
+        }
+        if (level.isClientSide()) {
+            return InteractionResult.SUCCESS;
+        }
+        if (level.getBlockEntity(pos) instanceof FarmMatrixBlockEntity machine
+                && machine.insertUpgradesFrom(stack, !player.hasInfiniteMaterials()) > 0) {
+            level.playSound(null, pos, SoundEvents.ITEM_FRAME_ADD_ITEM, SoundSource.BLOCKS, 0.8F, 1.0F);
+            return InteractionResult.SUCCESS;
+        }
+        return InteractionResult.TRY_WITH_EMPTY_HAND;
+    }
+
+    /**
+     * Right-click with an empty hand (or an item the machine does not take directly): open the machine GUI. Server
+     * side only; the client just reports success so the hand swings. The open packet carries the position and tier so
+     * the client can build its menu mirror.
      */
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,

@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_key_item": {
+      "conditions": {
+        "items": [
+          {
+            "items": "virtualfarmworks:starter_farm_matrix"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "virtualfarmworks:starter_growth_upgrade"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_key_item"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "virtualfarmworks:starter_growth_upgrade"
+    ]
+  }
+}

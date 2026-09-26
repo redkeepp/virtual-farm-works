@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "D": "minecraft:diamond",
+    "I": "minecraft:iron_ingot",
+    "W": "minecraft:water_bucket"
+  },
+  "pattern": [
+    "DID",
+    "IWI",
+    "DID"
+  ],
+  "result": {
+    "id": "virtualfarmworks:starter_water_provider_upgrade"
+  }
+}

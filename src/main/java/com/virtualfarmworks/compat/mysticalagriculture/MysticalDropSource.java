@@ -45,6 +45,7 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  *
  * <h2>What VFW changes (owner rules)</h2>
  * <ul>
+ *   <li>Each machine has a Fertilized Essence switch (GUI): OFF means no Fertilized Essence at all.</li>
  *   <li>The base seed is the replanting cost and is not output: only the EXTRA seed can come out.</li>
  *   <li>The extra-seed chance is {@code c x drops.mysticalagriculture.secondarySeedChanceMultiplier}, capped at 100%.
  *       The extra-essence chance stays MA's own {@code c} (it is production, not a seed).</li>
@@ -92,7 +93,8 @@ final class MysticalDropSource implements DropSource {
                 : 0.0;
         tally.add(seed, HarvestMath.countSuccesses(plots, seedChance, random::nextDouble), Category.SECONDARY);
 
-        if (!inferium && fertilizedEssence != null) {
+        // Fertilized Essence: never from Inferium crops (MA rule), and never when the machine's switch is OFF.
+        if (!inferium && fertilizedEssence != null && context.fertilizedEssence()) {
             tally.add(fertilizedEssence,
                     HarvestMath.countSuccesses(plots, fertilizedEssenceChance(), random::nextDouble),
                     Category.SECONDARY);

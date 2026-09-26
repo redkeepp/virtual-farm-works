@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "R": "minecraft:redstone",
+    "D": "minecraft:diamond",
+    "B": "minecraft:redstone_block"
+  },
+  "pattern": [
+    "RDR",
+    "DBD",
+    "RDR"
+  ],
+  "result": {
+    "id": "virtualfarmworks:starter_growth_upgrade"
+  }
+}

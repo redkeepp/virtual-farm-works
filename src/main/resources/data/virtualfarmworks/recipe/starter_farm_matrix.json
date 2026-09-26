@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "D": "minecraft:diamond",
+    "S": "minecraft:wheat_seeds",
+    "R": "minecraft:redstone",
+    "I": "minecraft:iron_block"
+  },
+  "pattern": [
+    "DSR",
+    "SIS",
+    "RSD"
+  ],
+  "result": {
+    "id": "virtualfarmworks:starter_farm_matrix"
+  }
+}

@@ -173,6 +173,13 @@ A harvest yields what an equivalent physical farm would, per ACTIVE plot:
 - The "O" opens the face box (3 px left of the column) in the owner's layout (T / L F R / Bk Bt), green =
   auto-output on, red = off, full side names in tooltips. ON/OFF sits at the bottom of the column (Claude's choice).
 - Empty input slots show 40% placeholders; hovering an empty slot tells what it accepts.
+- Owner additions (step 8): a **Fertilized Essence** ON/OFF switch in the old ON/OFF position (light pink = Mystical
+  Agriculture crops produce Fertilized Essence, dark pink = they do not; no effect without MA), and the machine
+  ON/OFF moved 5 px below it. Title moved up 1 px, "Seeds" line down 1 px.
+- Owner addition (step 8): right-clicking the machine (GUI closed) while holding a Water Provider, Growth Speed or
+  Crux Provider Upgrade pulls in as many as fit; if none fits, the GUI opens instead.
+- Recipes (owner): Starter Farm Matrix, Starter Water Provider, Starter Growth Speed, Crux Provider — see
+  `docs/resources.md`.
 
 ## Implementation decisions
 

@@ -35,7 +35,10 @@ public interface DropSource {
      * @param random       randomness source (the level's)
      * @param maxLootRolls config {@code performance.maxLootRollsPerHarvest}: upper bound of loot-table evaluations per
      *                     harvest, see {@link LootDropSource}
+     * @param fertilizedEssence the machine's Fertilized Essence switch (GUI button): when false, Mystical Agriculture
+     *                     crops never produce Fertilized Essence. No effect on other plants.
      */
-    record Context(ServerLevel level, BlockPos machinePos, RandomSource random, int maxLootRolls) {
+    record Context(ServerLevel level, BlockPos machinePos, RandomSource random, int maxLootRolls,
+                   boolean fertilizedEssence) {
     }
 }

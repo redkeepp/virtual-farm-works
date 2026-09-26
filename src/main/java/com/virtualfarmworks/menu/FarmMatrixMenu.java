@@ -53,8 +53,10 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
 
     /** Button ids sent by the client (vanilla ServerboundContainerButtonClickPacket). */
     public static final int BUTTON_POWER = 0;
-    /** Face toggles use {@code BUTTON_FACE_FIRST + RelativeSide.ordinal()}. */
+    /** Face toggles use {@code BUTTON_FACE_FIRST + RelativeSide.ordinal()} (ids 1..6). */
     public static final int BUTTON_FACE_FIRST = 1;
+    /** Fertilized Essence switch. */
+    public static final int BUTTON_FERTILIZED = BUTTON_FACE_FIRST + 6;
 
     // ContainerData indices.
     private static final int DATA_STATUS = 0;
@@ -64,7 +66,8 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
     private static final int DATA_PLOTS = 4;
     private static final int DATA_ENABLED = 5;    // 0 / 1
     private static final int DATA_FACES = 6;      // RelativeSide bit mask
-    private static final int DATA_COUNT = 7;
+    private static final int DATA_FERTILIZED = 7; // 0 / 1
+    private static final int DATA_COUNT = 8;
 
     private static final int SYNC_INTERVAL = 5;
 
@@ -154,6 +157,7 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         data.set(DATA_PLOTS, toShort(machine.totalPlots()));
         data.set(DATA_ENABLED, machine.isEnabled() ? 1 : 0);
         data.set(DATA_FACES, machine.outputFaces());
+        data.set(DATA_FERTILIZED, machine.isFertilizedEssenceEnabled() ? 1 : 0);
     }
 
     private static int toShort(long value) {
@@ -196,6 +200,10 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         return (data.get(DATA_FACES) & side.bit()) != 0;
     }
 
+    public boolean isFertilizedEssenceEnabled() {
+        return data.get(DATA_FERTILIZED) != 0;
+    }
+
     // --- player intents ---------------------------------------------------------------------------------------------
 
     /**
@@ -211,6 +219,8 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
             machine.setEnabled(!machine.isEnabled());
         } else if (id >= BUTTON_FACE_FIRST && id < BUTTON_FACE_FIRST + RelativeSide.values().length) {
             machine.toggleOutput(RelativeSide.values()[id - BUTTON_FACE_FIRST]);
+        } else if (id == BUTTON_FERTILIZED) {
+            machine.toggleFertilizedEssence();
         } else {
             return false;
         }
