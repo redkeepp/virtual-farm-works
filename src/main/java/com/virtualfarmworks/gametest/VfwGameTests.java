@@ -82,7 +82,8 @@ public final class VfwGameTests {
             test("menu_actions", MachineGameTests::menuActions, 20),
             // finishing touches (step 8)
             test("machine_inserts_upgrades_from_hand", MachineGameTests::insertsUpgradesFromHand, 20),
-            test("recipes_are_loaded", MachineGameTests::recipesAreLoaded, 20));
+            test("recipes_are_loaded", MachineGameTests::recipesAreLoaded, 20),
+            test("mystical_effective_farmland", VfwGameTests::mysticalEffectiveFarmland, 20));
 
     private VfwGameTests() {
     }
@@ -295,6 +296,15 @@ public final class VfwGameTests {
             return;
         }
         MysticalHarvestTests.run(helper); // loads MA classes only here
+    }
+
+    /** VFW's switch for MA's effective-farmland rule, off and on (skipped with a pass when MA is absent). */
+    private static void mysticalEffectiveFarmland(GameTestHelper helper) {
+        if (!MysticalCompat.isLoaded()) {
+            helper.succeed();
+            return;
+        }
+        MysticalFarmlandTests.run(helper); // loads MA classes only here
     }
 
     // --- helpers ----------------------------------------------------------------------------------------------------

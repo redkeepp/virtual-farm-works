@@ -1,6 +1,7 @@
 /*
  * MysticalCompatImpl — the only code that touches Mystical Agriculture classes (its api.crop package): crop lookup from
- * a seed and crux detection. Loaded by the JVM only through MysticalCompat, i.e. only when MA is installed.
+ * a seed, crux detection and the effective-farmland rule. Loaded by the JVM only through MysticalCompat, i.e. only when
+ * MA is installed.
  */
 package com.virtualfarmworks.compat.mysticalagriculture;
 
@@ -10,8 +11,10 @@ import com.blakebr0.mysticalagriculture.api.crop.Crop;
 import com.blakebr0.mysticalagriculture.api.crop.ICropProvider;
 import com.virtualfarmworks.harvest.DropSource;
 
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 
 /**
  * Code that touches Mystical Agriculture classes. ONLY call through {@link MysticalCompat}, which checks that MA is
@@ -19,6 +22,9 @@ import net.minecraft.world.item.ItemStack;
  * versions; Mystical Agradditions crops implement the same API.
  */
 final class MysticalCompatImpl {
+    /** MA's Inferium crop, the only crop exempt from the effective-farmland rule. */
+    private static final Identifier INFERIUM_CROP = Identifier.fromNamespaceAndPath(MysticalCompat.MODID, "inferium");
+
     private MysticalCompatImpl() {
     }
 
@@ -29,6 +35,20 @@ final class MysticalCompatImpl {
 
     static boolean isMysticalSeed(ItemStack seed) {
         return cropOf(seed) != null;
+    }
+
+    /**
+     * Same test as MA 9.0.9's {@code MysticalCropBlock#canGrow} when MA's {@code requiresEffectiveFarmland} is on:
+     * every crop except Inferium needs {@code crop.getTier().isEffectiveFarmland(blockBelow)} (the tier's own farmland,
+     * or the always-effective block tag). MA compares with its internal {@code ModCrops.INFERIUM} constant; the crop id
+     * is the same crop through the public API only.
+     */
+    static boolean isEffectiveFarmland(ItemStack seed, Block ground) {
+        Crop crop = cropOf(seed);
+        if (crop == null || INFERIUM_CROP.equals(crop.getId())) {
+            return true;
+        }
+        return crop.getTier().isEffectiveFarmland(ground);
     }
 
     /** MA drop source for a seed on a soil item; null if the seed is not an MA seed or the soil places no block. */

@@ -9,6 +9,7 @@ import org.jspecify.annotations.Nullable;
 import com.virtualfarmworks.harvest.DropSource;
 
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.neoforged.fml.ModList;
 
 /**
@@ -48,6 +49,16 @@ public final class MysticalCompat {
     /** Whether the stack is a Mystical Agriculture (or addon) SEED — essences are not. */
     public static boolean isMysticalSeed(ItemStack seed) {
         return isLoaded() && MysticalCompatImpl.isMysticalSeed(seed);
+    }
+
+    /**
+     * Mystical Agriculture's "effective farmland" rule: whether {@code ground} (the block the plant stands on) is the
+     * farmland of the seed's own tier, or a block in {@code #mysticalagriculture:always_effective_farmland}. True for
+     * everything the rule does not cover: MA absent, non-MA seeds and the Inferium crop (MA exempts it). Only asked when
+     * VFW's {@code mysticalagriculture.requiresEffectiveFarmland} switch is on.
+     */
+    public static boolean isEffectiveFarmland(ItemStack seed, Block ground) {
+        return !isLoaded() || MysticalCompatImpl.isEffectiveFarmland(seed, ground);
     }
 
     /**

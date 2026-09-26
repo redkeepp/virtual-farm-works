@@ -191,10 +191,20 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   farmland and `tier.isEffectiveFarmland(soil)` (tier's own farmland or block tag `ALWAYS_EFFECTIVE_FARMLAND`); capped
   at 1.0. So by default: 0% plain soil, 10% any essence farmland, 20% matching tier farmland.
 - Crux: `Crop#getCruxBlock()` (null when the crop needs none) -> satisfied by the Crux Provider Upgrade.
+- Effective farmland (MA common config `requiresEffectiveFarmland`, default false; read from MA's sources jar): in
+  `MysticalCropBlock#canGrow`, every crop except `ModCrops.INFERIUM` only grows when
+  `crop.getTier().isEffectiveFarmland(blockBelow)` — the tier's own farmland (EXACT match: a higher-tier farmland does
+  not count) or a block in `#mysticalagriculture:always_effective_farmland` (MA ships `awakened_supremium_farmland`
+  in it). It does NOT check `Crop#respectsEffectiveFarmland` (that flag only affects the secondary chance). VFW
+  mirrors it behind its OWN switch `mysticalagriculture.requiresEffectiveFarmland` (owner: default off, independent
+  from MA's option): `PlantAnalysis` -> `MysticalCompat#isEffectiveFarmland` -> `INVALID_SOIL`; game test
+  `mystical_effective_farmland`.
 - Farmlands: `InfusedFarmlandBlock extends FarmlandBlock implements IEssenceFarmland`, `getTier()`. Ids:
   `mysticalagriculture:{inferium,prudentium,tertium,imperium,supremium,awakened_supremium}_farmland`,
   `mysticalagradditions:insanium_farmland`.
-- Open decision: how VFW compiles against MA (compileOnly jar via a maven such as CurseMaven vs reflection).
+- Compiling against MA: `compileOnly` jar from Blake's maven (see `build.gradle`); MA classes are referenced only in
+  `compat/mysticalagriculture/*Impl`/`MysticalDropSource` and in game tests that run only when MA is loaded. The
+  sources jar sits next to the jar in the Gradle cache (`~/.gradle/caches/modules-2/.../MysticalAgriculture/`).
 - Assets: `blockstates/` and some item definitions/models (growth upgrades, crux) are not in the owner's asset drop;
   they are plumbing, not art — generate them (datagen) pointing at the owner's existing textures.
   Ignore `textures/item/antigos_nao_usar/` (old, unused).
@@ -267,13 +277,17 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Provider (+ recipe-book unlocks); Fertilized Essence switch per machine (persisted, button id 7, part of the
   pending-harvest key, `DropSource.Context#fertilizedEssence`); right-click with an upgrade pulls it in
   (`FarmMatrixBlock#useItemOn` -> `FarmMatrixBlockEntity#insertUpgradesFrom`, falls through to the GUI when nothing
-  fits); title y 8, seeds line y 77. 17 game tests.
+  fits); title y 8, seeds line y 77.
   JEI: `client/compat/VfwJeiPlugin` (exclusion areas from `FarmMatrixScreen#extraAreas`). Jade: `compat/jade/`
   (server data provider + client tooltip, same lines as the GUI via `menu/DisplayFormats`; plugin load confirmed in
   the game-test log). Both compileOnly (maven.blamejared.com, Modrinth maven). EMI: no 26.1.2 release exists yet —
   add an exclusion-area plugin when it does.
-  Still to do: MA "requiresEffectiveFarmland" option (VFW config, default off — owner approved), config-reload test,
-  load benchmark, dedicated-server check (owner), publishing metadata (at release).
+  MA effective farmland: VFW switch `mysticalagriculture.requiresEffectiveFarmland` (default off, see the MA findings
+  above). Owner corrections: 3 px between the two ON/OFF boxes (not 5; all side boxes are now 3 px apart), and the
+  Fertilized Essence tooltip reads "Drops Fertilized Essence: ON/OFF". 18 game tests (17 VFW + 1 vanilla), 47 JUnit.
+  Still to do: config-reload test, load benchmark, dedicated-server check (owner), publishing metadata (at release).
+  Dev tip: the owner often has `runClient` open on the same `run/` folder. An old build running there reverts new
+  config keys (its file watcher "corrects" the shared TOML), and both processes write `run/logs/latest.log`.
 
 ## GUI gotchas (26.1)
 

@@ -174,8 +174,9 @@ A harvest yields what an equivalent physical farm would, per ACTIVE plot:
   auto-output on, red = off, full side names in tooltips. ON/OFF sits at the bottom of the column (Claude's choice).
 - Empty input slots show 40% placeholders; hovering an empty slot tells what it accepts.
 - Owner additions (step 8): a **Fertilized Essence** ON/OFF switch in the old ON/OFF position (light pink = Mystical
-  Agriculture crops produce Fertilized Essence, dark pink = they do not; no effect without MA), and the machine
-  ON/OFF moved 5 px below it. Title moved up 1 px, "Seeds" line down 1 px.
+  Agriculture crops produce Fertilized Essence, dark pink = they do not; no effect without MA; tooltip
+  "Drops Fertilized Essence: ON/OFF"), and the machine ON/OFF right below it, 3 px apart like every other box (the
+  owner first said 5 px, then corrected it to 3). Title moved up 1 px, "Seeds" line down 1 px.
 - Owner addition (step 8): right-clicking the machine (GUI closed) while holding a Water Provider, Growth Speed or
   Crux Provider Upgrade pulls in as many as fit; if none fits, the GUI opens instead.
 - Recipes (owner): Starter Farm Matrix, Starter Water Provider, Starter Growth Speed, Crux Provider — see
@@ -198,4 +199,11 @@ A harvest yields what an equivalent physical farm would, per ACTIVE plot:
 - **Output full** (mechanism): compute the whole cycle's drops, simulate insertion into the buffer; if everything fits,
   commit; otherwise hold at 100% with `OUTPUT FULL` and retry only when the buffer changes (event-driven).
 - **Removing seeds**: PENDING plots are removed first, then ACTIVE.
-- **Hoe wear (when enabled by config)**: 1 durability per harvest cycle, not per plot.
+- **Hoe wear (when enabled by config)**: time-based, see "Machine behavior details" (the first idea, 1 durability per
+  harvest cycle, was replaced by the owner in step 7).
+- **Mystical Agriculture effective farmland** (owner, step 8): VFW has its own switch
+  `mysticalagriculture.requiresEffectiveFarmland`, default off, independent from MA's option of the same name. When
+  on, an MA seed only grows on its own tier's farmland (a higher-tier farmland does not count, same as MA), except
+  Inferium Seeds, and blocks in `#mysticalagriculture:always_effective_farmland` (Awakened Supremium Farmland by
+  default) count for every tier. Otherwise the status is `INVALID SOIL`. Tested on the block the plant stands on:
+  the soil, or vanilla farmland when a hoe tills it.

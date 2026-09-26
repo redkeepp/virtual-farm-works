@@ -18,6 +18,7 @@ Implemented in milestone 1 step 2. Server config file: `config/virtualfarmworks-
 | Blacklist by tag | Entry form `"#namespace:tag"` | (both lists) |
 | Global AND per-tier blacklists | Per-tier lists add to the global ones | `machines.<tier>.seedBlacklist` / `soilBlacklist` |
 | Extra-seed chance on Mystical Agriculture farmlands (0% allowed) | Multiplier over MA's native chance (extra SEED only; MA's extra-essence chance is production) | `drops.mysticalagriculture.secondarySeedChanceMultiplier` |
+| MA seeds only on their own tier's farmland (MA's `requiresEffectiveFarmland` rule, Inferium exempt, `#mysticalagriculture:always_effective_farmland` counts for every tier) | VFW's own switch, default false (owner): machines do not follow MA's option unless this is on too | `mysticalagriculture.requiresEffectiveFarmland` |
 | Which drops are "secondary" | Item tag (planting items in `#c:seeds` are extra seeds automatically) | `#virtualfarmworks:harvest_byproducts` |
 | Harvest cost on huge machines | Max loot-table evaluations per harvest (sampled and scaled, expected yield exact) | `performance.maxLootRollsPerHarvest` |
 | Multiplier without Water Provider, per tier | Server config per tier (default 0.25) | `machines.<tier>.noWaterSpeedMultiplier` |

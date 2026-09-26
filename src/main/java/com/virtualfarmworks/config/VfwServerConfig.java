@@ -1,6 +1,7 @@
 /*
  * VfwServerConfig — definition of config/virtualfarmworks-server.toml: every balance value pack makers can change
- * (growth, hoe, output, drops, blacklists, per-tier machine settings) together with the comments they read in the file.
+ * (growth, hoe, output, drops, Mystical Agriculture rules, blacklists, per-tier machine settings) together with the
+ * comments they read in the file.
  */
 package com.virtualfarmworks.config;
 
@@ -46,6 +47,9 @@ public final class VfwServerConfig {
     public static final ModConfigSpec.DoubleValue GLOBAL_PRODUCTION_MULTIPLIER;
     public static final ModConfigSpec.DoubleValue SECONDARY_DROP_MULTIPLIER;
     public static final ModConfigSpec.DoubleValue MYSTICAL_SECONDARY_SEED_MULTIPLIER;
+
+    // --- Mystical Agriculture ---------------------------------------------------------------------------------------
+    public static final ModConfigSpec.BooleanValue MYSTICAL_REQUIRES_EFFECTIVE_FARMLAND;
 
     // --- performance ------------------------------------------------------------------------------------------------
     public static final ModConfigSpec.IntValue MAX_LOOT_ROLLS_PER_HARVEST;
@@ -169,6 +173,24 @@ public final class VfwServerConfig {
                         "Mystical Agriculture's own config option secondarySeedDrops = false disables extra seeds.")
                 .defineInRange("secondarySeedChanceMultiplier", 1.0, 0.0, 100.0);
         b.pop(2);
+
+        b.comment("Mystical Agriculture crops (ignored when Mystical Agriculture is not installed)")
+                .push("mysticalagriculture");
+        // Mirrors MA 9.0.9's own rule (MysticalCropBlock#canGrow, applied when MA's option of the same name is on).
+        // VFW has its OWN switch on purpose (owner decision): machines ignore MA's setting unless the pack maker turns
+        // this one on too. Same key name as MA's so a search for it in the config folder finds both.
+        MYSTICAL_REQUIRES_EFFECTIVE_FARMLAND = b
+                .comment("If true, Mystical Agriculture seeds only grow in a machine whose soil is the farmland of",
+                        "their own tier (e.g. Imperium seeds need Imperium Farmland; Supremium Farmland does not count",
+                        "for them). Any other soil shows INVALID SOIL. Same rule as Mystical Agriculture's own option",
+                        "requiresEffectiveFarmland for crops planted in the world, with the same exceptions:",
+                        "  - Inferium Seeds are exempt and grow on any farmland.",
+                        "  - Blocks in the block tag #mysticalagriculture:always_effective_farmland count as the right",
+                        "    farmland for every tier (Awakened Supremium Farmland by default).",
+                        "This is VFW's own switch: machines do NOT follow Mystical Agriculture's option automatically.",
+                        "Set both to true to apply the rule in the world and in the machines.")
+                .define("requiresEffectiveFarmland", false);
+        b.pop();
 
         b.comment("Server performance").push("performance");
         MAX_LOOT_ROLLS_PER_HARVEST = b

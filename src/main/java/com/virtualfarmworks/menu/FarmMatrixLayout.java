@@ -11,7 +11,8 @@ import com.virtualfarmworks.machine.RelativeSide;
  * GUI geometry. The central part comes from the owner's texture
  * ({@code textures/gui/starter_farm_matrix_gui.png}, 176x219 used out of 256x256); its coordinates are the owner's
  * (see {@code docs/specs/starter-farm-matrix.md}, GUI table). The side panel on the LEFT of the texture (auto-output
- * button, face box, 5 upgrade slots, power button) is drawn by code and its geometry is defined here.
+ * button, face box, 5 upgrade slots, Fertilized Essence button, power button) is drawn by code and its geometry is
+ * defined here.
  *
  * <p>Slot positions are the top-left pixel of the 16x16 item, as Minecraft expects.
  */
@@ -84,17 +85,16 @@ public final class FarmMatrixLayout {
     //   x = -1         blue frame line
     //   x =  0         the texture's white border, which is also the column's right border — so the column has NO
     //                  theme border on its right side and only one white line shows where they touch.
-    // Four boxes from top to bottom: the "O" button (1 cell), 3 px gap, the upgrade block (5 cells separated by a
-    // single blue line, no white lines between them), 3 px gap, the Fertilized Essence ON/OFF button (1 cell), 5 px
-    // gap, the machine ON/OFF button (1 cell). Each box: white top line, blue line, cells, blue line, white bottom line.
+    // Four boxes from top to bottom, 3 px apart: the "O" button (1 cell), the upgrade block (5 cells separated by a
+    // single blue line, no white lines between them), the Fertilized Essence ON/OFF button (1 cell) and the machine
+    // ON/OFF button (1 cell). Each box: white top line, blue line, cells, blue line, white bottom line.
     public static final int PANEL_BORDER_X = -19;
     public static final int PANEL_INTERIOR_X = -17;
     public static final int CELL = 16;
     /** Distance between two stacked cells of the upgrade block: 16 px interior + 1 shared blue line. */
     public static final int CELL_PITCH = CELL + 1;
+    /** Empty rows between two boxes (owner spec: 3 px everywhere, including between the two ON/OFF buttons). */
     public static final int PANEL_BOX_GAP = 3;
-    /** Owner spec: the machine ON/OFF box sits 5 px below the Fertilized Essence box. */
-    public static final int POWER_BOX_GAP = 5;
     public static final int UPGRADE_SLOTS = MachineSlots.GROWTH_COUNT + 1; // 4 growth + 1 crux
 
     /** Top (white line) of the "O" box; its interior (y 26) lines up with the texture's top slot row (owner spec). */
@@ -102,8 +102,8 @@ public final class FarmMatrixLayout {
     public static final int UPGRADE_BOX_TOP = OUTPUT_BOX_TOP + boxHeight(1) + PANEL_BOX_GAP;       // 47
     /** Fertilized Essence ON/OFF box: where the machine ON/OFF box used to be (owner spec). */
     public static final int FERTILIZED_BOX_TOP = UPGRADE_BOX_TOP + boxHeight(UPGRADE_SLOTS) + PANEL_BOX_GAP; // 138
-    public static final int POWER_BOX_TOP = FERTILIZED_BOX_TOP + boxHeight(1) + POWER_BOX_GAP;     // 163
-    public static final int PANEL_BOTTOM = POWER_BOX_TOP + boxHeight(1);                           // 183 (exclusive)
+    public static final int POWER_BOX_TOP = FERTILIZED_BOX_TOP + boxHeight(1) + PANEL_BOX_GAP;     // 161
+    public static final int PANEL_BOTTOM = POWER_BOX_TOP + boxHeight(1);                           // 181 (exclusive)
 
     // Face box, opened by the "O" button, left of the column (3 px gap). 3x3 grid of 16 px cells, 2 px apart, 3 px
     // padding, inside a blue frame and a theme-color border. FACE_BOX_X/Y are the inner (blue frame) top-left corner.

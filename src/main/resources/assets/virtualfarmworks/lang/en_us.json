@@ -60,7 +60,7 @@
   "gui.virtualfarmworks.output_sides": "Auto-output sides (click)",
   "gui.virtualfarmworks.output_side": "%s: auto-output %s",
   "gui.virtualfarmworks.power": "Machine: %s (click to switch)",
-  "gui.virtualfarmworks.fertilized_essence": "Fertilized Essence: %s (click to switch)",
+  "gui.virtualfarmworks.fertilized_essence": "Drops Fertilized Essence: %s (click to switch)",
   "gui.virtualfarmworks.fertilized_essence.hint": "Mystical Agriculture crops only",
   "config.jade.plugin_virtualfarmworks.farm_matrix": "Farm Matrix",
   "gui.virtualfarmworks.slot.seed": "Seed or plantable (up to 64)",

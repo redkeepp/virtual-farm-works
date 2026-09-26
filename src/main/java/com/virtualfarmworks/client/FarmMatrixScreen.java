@@ -101,8 +101,9 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
     }
 
     /**
-     * The side column glued to the texture (see {@link FarmMatrixLayout}): the "O" box, the 5-cell upgrade block and
-     * the ON/OFF box. No theme border on the right: the texture's own white border is the column's right edge.
+     * The side column glued to the texture (see {@link FarmMatrixLayout}): the "O" box, the 5-cell upgrade block, the
+     * Fertilized Essence ON/OFF box and the machine ON/OFF box. No theme border on the right: the texture's own white
+     * border is the column's right edge.
      */
     private void extractSidePanel(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
         int outputTop = y0 + FarmMatrixLayout.OUTPUT_BOX_TOP;

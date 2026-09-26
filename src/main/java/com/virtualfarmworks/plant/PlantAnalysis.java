@@ -37,7 +37,10 @@ public record PlantAnalysis(Status status, boolean needsHoe, boolean needsCrux, 
         MISSING_SEED,
         /** Soil slot empty, not a soil, or blacklisted for this tier. */
         MISSING_SOIL,
-        /** Both present, but this plant cannot grow on this soil even with a hoe (e.g. wheat on soul sand). */
+        /**
+         * Both present, but this plant cannot grow on this soil even with a hoe (e.g. wheat on soul sand), or the soil
+         * breaks Mystical Agriculture's effective-farmland rule while VFW's switch for it is on.
+         */
         INVALID_SOIL,
         /** The pair can grow (possibly needing a hoe and/or crux, see the flags). */
         VALID
@@ -72,15 +75,26 @@ public record PlantAnalysis(Status status, boolean needsHoe, boolean needsCrux, 
         }
         BlockState plant = plantBlock.defaultBlockState();
 
-        boolean needsHoe;
+        boolean tilled;
         if (PlantRules.canGrowOn(plant, soilState)) {
-            needsHoe = false;                           // e.g. wheat on farmland, sugar cane on dirt
+            tilled = false;                             // e.g. wheat on farmland, sugar cane on dirt
         } else if (SoilRules.isTillable(soil) && PlantRules.canGrowOn(plant, SoilRules.TILLED_SOIL)) {
-            needsHoe = VfwServerConfig.REQUIRE_HOE.get(); // e.g. wheat on dirt
+            tilled = true;                              // e.g. wheat on dirt
         } else {
             return INVALID_SOIL;                        // e.g. wheat on soul sand, nether wart on dirt
         }
 
+        // Mystical Agriculture's effective-farmland rule, only when the pack maker turns on VFW's switch for it (off by
+        // default): e.g. Imperium seeds on Inferium Farmland become INVALID SOIL. Tested against the block the plant
+        // actually stands on: the soil itself, or the farmland it becomes once tilled.
+        if (VfwServerConfig.MYSTICAL_REQUIRES_EFFECTIVE_FARMLAND.get()) {
+            Block ground = tilled ? SoilRules.TILLED_SOIL.getBlock() : soilState.getBlock();
+            if (!MysticalCompat.isEffectiveFarmland(seed, ground)) {
+                return INVALID_SOIL;
+            }
+        }
+
+        boolean needsHoe = tilled && VfwServerConfig.REQUIRE_HOE.get();
         return new PlantAnalysis(Status.VALID, needsHoe, MysticalCompat.requiresCrux(seed),
                 ModDataMaps.soilSpeedMultiplier(soil));
     }
