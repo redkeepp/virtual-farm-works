@@ -28,8 +28,10 @@ Run from the repository root (this folder). `JAVA_HOME` must point to JDK 25 (al
 .\gradlew.bat runClient     # launch dev client
 .\gradlew.bat runServer     # launch dev dedicated server (nogui)
 .\gradlew.bat runData       # run data generators
-.\gradlew.bat runGameTestServer   # headless: boots the mod, runs game tests, exits. Use it to catch registry/datapack
-                                  # errors without opening the client; then check run/logs/latest.log for ERROR/WARN.
+.\gradlew.bat test                # JUnit tests of the Minecraft-free simulation core (seconds). Results:
+                                  # build/test-results/test/*.xml
+.\gradlew.bat runGameTestServer   # headless: boots the mod, runs game tests, exits (exit code 0 = all passed). Use it to
+                                  # catch registry/datapack errors without opening the client; check run/logs/latest.log.
 ```
 
 Dev mods for testing (Mystical Agriculture, Mystical Agradditions, ...) go as jars in `run/mods/` (26.1 is unobfuscated,
@@ -200,6 +202,22 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Why no access transformer for `mayPlaceOn`: making it public breaks the MC recompile (19 vanilla subclasses
   override it as protected) — see `PlantRules#mayPlaceOn`.
 
+- [x] Step 4: simulation core `sim/` (pure Java, NO net.minecraft imports — keep it that way so JUnit can test it):
+  `GrowthCycle` (global progress 0..1, `PlotGroup`s with active/pending, exploit rules, carry-over capped so at most
+  one harvest per tick, 1e-9 "due" tolerance so 600 x 1/600 is exactly one cycle), `GrowthSpeed`
+  (hydration x upgrades x soil), `MachineStatus` (priority = declaration order) + `MachineConditions`. 34 JUnit tests.
+  Status priority decided by Claude (owner may revisit): SHUTDOWN > owner's missing hierarchy > OUTPUT FULL > RUNNING.
+  `noWaterSpeedMultiplier` min is 0.01 (0 would show RUNNING without ever advancing; no "missing water" state exists).
+
+## Simulation rules — quick reference (`sim/GrowthCycle`)
+
+- Machine tick (step 6): if status RUNNING and harvest not due -> `advance(progressPerTick)`; if due -> try the
+  transactional harvest of `activePlots()` plots; on success `completeHarvest()`, on failure OUTPUT FULL (bar frozen at
+  100%, retried only when the output buffer changes).
+- `setPlots(group, min(seeds, soils), plantChanged)` on every slot change: new plots are PENDING unless the machine
+  is empty (then ACTIVE at 0%); removal takes PENDING first; an empty machine resets progress; plant change uproots.
+- Persist `progress`, `activeCounts()`, `pendingCounts()`; restore with `load(...)` (repairs corrupted data).
+
 ## Plant/soil rules — quick reference
 
 - Seed slot: item places a supported plant block (CropBlock, StemBlock, NetherWart, SweetBerryBush, Mushroom,
@@ -228,6 +246,9 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   - `compat/mysticalagriculture/` — `MysticalCompat` (safe facade, never references MA types) and
     `MysticalCompatImpl` (MA API calls, only loaded when MA is present). MA is `compileOnly` from maven.blakesmods.com.
   - `gametest/` — `VfwGameTests` (dev only). Run `gradlew runGameTestServer`; exit code 0 = all passed.
+  - `sim/` — Minecraft-free simulation core: `GrowthCycle`, `PlotGroup`, `GrowthSpeed`, `MachineStatus`,
+    `MachineConditions`.
+- `src/test/java/com/virtualfarmworks/sim/` — JUnit tests for `sim/` (`gradlew test`).
 - `src/main/resources/data/virtualfarmworks/tags/` — VFW item/block tags (datapack-editable plant/soil rules).
 - `src/main/resources/assets/virtualfarmworks/` — lang, models, textures.
 - `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata (Gradle expands `${...}` from `gradle.properties`).

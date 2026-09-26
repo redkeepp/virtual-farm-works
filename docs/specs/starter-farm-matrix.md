@@ -103,6 +103,9 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
 - `SHUTDOWN` — red, player turned the machine off with the on/off button.
 - DECIDED: `INVALID SOIL` (orange) for an incompatible seed/soil pair, placed right after `MISSING SOIL`.
   Final order: MISSING SEED > MISSING SOIL > INVALID SOIL > MISSING HOE > MISSING CRUX > MISSING FE.
+- IMPLEMENTED priority (step 4, `sim/MachineStatus`): SHUTDOWN (player's explicit choice) > the missing hierarchy
+  above > OUTPUT FULL (only matters once the machine could grow) > RUNNING.
+- OUTPUT FULL happens when a due harvest does not fit the buffer; the bar stays at 100% until it fits.
 
 ## Machine behavior
 

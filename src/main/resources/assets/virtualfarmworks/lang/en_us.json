@@ -26,5 +26,15 @@
   "tooltip.virtualfarmworks.water_provider_upgrade": "Lets the machine grow at full speed (1.0x)",
   "tooltip.virtualfarmworks.growth_upgrade": "+%s%% growth speed",
   "tooltip.virtualfarmworks.crux_provider_upgrade": "Provides any crux a seed requires",
-  "tooltip.virtualfarmworks.fits": "Fits: %s"
+  "tooltip.virtualfarmworks.fits": "Fits: %s",
+
+  "status.virtualfarmworks.running": "RUNNING",
+  "status.virtualfarmworks.missing_seed": "MISSING SEED",
+  "status.virtualfarmworks.missing_soil": "MISSING SOIL",
+  "status.virtualfarmworks.invalid_soil": "INVALID SOIL",
+  "status.virtualfarmworks.missing_hoe": "MISSING HOE",
+  "status.virtualfarmworks.missing_crux": "MISSING CRUX",
+  "status.virtualfarmworks.missing_fe": "MISSING FE",
+  "status.virtualfarmworks.output_full": "OUTPUT FULL",
+  "status.virtualfarmworks.shutdown": "SHUTDOWN"
 }

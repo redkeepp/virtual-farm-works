@@ -123,6 +123,12 @@ dependencies {
         transitive = false
     }
 
+    // Plain JUnit for the Minecraft-free simulation core (com.virtualfarmworks.sim). Game-dependent behavior is
+    // covered by game tests instead (gradlew runGameTestServer).
+    testImplementation(platform("org.junit:junit-bom:${junit_version}"))
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
@@ -181,6 +187,10 @@ publishing {
             url "file://${project.projectDir}/repo"
         }
     }
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
 }
 
 tasks.withType(JavaCompile).configureEach {

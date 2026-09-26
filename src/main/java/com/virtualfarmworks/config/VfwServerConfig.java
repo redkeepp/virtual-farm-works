@@ -64,10 +64,12 @@ public final class VfwServerConfig {
                             "Upgrades, no accelerating soil). 20 ticks = 1 second. Every crop in the machine shares this",
                             "single cycle, regardless of its natural growth time.")
                     .defineInRange("growthTicks", defaultGrowthTicks, 1, 1_728_000);
+            // Minimum 0.01, not 0: at 0 the machine would show RUNNING while never advancing, and the owner's state list
+            // has no "missing water" state. A mandatory-water mode would need that state first.
             noWaterSpeedMultiplier = b
                     .comment("Speed multiplier while no Water Provider Upgrade is installed. 0.25 = four times slower.",
-                            "1.0 makes the Water Provider optional speed-wise. 0.0 makes it mandatory (machine stops).")
-                    .defineInRange("noWaterSpeedMultiplier", 0.25, 0.0, 1.0);
+                            "1.0 makes the Water Provider optional speed-wise.")
+                    .defineInRange("noWaterSpeedMultiplier", 0.25, 0.01, 1.0);
             productionMultiplier = b
                     .comment("Yield multiplier for this tier (multiplied with the global one). Independent from speed:",
                             "changes how much each harvest produces, not how often it happens.")
