@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "virtualfarmworks:item/ionic_water_provider_upgrade"
+  }
+}

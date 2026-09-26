@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "virtualfarmworks:item/starter_water_provider_upgrade"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "virtualfarmworks:item/resonant_water_provider_upgrade"
+  }
+}

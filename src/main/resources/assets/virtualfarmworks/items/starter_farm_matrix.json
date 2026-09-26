@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "virtualfarmworks:block/starter_farm_matrix"
+  }
+}

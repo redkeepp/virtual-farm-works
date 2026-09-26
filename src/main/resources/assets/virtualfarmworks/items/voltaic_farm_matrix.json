@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "virtualfarmworks:block/voltaic_farm_matrix"
+  }
+}

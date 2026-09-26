@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "virtualfarmworks:item/ionic_water_provider_upgrade"
+  }
+}
