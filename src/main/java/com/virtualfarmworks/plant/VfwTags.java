@@ -1,6 +1,6 @@
 /*
- * VfwTags — TagKeys of VFW's datapack-editable plant/soil tags (tillable soils, unplantable seeds, extra plantables,
- * mushroom soils, glow berry supports). Default contents: src/main/resources/data/virtualfarmworks/tags/.
+ * VfwTags — TagKeys of VFW's datapack-editable tags (tillable soils, unplantable seeds, extra plantables, mushroom
+ * soils, glow berry supports, harvest by-products). Default contents: src/main/resources/data/virtualfarmworks/tags/.
  */
 package com.virtualfarmworks.plant;
 
@@ -35,6 +35,13 @@ public final class VfwTags {
      * a {@code CropBlock}). Their soil rule is the plant's own {@code mayPlaceOn}. Empty by default.
      */
     public static final TagKey<Item> EXTRA_PLANTABLES = item("extra_plantables");
+
+    /**
+     * Harvest drops that count as SECONDARY (by-products), scaled by {@code drops.secondaryDropMultiplier} instead of
+     * the production multipliers (default: poisonous potato, Mystical Agriculture's Fertilized Essence). Extra seeds
+     * are secondary automatically when the planting item is in {@code #c:seeds}.
+     */
+    public static final TagKey<Item> HARVEST_BYPRODUCTS = item("harvest_byproducts");
 
     /**
      * Soils for mushrooms. Vanilla mushrooms accept any solid block in the dark, which would let the soil slot accept

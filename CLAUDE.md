@@ -152,11 +152,12 @@ tick():
 - Persist: progress, active/pending, storage, buffers, autocraft leftovers/rules, I/O configuration.
   Avoid redundant derivable state when it can be safely rebuilt.
 
-### Crop compatibility approach (planned, not yet implemented)
-Resolve a seed item to its crop block, and derive drops from the block's loot table at maturity using a server-side
-loot context (no entities, no fake player). Cache the result per seed item; invalidate on datapack/recipe reload.
-This should support Mystical Agriculture and other mods without per-mod integration. Mystical Agriculture "Crux"
-(special block requirement for some crops) is what the Crux Provider Upgrade is meant to satisfy — details pending.
+### Crop compatibility approach (implemented in steps 3 and 5)
+A seed item resolves to its plant block; soil compatibility uses the game's own rules in a virtual 2-block view
+(step 3). Drops come from the plant's loot table at maturity with a server-side loot context (no entities, no fake
+player), so vanilla and most modded crops work without per-mod code (step 5). Mystical Agriculture is the exception:
+its crops compute drops from the real block below them, so VFW reproduces MA's formula through MA's API with the soil
+slot's farmland. MA crux requirements are satisfied by the generic Crux Provider Upgrade.
 
 ### Content list
 Blocks: Starter, Voltaic, Ionic, Resonant, Entropic **Farm Matrix**.
@@ -178,10 +179,13 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 - `MysticalCropBlock extends CropBlock implements ICropProvider` (`getCrop()` -> `api.crop.Crop`). Agradditions crops
   build on the same API.
 - `MysticalCropBlock#getDrops(BlockState, LootParams.Builder)` is overridden and reads the REAL WORLD:
-  `level.getBlockState(ORIGIN.below())` to get the farmland, then `crop.getSecondaryChance(farmlandBlock)` for the
-  extra seed (only if MA config `secondarySeedDrops`), plus Fertilized Essence with MA config
-  `fertilizedEssenceChance`. A virtual machine has no real farmland below the crop, so the generic loot path is WRONG
-  for MA crops: VFW needs an MA compat path that uses `Crop#getSecondaryChance(soilBlock)` with the soil from the slot.
+  `level.getBlockState(ORIGIN.below())` to get the farmland. With `c = crop.getSecondaryChance(farmlandBlock)`, a
+  mature crop drops: essence 1 (2 with chance `c`), seeds 1 (2 with chance `c`, only if MA config
+  `secondarySeedDrops`), Fertilized Essence with MA config `fertilizedEssenceChance` — three INDEPENDENT rolls.
+  `InferiumCropBlock` overrides it: essence = `(int)(0.5 * v + 0.5)` for farmland tier value `v` (+1 with 50% when `v`
+  is even and > 1), seeds as above, never Fertilized Essence. A virtual machine has no real farmland below the crop,
+  so VFW reproduces this in `compat/mysticalagriculture/MysticalDropSource` with the soil slot's block; the game test
+  `mystical_drops_match_ma` compares it statistically with MA's real `getDrops` (verified to catch a broken formula).
 - `Crop#getSecondaryChance(Block soil)`: 0 if the tier has no secondary seed drop; +base (crop override if > -1,
   else tier base, default 0.1) when soil is any `IEssenceFarmland`; +0.1 more when the crop respects effective
   farmland and `tier.isEffectiveFarmland(soil)` (tier's own farmland or block tag `ALWAYS_EFFECTIVE_FARMLAND`); capped
@@ -226,6 +230,27 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Status priority decided by Claude (owner may revisit): SHUTDOWN > owner's missing hierarchy > OUTPUT FULL > RUNNING.
   `noWaterSpeedMultiplier` min is 0.01 (0 would show RUNNING without ever advancing; no "missing water" state exists).
 
+- [x] Step 5: aggregated transactional harvest (`harvest/`): `HarvestPlans` (drop source per seed/soil, built on
+  revalidation), `LootDropSource` (plant loot table, no entities, TOOL = EMPTY so the hoe never changes yields,
+  sampled to `performance.maxLootRollsPerHarvest` and scaled), `MysticalDropSource` (MA formula), `Harvester` (`roll`
+  with config multipliers, `tryStore` = root NeoForge Transaction + `insertStacking`, all-or-nothing). Pure math in
+  `sim/HarvestMath` + `sim/DropTally` (JUnit). Tag `#virtualfarmworks:harvest_byproducts`. 47 JUnit + 7 game tests.
+
+## Harvest rules — quick reference (`harvest/`)
+
+- Replanting cost: crops/nether wart/cocoa/MA pay 1 planting item per harvested plot (the plot keeps its seed, a real
+  farm replants with a drop). Stems (fruit loot: melon slices 3-7, pumpkin), berries, sugar cane, cactus, bamboo,
+  mushrooms and chorus (chorus_plant loot) stay in place: no cost.
+- MAIN vs SECONDARY: planting-item surplus is SECONDARY only if the planting item is in `#c:seeds`; items in
+  `#virtualfarmworks:harvest_byproducts` are SECONDARY; the rest is MAIN. MAIN x global x tier production multiplier,
+  SECONDARY x `secondaryDropMultiplier`; `DropTally.finish` rounds stochastically (expected value exact).
+- Step 6 MUST: roll once when the harvest becomes due, keep the rolled drops in memory and retry only `tryStore` when
+  the buffer changes (no re-rolling per retry: cost + bias). Invalidate the cached roll when the active plot count or
+  the drop source changes. Call `GrowthCycle#completeHarvest()` only after `tryStore` returned true, in the same tick.
+  Hoe durability (config `hoe.consumeDurability`) is consumed after a successful store, 1 per harvest.
+- Never call `tryStore` inside another transaction (it refuses): a rolled-back outer transaction would void a harvest
+  whose cycle was already completed.
+
 ## Simulation rules — quick reference (`sim/GrowthCycle`)
 
 - Machine tick (step 6): if status RUNNING and harvest not due -> `advance(progressPerTick)`; if due -> try the
@@ -264,7 +289,9 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
     `MysticalCompatImpl` (MA API calls, only loaded when MA is present). MA is `compileOnly` from maven.blakesmods.com.
   - `gametest/` — `VfwGameTests` (dev only). Run `gradlew runGameTestServer`; exit code 0 = all passed.
   - `sim/` — Minecraft-free simulation core: `GrowthCycle`, `PlotGroup`, `GrowthSpeed`, `MachineStatus`,
-    `MachineConditions`.
+    `MachineConditions`, `HarvestMath`, `DropTally`.
+  - `harvest/` — `DropSource`, `LootDropSource`, `HarvestPlans`, `Harvester` (drops + transactional storage).
+  - `gametest/MysticalHarvestTests` — MA-only game test (references MA classes; called only when MA is loaded).
 - `src/test/java/com/virtualfarmworks/sim/` — JUnit tests for `sim/` (`gradlew test`).
 - `src/main/resources/data/virtualfarmworks/tags/` — VFW item/block tags (datapack-editable plant/soil rules).
 - `src/main/resources/assets/virtualfarmworks/` — lang, models, textures.

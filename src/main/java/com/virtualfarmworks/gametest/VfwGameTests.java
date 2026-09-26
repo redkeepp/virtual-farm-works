@@ -1,20 +1,27 @@
 /*
  * VfwGameTests — automated in-game tests (development only), run headless by `gradlew runGameTestServer`: plant/soil
- * pairing, slot rules and the Mystical Agriculture integration, against real registries, tags and config.
+ * pairing, slot rules, harvest yields, all-or-nothing storage and the Mystical Agriculture integration, against real
+ * registries, loot tables, tags and config.
  */
 package com.virtualfarmworks.gametest;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
 import com.virtualfarmworks.data.ModDataMaps;
+import com.virtualfarmworks.harvest.DropSource;
+import com.virtualfarmworks.harvest.HarvestPlans;
+import com.virtualfarmworks.harvest.Harvester;
+import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.plant.PlantAnalysis;
 import com.virtualfarmworks.plant.PlantAnalysis.Status;
 import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.plant.SoilRules;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -31,6 +38,8 @@ import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.transfer.item.ItemResource;
+import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
 /**
  * Automated in-game tests, run headless with {@code gradlew runGameTestServer} (boots a real server with every mod in
@@ -53,6 +62,12 @@ public final class VfwGameTests {
             FUNCTIONS.register("slot_rules", () -> VfwGameTests::slotRules);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> PLANT_RULES_MYSTICAL =
             FUNCTIONS.register("plant_rules_mystical", () -> VfwGameTests::plantRulesMystical);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> HARVEST_VANILLA =
+            FUNCTIONS.register("harvest_vanilla_yields", () -> VfwGameTests::harvestVanillaYields);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> HARVEST_ATOMIC =
+            FUNCTIONS.register("harvest_is_all_or_nothing", () -> VfwGameTests::harvestIsAllOrNothing);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> HARVEST_MYSTICAL =
+            FUNCTIONS.register("mystical_drops_match_ma", () -> VfwGameTests::mysticalDropsMatchMa);
 
     private VfwGameTests() {
     }
@@ -190,7 +205,98 @@ public final class VfwGameTests {
         helper.succeed();
     }
 
+    /**
+     * One harvest of 10 plots for every accepted vanilla plant, checked against the vanilla loot tables with the
+     * replanting cost paid (expected ranges derived from data/minecraft/loot_table/blocks/*.json, no Fortune).
+     */
+    private static void harvestVanillaYields(GameTestHelper helper) {
+        // Crops: product + extra seeds; one seed (or the product itself) goes back into the ground per plot.
+        expectHarvest(helper, Items.WHEAT_SEEDS, Items.FARMLAND, Items.WHEAT, 10, 10);
+        expectHarvest(helper, Items.WHEAT_SEEDS, Items.FARMLAND, Items.WHEAT_SEEDS, 0, 30);   // (1..4) - 1
+        expectHarvest(helper, Items.BEETROOT_SEEDS, Items.FARMLAND, Items.BEETROOT, 10, 10);
+        expectHarvest(helper, Items.BEETROOT_SEEDS, Items.FARMLAND, Items.BEETROOT_SEEDS, 0, 30);
+        expectHarvest(helper, Items.CARROT, Items.FARMLAND, Items.CARROT, 10, 40);             // (2..5) - 1
+        expectHarvest(helper, Items.POTATO, Items.FARMLAND, Items.POTATO, 10, 40);
+        expectHarvest(helper, Items.POTATO, Items.FARMLAND, Items.POISONOUS_POTATO, 0, 10);
+        expectHarvest(helper, Items.NETHER_WART, Items.SOUL_SAND, Items.NETHER_WART, 10, 30);  // (2..4) - 1
+        expectHarvest(helper, Items.COCOA_BEANS, Items.JUNGLE_LOG, Items.COCOA_BEANS, 20, 20); // 3 - 1
+        // Stems: the fruit is harvested, the stem stays (no seeds out).
+        expectHarvest(helper, Items.MELON_SEEDS, Items.FARMLAND, Items.MELON_SLICE, 30, 70);   // 3..7
+        expectHarvest(helper, Items.MELON_SEEDS, Items.FARMLAND, Items.MELON_SEEDS, 0, 0);
+        expectHarvest(helper, Items.PUMPKIN_SEEDS, Items.FARMLAND, Items.PUMPKIN, 10, 10);
+        // Plants that stay in place: one segment / picking per cycle.
+        expectHarvest(helper, Items.SUGAR_CANE, Items.SAND, Items.SUGAR_CANE, 10, 10);
+        expectHarvest(helper, Items.CACTUS, Items.SAND, Items.CACTUS, 10, 10);
+        expectHarvest(helper, Items.BAMBOO, Items.DIRT, Items.BAMBOO, 10, 10);
+        expectHarvest(helper, Items.BROWN_MUSHROOM, Items.MYCELIUM, Items.BROWN_MUSHROOM, 10, 10);
+        expectHarvest(helper, Items.SWEET_BERRIES, Items.GRASS_BLOCK, Items.SWEET_BERRIES, 20, 30); // 2..3
+        expectHarvest(helper, Items.GLOW_BERRIES, Items.STONE, Items.GLOW_BERRIES, 10, 10);
+        expectHarvest(helper, Items.CHORUS_FLOWER, Items.END_STONE, Items.CHORUS_FRUIT, 0, 10);    // 0..1
+        helper.succeed();
+    }
+
+    /**
+     * The output buffer receives a harvest completely or not at all (anti-dupe / anti-void). Uses a plain 9-slot
+     * handler like the machine's buffer.
+     */
+    private static void harvestIsAllOrNothing(GameTestHelper helper) {
+        ItemStacksResourceHandler buffer = new ItemStacksResourceHandler(9);
+        ItemResource dirt = ItemResource.of(Items.DIRT);
+        ItemResource wheat = ItemResource.of(Items.WHEAT);
+        for (int slot = 0; slot < 8; slot++) {
+            buffer.set(slot, dirt, 64);
+        }
+        buffer.set(8, dirt, 63); // room for exactly one more dirt, none for anything else
+
+        // 1 dirt fits, 5 wheat do not: the dirt insertion must be rolled back too.
+        List<DropTally.Entry<ItemResource>> harvest =
+                List.of(new DropTally.Entry<>(dirt, 1), new DropTally.Entry<>(wheat, 5));
+        check(helper, !Harvester.tryStore(harvest, buffer), "a harvest that does not fit must be refused");
+        check(helper, buffer.getAmountAsInt(8) == 63, "partial insertion must be rolled back (slot 8 changed)");
+        for (int slot = 0; slot < 9; slot++) {
+            check(helper, buffer.getResource(slot).equals(dirt), "refused harvest must not add items (slot " + slot + ")");
+        }
+
+        // Free one slot: now everything fits, stacking into the existing dirt stack first.
+        buffer.set(0, ItemResource.EMPTY, 0);
+        check(helper, Harvester.tryStore(harvest, buffer), "a harvest that fits must be stored");
+        check(helper, buffer.getAmountAsInt(8) == 64, "the extra dirt must complete the existing stack");
+        check(helper, buffer.getResource(0).equals(wheat) && buffer.getAmountAsInt(0) == 5,
+                "the wheat must go to the free slot");
+
+        // An empty harvest (e.g. production multiplier 0) always succeeds, so the cycle can complete.
+        check(helper, Harvester.tryStore(List.of(), buffer), "an empty harvest must succeed");
+        helper.succeed();
+    }
+
+    /** VFW's Mystical Agriculture drops match MA's real getDrops (skipped with a pass when MA is absent). */
+    private static void mysticalDropsMatchMa(GameTestHelper helper) {
+        if (!MysticalCompat.isLoaded()) {
+            helper.succeed();
+            return;
+        }
+        MysticalHarvestTests.run(helper); // loads MA classes only here
+    }
+
     // --- helpers ----------------------------------------------------------------------------------------------------
+
+    /** Rolls a harvest of 10 plots (default config multipliers) and checks the amount of one item. */
+    private static void expectHarvest(GameTestHelper helper, net.minecraft.world.item.Item seed,
+                                      net.minecraft.world.item.Item soil, net.minecraft.world.item.Item product,
+                                      long min, long max) {
+        String pair = BuiltInRegistries.ITEM.getKey(seed) + " on " + BuiltInRegistries.ITEM.getKey(soil);
+        DropSource source = HarvestPlans.create(stack(seed), stack(soil));
+        check(helper, source != null, pair + ": no drop source");
+        var level = helper.getLevel();
+        List<DropTally.Entry<ItemResource>> drops = Harvester.roll(source, 10, MachineTier.STARTER,
+                new DropSource.Context(level, helper.absolutePos(BlockPos.ZERO), level.getRandom(), 64));
+        long amount = drops.stream()
+                .filter(drop -> drop.key().is(product))
+                .mapToLong(DropTally.Entry::amount)
+                .sum();
+        check(helper, amount >= min && amount <= max, pair + ": expected " + min + ".." + max + " "
+                + BuiltInRegistries.ITEM.getKey(product) + ", got " + amount + " " + drops);
+    }
 
     private static void expect(GameTestHelper helper, net.minecraft.world.item.Item seed, net.minecraft.world.item.Item soil,
                                Status status, boolean needsHoe) {

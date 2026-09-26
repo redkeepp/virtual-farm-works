@@ -1,0 +1,6 @@
+{
+  "values": [
+    "minecraft:poisonous_potato",
+    { "id": "mysticalagriculture:fertilized_essence", "required": false }
+  ]
+}

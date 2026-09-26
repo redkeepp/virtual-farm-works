@@ -46,6 +46,9 @@ public final class VfwServerConfig {
     public static final ModConfigSpec.DoubleValue SECONDARY_DROP_MULTIPLIER;
     public static final ModConfigSpec.DoubleValue MYSTICAL_SECONDARY_SEED_MULTIPLIER;
 
+    // --- performance ------------------------------------------------------------------------------------------------
+    public static final ModConfigSpec.IntValue MAX_LOOT_ROLLS_PER_HARVEST;
+
     // --- filters ----------------------------------------------------------------------------------------------------
     public static final ModConfigSpec.ConfigValue<List<? extends String>> GLOBAL_SEED_BLACKLIST;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> GLOBAL_SOIL_BLACKLIST;
@@ -153,9 +156,22 @@ public final class VfwServerConfig {
                         "  5.0 -> 50% / 100%",
                         "To get X% on the matching farmland use X / 20 (e.g. 30% -> 1.5); on any essence farmland",
                         "use X / 10 (e.g. 30% -> 3.0).",
-                        "The extra seed is also affected by drops.secondaryDropMultiplier.")
+                        "Only the extra SEED is affected. MA's separate chance of an extra ESSENCE (same percentages)",
+                        "is production and stays as in MA (scale it with the production multipliers instead).",
+                        "The extra seed is also affected by drops.secondaryDropMultiplier.",
+                        "Mystical Agriculture's own config option secondarySeedDrops = false disables extra seeds.")
                 .defineInRange("secondarySeedChanceMultiplier", 1.0, 0.0, 100.0);
         b.pop(2);
+
+        b.comment("Server performance").push("performance");
+        MAX_LOOT_ROLLS_PER_HARVEST = b
+                .comment("Maximum loot-table evaluations per harvest. A machine with more ACTIVE plots than this",
+                        "evaluates this many and scales the result (e.g. 6000 plots, 64 rolls: each roll counts for",
+                        "93.75 plots). The expected yield stays exact; only the randomness of a single harvest is",
+                        "coarser. Lower = cheaper harvests on huge machines. Mystical Agriculture crops do not use",
+                        "loot tables and are always computed exactly.")
+                .defineInRange("maxLootRollsPerHarvest", 64, 1, 4096);
+        b.pop();
 
         b.comment("Blacklists. By default everything is allowed; list what is NOT allowed.").push("filters");
         GLOBAL_SEED_BLACKLIST = b

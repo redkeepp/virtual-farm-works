@@ -4,6 +4,10 @@
  */
 package com.virtualfarmworks.compat.mysticalagriculture;
 
+import org.jspecify.annotations.Nullable;
+
+import com.virtualfarmworks.harvest.DropSource;
+
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 
@@ -39,5 +43,18 @@ public final class MysticalCompat {
      */
     public static boolean requiresCrux(ItemStack seed) {
         return isLoaded() && MysticalCompatImpl.requiresCrux(seed);
+    }
+
+    /** Whether the stack is a Mystical Agriculture (or addon) SEED — essences are not. */
+    public static boolean isMysticalSeed(ItemStack seed) {
+        return isLoaded() && MysticalCompatImpl.isMysticalSeed(seed);
+    }
+
+    /**
+     * The harvest drop source of an MA seed on a soil (MA's formula with the soil slot's farmland), or null when MA is
+     * absent or the seed is not an MA seed. Returned as VFW's own {@link DropSource} type, so no MA type leaks out.
+     */
+    public static @Nullable DropSource createDropSource(ItemStack seed, ItemStack soil) {
+        return isLoaded() ? MysticalCompatImpl.createDropSource(seed, soil) : null;
     }
 }

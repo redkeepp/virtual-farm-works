@@ -130,6 +130,23 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
   supported too). Shipped as datapack-editable defaults, never hard-coded.
 - **Output full**: machine stops completely; drops already in the buffer stay there; no partial harvest, nothing voided.
 
+## Harvest (implemented, milestone 1 step 5)
+
+A harvest yields what an equivalent physical farm would, per ACTIVE plot:
+- **Crops** (wheat, carrot, potato, beetroot, nether wart, cocoa, modded crops): the mature crop's loot, minus one
+  planting item that goes back into the ground (the "replanting cost" — the plot keeps its seed in VFW). E.g. wheat:
+  1 wheat + 0..3 extra seeds; carrot: 1..4 carrots; cocoa: 2 beans.
+- **Melon / pumpkin**: the fruit block's loot (melon: 3..7 slices like breaking a melon; pumpkin: 1 pumpkin). The
+  stem stays, so no seed is consumed or produced.
+- **Sweet berries** 2..3, **glow berries** 1, **sugar cane / cactus / bamboo / mushroom** 1, **chorus** 0..1 chorus
+  fruit per cycle: the plant stays in place.
+- **Mystical Agriculture**: MA's own formula with the soil slot's farmland (essence, extra essence/seed chances,
+  Inferium's tier-based essence, Fertilized Essence), minus the replanting seed.
+- The hoe never changes yields (no Fortune, tier irrelevant — owner rule).
+- Pack-maker multipliers: production (main product) and secondary (extra seeds, by-products), see
+  `configurability.md`.
+- Storage is all-or-nothing (NeoForge transaction). If the harvest does not fit: OUTPUT FULL, bar held at 100%.
+
 ## Implementation decisions
 
 - **Seed/soil compatibility** (implemented, step 3): computed generically in a tiny in-memory block view (no world

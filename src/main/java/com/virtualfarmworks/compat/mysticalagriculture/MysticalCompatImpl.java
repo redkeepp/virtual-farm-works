@@ -8,6 +8,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.blakebr0.mysticalagriculture.api.crop.Crop;
 import com.blakebr0.mysticalagriculture.api.crop.ICropProvider;
+import com.virtualfarmworks.harvest.DropSource;
 
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -24,6 +25,19 @@ final class MysticalCompatImpl {
     static boolean requiresCrux(ItemStack seed) {
         Crop crop = cropOf(seed);
         return crop != null && crop.getCruxBlock() != null;
+    }
+
+    static boolean isMysticalSeed(ItemStack seed) {
+        return cropOf(seed) != null;
+    }
+
+    /** MA drop source for a seed on a soil item; null if the seed is not an MA seed or the soil places no block. */
+    static @Nullable DropSource createDropSource(ItemStack seed, ItemStack soil) {
+        Crop crop = cropOf(seed);
+        if (crop == null || !(soil.getItem() instanceof BlockItem soilBlock)) {
+            return null;
+        }
+        return new MysticalDropSource(crop, soilBlock.getBlock());
     }
 
     /**
