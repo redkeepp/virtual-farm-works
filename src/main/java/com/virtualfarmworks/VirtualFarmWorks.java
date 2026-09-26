@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.data.ModDataMaps;
+import com.virtualfarmworks.gametest.VfwGameTests;
+import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModCreativeTabs;
 import com.virtualfarmworks.registry.ModItems;
@@ -12,6 +14,7 @@ import com.virtualfarmworks.registry.ModItems;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.common.NeoForge;
 
 /**
  * Mod entry point. Keep this class thin: it only wires the registries and configs onto the mod event bus. Game logic
@@ -30,5 +33,9 @@ public class VirtualFarmWorks {
         ModCreativeTabs.register(modEventBus);
         ModDataMaps.register(modEventBus);
         VfwConfig.register(modEventBus, modContainer);
+        VfwGameTests.register(modEventBus); // no-op in production
+
+        // Game (not mod) bus listeners.
+        SoilRules.register(NeoForge.EVENT_BUS);
     }
 }

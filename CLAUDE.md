@@ -191,6 +191,27 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   `ItemFilter`), soil data map (`data/SoilProperties`, `ModDataMaps`) with MA/Agradditions farmland bonuses
   (Awakened Supremium = +40%, same as Insanium, owner decision). The MA extra-seed option is a MULTIPLIER over MA's
   own chance; its config comment has worked examples (owner asked for pack-maker-friendly examples).
+- [x] Step 3: plant/soil resolver (`plant/`): `PlantRules` (plantable items, `canGrowOn` = soil's NeoForge
+  `canSustainPlant` hook first, then the plant's own `mayPlaceOn` via a cached reflective MethodHandle, or vanilla
+  `#supports_*` tags for non-VegetationBlock plants), `SoilRules` (hoe detection, tillable soils, cached soil-slot
+  acceptance), `PlantAnalysis` (seed+soil -> MISSING_SEED / MISSING_SOIL / INVALID_SOIL / VALID + needsHoe, needsCrux,
+  soil multiplier), `SoilView` (2-block virtual BlockGetter). MA crux via `compat/mysticalagriculture`.
+  Game tests in `gametest/VfwGameTests` (4 pass with MA + Agradditions in run/mods).
+  Why no access transformer for `mayPlaceOn`: making it public breaks the MC recompile (19 vanilla subclasses
+  override it as protected) — see `PlantRules#mayPlaceOn`.
+
+## Plant/soil rules — quick reference
+
+- Seed slot: item places a supported plant block (CropBlock, StemBlock, NetherWart, SweetBerryBush, Mushroom,
+  SugarCane, Cactus, Bamboo, Cocoa, CaveVines, ChorusFlower) or is in `#virtualfarmworks:extra_plantables`; never in
+  `#virtualfarmworks:unplantable` (torchflower seeds, pitcher pod). Config blacklists apply per tier on top.
+- Soil slot: item places a block some plantable plant can grow on, or is in `#virtualfarmworks:tillable_soils`.
+  Plants are never soils. Cached per item; caches clear on `TagsUpdatedEvent`.
+- Hoe needed = plant cannot grow on the soil, but can on farmland and the soil is tillable (and `hoe.requireHoe`).
+- Virtual plots ignore light, water adjacency and neighbours. Mushrooms use `#virtualfarmworks:supports_mushrooms`
+  (mycelium, podzol, nylium) and glow berries `#virtualfarmworks:supports_glow_berries` (stone, moss, dirt) because
+  their vanilla rules accept almost any block.
+- Game-test gotcha: a block that supports no plant is MISSING_SOIL (slot rejects it), not INVALID_SOIL.
 - Milestone 1 scope (agreed): **Starter Farm Matrix only**, to validate the architecture before the other tiers.
   I/O by face, autocrafting and integrations come in later milestones.
 
@@ -203,5 +224,10 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   - `registry/` — `ModBlocks`, `ModItems`, `ModCreativeTabs` (DeferredRegisters).
   - `config/` — `VfwServerConfig` (spec), `VfwConfig` (runtime: compiled filters, generation), `ItemFilter`.
   - `data/` — `SoilProperties` + `ModDataMaps` (soil growth bonus data map).
+  - `plant/` — `PlantRules`, `SoilRules`, `PlantAnalysis`, `SoilView`, `VfwTags`.
+  - `compat/mysticalagriculture/` — `MysticalCompat` (safe facade, never references MA types) and
+    `MysticalCompatImpl` (MA API calls, only loaded when MA is present). MA is `compileOnly` from maven.blakesmods.com.
+  - `gametest/` — `VfwGameTests` (dev only). Run `gradlew runGameTestServer`; exit code 0 = all passed.
+- `src/main/resources/data/virtualfarmworks/tags/` — VFW item/block tags (datapack-editable plant/soil rules).
 - `src/main/resources/assets/virtualfarmworks/` — lang, models, textures.
 - `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata (Gradle expands `${...}` from `gradle.properties`).

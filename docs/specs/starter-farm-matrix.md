@@ -127,12 +127,17 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
   supported too). Shipped as datapack-editable defaults, never hard-coded.
 - **Output full**: machine stops completely; drops already in the buffer stay there; no partial harvest, nothing voided.
 
-## PROPOSED implementation decisions (pending confirmation)
+## Implementation decisions
 
-- **Seed/soil compatibility** is computed generically by asking the plant block whether it can survive on the soil
-  block in a tiny in-memory block view (no world access). This reuses vanilla/NeoForge placement logic and the 26.1
-  `#supports_*` block tags, so modded crops/soils work without per-mod code. Computed once when a slot changes, cached.
-- **Hoe need**: plant cannot survive on the soil, but can survive on the soil's hoe-tilled state -> hoe required.
+- **Seed/soil compatibility** (implemented, step 3): computed generically in a tiny in-memory block view (no world
+  access): the soil's NeoForge `canSustainPlant` hook first, then the plant's own `mayPlaceOn` (26.1 `#supports_*`
+  tags for vanilla, overrides for modded crops). Light/water/neighbours are ignored (ideal virtual conditions).
+  Mushrooms and glow berries use VFW tags because their vanilla rules accept almost any block. Only computed when a
+  slot/config/tags change.
+- **Hoe need** (implemented): plant cannot grow on the soil, the soil is in `#virtualfarmworks:tillable_soils`, and the
+  plant can grow on farmland -> hoe required (unless `hoe.requireHoe = false`).
+- **Blacklisted item already in a machine** (config changed later): stays in its slot (player can take it back) but is
+  treated as missing (`MISSING SEED` / `MISSING SOIL`).
 - **Soil growth multipliers** (mechanism): NeoForge data map on items (`virtualfarmworks:soil_properties`, e.g.
   `growth_bonus`), shipped defaults for the MA/Agradditions farmlands above; optional entries so VFW does not
   hard-depend on those mods.
