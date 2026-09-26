@@ -267,9 +267,13 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Provider (+ recipe-book unlocks); Fertilized Essence switch per machine (persisted, button id 7, part of the
   pending-harvest key, `DropSource.Context#fertilizedEssence`); right-click with an upgrade pulls it in
   (`FarmMatrixBlock#useItemOn` -> `FarmMatrixBlockEntity#insertUpgradesFrom`, falls through to the GUI when nothing
-  fits); title y 8, seeds line y 77. 17 game tests. Still to do: JEI/EMI exclusion areas, Jade provider, MA
-  "requiresEffectiveFarmland" option (VFW config, default off), config-reload test, load benchmark, dedicated-server
-  check (owner running it), publishing metadata (at release).
+  fits); title y 8, seeds line y 77. 17 game tests.
+  JEI: `client/compat/VfwJeiPlugin` (exclusion areas from `FarmMatrixScreen#extraAreas`). Jade: `compat/jade/`
+  (server data provider + client tooltip, same lines as the GUI via `menu/DisplayFormats`; plugin load confirmed in
+  the game-test log). Both compileOnly (maven.blamejared.com, Modrinth maven). EMI: no 26.1.2 release exists yet —
+  add an exclusion-area plugin when it does.
+  Still to do: MA "requiresEffectiveFarmland" option (VFW config, default off — owner approved), config-reload test,
+  load benchmark, dedicated-server check (owner), publishing metadata (at release).
 
 ## GUI gotchas (26.1)
 
@@ -334,8 +338,10 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`. Items carry no behavior.
   - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
   - `menu/` — `FarmMatrixMenu` (both sides), `FarmMatrixLayout` (GUI geometry and colors).
-  - `client/` — CLIENT ONLY: `VirtualFarmWorksClient` (second `@Mod`, dist CLIENT), `FarmMatrixScreen`. Never
-    reference `client/` classes from common code (a dedicated server would crash).
+  - `client/` — CLIENT ONLY: `VirtualFarmWorksClient` (second `@Mod`, dist CLIENT), `FarmMatrixScreen`,
+    `compat/VfwJeiPlugin`. Never reference `client/` classes from common code (a dedicated server would crash).
+  - `compat/jade/` — Jade plugin (`@WailaPlugin`), server data provider and client tooltip, kept in separate classes.
+  - `menu/DisplayFormats` — number formats shared by the GUI and Jade.
   - `config/` — `VfwServerConfig` (spec), `VfwConfig` (runtime: compiled filters, generation), `ItemFilter`.
   - `data/` — `SoilProperties` + `ModDataMaps` (soil growth bonus data map).
   - `plant/` — `PlantRules`, `SoilRules`, `PlantAnalysis`, `SoilView`, `VfwTags`.

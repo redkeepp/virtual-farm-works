@@ -8,7 +8,6 @@ package com.virtualfarmworks.client;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import org.jspecify.annotations.Nullable;
 
@@ -16,6 +15,7 @@ import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.machine.MachineSlots;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.machine.RelativeSide;
+import com.virtualfarmworks.menu.DisplayFormats;
 import com.virtualfarmworks.menu.FarmMatrixLayout;
 import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.registry.ModItems;
@@ -24,6 +24,7 @@ import com.virtualfarmworks.sim.MachineStatus;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
@@ -221,11 +222,12 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         extractFittedText(graphics, Component.translatable(status.translationKey()), lineY[0],
                 0xFF000000 | status.tone().rgb());
         extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.hydration",
-                formatMultiplier(menu.hydrationMultiplier())), lineY[1], FarmMatrixLayout.COLOR_TEXT);
+                DisplayFormats.multiplier(menu.hydrationMultiplier())), lineY[1], FarmMatrixLayout.COLOR_TEXT);
         extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.seeds", menu.plots(),
                 MachineSlots.SEED_SOIL_LIMIT), lineY[2], FarmMatrixLayout.COLOR_TEXT);
-        extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.growth", displayPercent(),
-                formatMultiplier(menu.growthMultiplier())), lineY[3], FarmMatrixLayout.COLOR_TEXT);
+        extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.growth",
+                DisplayFormats.growthPercent(menu.progress(), menu.plots()),
+                DisplayFormats.multiplier(menu.growthMultiplier())), lineY[3], FarmMatrixLayout.COLOR_TEXT);
     }
 
     /** Info line at {@link FarmMatrixLayout#INFO_X}, shrunk to the panel width if needed (long translations). */
@@ -243,18 +245,24 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         graphics.pose().popMatrix();
     }
 
-    /** Owner spec: the bar reads 1%..100% while plots exist (never 0% on a planted machine); 0% when empty. */
-    private int displayPercent() {
-        if (menu.plots() <= 0) {
-            return 0;
-        }
-        return Math.clamp((int) Math.ceil(menu.progress() * 100.0), 1, 100);
-    }
+    // =================================================================================================================
+    // JEI (and future EMI) exclusion areas
+    // =================================================================================================================
 
-    /** 1.0 -> "1.0", 0.25 -> "0.25", 3.0 -> "3.0", 4.05 -> "4.05". */
-    static String formatMultiplier(double value) {
-        String text = String.format(Locale.ROOT, "%.2f", value);
-        return text.endsWith("0") ? text.substring(0, text.length() - 1) : text;
+    /**
+     * Screen areas drawn outside the texture: the side column, and the face box while it is open. Recipe viewers use
+     * this to keep their item list and bookmarks off our side panel (see {@code client.compat.VfwJeiPlugin}).
+     */
+    public List<Rect2i> extraAreas() {
+        List<Rect2i> areas = new ArrayList<>(2);
+        areas.add(new Rect2i(leftPos + FarmMatrixLayout.PANEL_BORDER_X, topPos + FarmMatrixLayout.OUTPUT_BOX_TOP,
+                -FarmMatrixLayout.PANEL_BORDER_X, FarmMatrixLayout.PANEL_BOTTOM - FarmMatrixLayout.OUTPUT_BOX_TOP));
+        if (faceBoxOpen) {
+            int size = FarmMatrixLayout.FACE_BOX_SIZE + 2;
+            areas.add(new Rect2i(leftPos + FarmMatrixLayout.FACE_BOX_X - 1, topPos + FarmMatrixLayout.FACE_BOX_Y - 1,
+                    size, size));
+        }
+        return areas;
     }
 
     // =================================================================================================================

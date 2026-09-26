@@ -36,6 +36,18 @@ repositories {
         url = "https://maven.blakesmods.com"
         content { includeGroupByRegex "com\\.blakebr0.*" }
     }
+    // Official JEI maven.
+    maven {
+        name = "BlameJared"
+        url = "https://maven.blamejared.com"
+        content { includeGroup "mezz.jei" }
+    }
+    // Modrinth maven (Jade publishes there).
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content { includeGroup "maven.modrinth" }
+    }
 }
 
 base {
@@ -125,6 +137,12 @@ dependencies {
     compileOnly("com.blakebr0.mysticalagriculture:MysticalAgriculture:${mystical_agriculture_version}") {
         transitive = false
     }
+
+    // JEI and Jade: COMPILE ONLY, same rule as Mystical Agriculture. Their plugin classes are discovered by JEI/Jade
+    // themselves (annotations) and are never loaded when those mods are absent. EMI has no 26.1.2 release yet.
+    compileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
+    compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
+    compileOnly "maven.modrinth:jade:${jade_version}"
 
     // Plain JUnit for the Minecraft-free simulation core (com.virtualfarmworks.sim). Game-dependent behavior is
     // covered by game tests instead (gradlew runGameTestServer).
