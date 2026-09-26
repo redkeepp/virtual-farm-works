@@ -1,27 +1,34 @@
 # Pack-maker configurability — specification
 
 Goal: large modpacks (e.g. ATM 11) must be able to rebalance VFW EASILY, without touching Java. **Nothing below may be
-hard-coded.** Source: owner's spec, translated. Mechanism per option is PROPOSED unless stated otherwise.
+hard-coded.** Source: owner's spec, translated.
 
-| Requirement | Proposed mechanism |
-|---|---|
-| Base growth time, per machine tier (e.g. default 2 min, pack sets any value) | Server config TOML, one value per tier |
-| Whether the hoe loses durability (only for items that have durability; unbreakable/FE hoes never wear) | Server config (default: no wear) |
-| Disable the hoe requirement entirely (`requireHoe = true/false`) | Server config (default: true) |
-| Blacklist seeds (e.g. block Diamond Seeds everywhere). Default: everything allowed; lists say what is NOT allowed | Config lists + item tags |
-| Blacklist soils, same semantics | Config lists + item tags |
-| Blacklist by namespace/mod (`modid:*`), for seeds and soils | Config list patterns |
-| Global AND per-tier blacklists (e.g. Diamond Seed only in Resonant/Entropic) | Per-tier config lists / per-tier tags |
-| Seed drop rate for crops on Mystical Agriculture farmlands (0% allowed) | Server config |
-| Multiplier without Water Provider (default 0.25x; 1.0x makes it optional), per tier | Server config per tier |
-| Auto-output interval (5/10/20/40 ticks) or disable auto-push completely | Server config |
-| Secondary drops multiplier (extra seeds, Fertilized Essence, other byproducts); 1.0 default, 0 disables | Server config |
-| Machine and upgrade recipes 100% datapack-driven | Recipes only as JSON under `data/virtualfarmworks/recipe/` |
-| Disable whole tiers without unregistering blocks (save-safe) | Removing recipes via datapack; optional config flag if needed |
-| Global or per-tier production (yield) multiplier, default 1.0, independent from speed | Server config |
-| Growth Speed Upgrade bonus (default +50% each) | Server config |
-| Growth Speed Upgrade max stack per upgrade slot (default 1 per slot x 4 slots; e.g. 3 per slot = 12) | Server config |
+Implemented in milestone 1 step 2. Server config file: `config/virtualfarmworks-server.toml` (code:
+`config/VfwServerConfig.java`). Soil bonuses: datapack data map `data/virtualfarmworks/data_maps/item/soil_properties.json`
+(code: `data/SoilProperties.java`, `data/ModDataMaps.java`).
+
+| Requirement | Mechanism | Key |
+|---|---|---|
+| Base growth time, per machine tier (default Starter 30 s) | Server config, per tier | `machines.<tier>.growthTicks` |
+| Hoe loses durability (only items with durability) | Server config (default false) | `hoe.consumeDurability` |
+| Disable the hoe requirement entirely | Server config (default true) | `hoe.requireHoe` |
+| Blacklist seeds (default: all allowed) | Config list | `filters.seedBlacklist` |
+| Blacklist soils | Config list | `filters.soilBlacklist` |
+| Blacklist by namespace/mod | Entry form `"modid:*"` | (both lists) |
+| Blacklist by tag | Entry form `"#namespace:tag"` | (both lists) |
+| Global AND per-tier blacklists | Per-tier lists add to the global ones | `machines.<tier>.seedBlacklist` / `soilBlacklist` |
+| Extra-seed chance on Mystical Agriculture farmlands (0% allowed) | Multiplier over MA's native chance | `drops.mysticalagriculture.secondarySeedChanceMultiplier` |
+| Multiplier without Water Provider, per tier | Server config per tier (default 0.25) | `machines.<tier>.noWaterSpeedMultiplier` |
+| Auto-output interval or disable | Server config (default 20, 0 = off) | `output.autoExportIntervalTicks` |
+| Secondary drops multiplier (extra seeds, Fertilized Essence, by-products) | Server config (default 1.0) | `drops.secondaryDropMultiplier` |
+| Global and per-tier production (yield) multiplier | Server config | `drops.productionMultiplier`, `machines.<tier>.productionMultiplier` |
+| Growth Speed Upgrade bonus (default +50% each) | Server config | `growth.bonusPerUpgrade` |
+| Growth Speed Upgrades per slot (default 1 x 4 slots) | Server config | `growth.upgradesPerSlot` |
+| Soil growth accelerators (MA farmlands etc.) | Datapack data map, `growth_bonus` per soil item | `soil_properties.json` |
+| Machine and upgrade recipes 100% datapack-driven | Recipes only as JSON (owner: recipes postponed) | — |
+| Disable whole tiers without unregistering blocks | Remove their recipes via datapack | — |
 
 Notes:
-- Use SERVER config (per world, synced to clients) for gameplay values so multiplayer clients show the same numbers.
+- Config changes bump `VfwConfig.generation()`; machines revalidate when it changes (no per-tick config reads).
 - Blocks/items are always registered; disabling a tier must never delete blocks from existing saves.
+- Data map entries for other mods use `neoforge:mod_loaded` conditions so VFW never hard-depends on them.

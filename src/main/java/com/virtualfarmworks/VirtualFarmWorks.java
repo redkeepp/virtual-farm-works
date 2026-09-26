@@ -3,6 +3,8 @@ package com.virtualfarmworks;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
+import com.virtualfarmworks.config.VfwConfig;
+import com.virtualfarmworks.data.ModDataMaps;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModCreativeTabs;
 import com.virtualfarmworks.registry.ModItems;
@@ -26,5 +28,7 @@ public class VirtualFarmWorks {
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
         ModCreativeTabs.register(modEventBus);
+        ModDataMaps.register(modEventBus);
+        VfwConfig.register(modEventBus, modContainer);
     }
 }

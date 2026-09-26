@@ -24,7 +24,7 @@
   "tier.virtualfarmworks.entropic": "Entropic",
 
   "tooltip.virtualfarmworks.water_provider_upgrade": "Faz a máquina crescer na velocidade normal (1.0x)",
-  "tooltip.virtualfarmworks.growth_upgrade": "+50% de velocidade de crescimento",
+  "tooltip.virtualfarmworks.growth_upgrade": "+%s%% de velocidade de crescimento",
   "tooltip.virtualfarmworks.crux_provider_upgrade": "Fornece qualquer crux que a semente exija",
   "tooltip.virtualfarmworks.fits": "Compatível com: %s"
 }

@@ -2,6 +2,7 @@ package com.virtualfarmworks.item;
 
 import java.util.function.Consumer;
 
+import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.machine.MachineTier;
 
 import net.minecraft.ChatFormatting;
@@ -45,10 +46,14 @@ public class TieredUpgradeItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display,
                                 Consumer<Component> builder, TooltipFlag flag) {
-        // Effect line, e.g. "+50% growth speed". Amount text is static for now; it will read the server config once
-        // the config exists (milestone 1, step 2).
-        builder.accept(Component.translatable("tooltip.virtualfarmworks." + type.registrySuffix())
-                .withStyle(ChatFormatting.GRAY));
+        // Effect line. The growth bonus comes from the (server-synced) config so the tooltip matches what the pack
+        // maker configured, e.g. "+50% growth speed".
+        Component effect = switch (type) {
+            case GROWTH_SPEED -> Component.translatable("tooltip.virtualfarmworks." + type.registrySuffix(),
+                    formatPercent(VfwConfig.growthBonusForDisplay()));
+            case WATER_PROVIDER -> Component.translatable("tooltip.virtualfarmworks." + type.registrySuffix());
+        };
+        builder.accept(effect.copy().withStyle(ChatFormatting.GRAY));
 
         // Compatibility line: list every machine tier this upgrade fits, e.g. "Fits: Starter, Voltaic, Ionic".
         MutableComponent fits = Component.empty();
@@ -64,5 +69,11 @@ public class TieredUpgradeItem extends Item {
             first = false;
         }
         builder.accept(Component.translatable("tooltip.virtualfarmworks.fits", fits).withStyle(ChatFormatting.DARK_GRAY));
+    }
+
+    /** 0.5 -> "50", 0.125 -> "12.5": a fraction as a percentage without useless trailing zeros. */
+    private static String formatPercent(double fraction) {
+        double percent = Math.round(fraction * 1000.0) / 10.0;
+        return percent == Math.rint(percent) ? Long.toString((long) percent) : Double.toString(percent);
     }
 }

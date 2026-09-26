@@ -151,8 +151,23 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 
 - `docs/specs/starter-farm-matrix.md` — Starter Farm Matrix: GUI coordinates, slots, states, behavior, open questions.
 - `docs/specs/configurability.md` — everything pack makers must be able to change without Java.
-- Mystical Agriculture exists for 26.1.2 (9.0.x, Blake's Mods). Planned as a dev-only runtime dependency for testing;
-  VFW must not hard-depend on it.
+- Mystical Agriculture exists for 26.1.2 (9.0.x, Blake's Mods). Dev testing uses jars in `run/mods/`
+  (MA 9.0.9, Agradditions 9.0.3, Cucumber, plus the owner's other test mods). VFW must not hard-depend on it.
+
+## Mystical Agriculture findings (from its 9.0.9 jar, via javap — needed for step 3/5)
+
+- `MysticalCropBlock extends CropBlock implements ICropProvider` (`getCrop()` -> `api.crop.Crop`). Agradditions crops
+  build on the same API.
+- `MysticalCropBlock#getDrops(BlockState, LootParams.Builder)` is overridden and reads the REAL WORLD:
+  `level.getBlockState(ORIGIN.below())` to get the farmland, then `crop.getSecondaryChance(farmlandBlock)` for the
+  extra seed (only if MA config `secondarySeedDrops`), plus Fertilized Essence with MA config
+  `fertilizedEssenceChance`. A virtual machine has no real farmland below the crop, so the generic loot path is WRONG
+  for MA crops: VFW needs an MA compat path that uses `Crop#getSecondaryChance(soilBlock)` with the soil from the slot.
+- Crux: `Crop#getCruxBlock()` (null when the crop needs none) -> satisfied by the Crux Provider Upgrade.
+- Farmlands: `InfusedFarmlandBlock extends FarmlandBlock implements IEssenceFarmland`, `getTier()`. Ids:
+  `mysticalagriculture:{inferium,prudentium,tertium,imperium,supremium,awakened_supremium}_farmland`,
+  `mysticalagradditions:insanium_farmland`.
+- Open decision: how VFW compiles against MA (compileOnly jar via a maven such as CurseMaven vs reflection).
 - Assets: `blockstates/` and some item definitions/models (growth upgrades, crux) are not in the owner's asset drop;
   they are plumbing, not art — generate them (datagen) pointing at the owner's existing textures.
   Ignore `textures/item/antigos_nao_usar/` (old, unused).
@@ -168,6 +183,9 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   upgrades, Crux Provider Upgrade, creative tab, lang (en_us, pt_br), blockstate/item JSON, loot table, pickaxe tag.
   Growth upgrades are registered as `<tier>_growth_upgrade` to match the owner's texture names. Recipes: none yet
   (owner: ignore recipes for now; they will be datapack JSON only).
+- [x] Step 2: server config (`config/VfwServerConfig`, `VfwConfig` with compiled blacklists + generation counter,
+  `ItemFilter`), soil data map (`data/SoilProperties`, `ModDataMaps`) with MA/Agradditions farmland bonuses.
+  Pending owner: bonus for `awakened_supremium_farmland` (not in the owner's list).
 - Milestone 1 scope (agreed): **Starter Farm Matrix only**, to validate the architecture before the other tiers.
   I/O by face, autocrafting and integrations come in later milestones.
 
@@ -178,5 +196,7 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
   - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`. Items carry no behavior.
   - `registry/` — `ModBlocks`, `ModItems`, `ModCreativeTabs` (DeferredRegisters).
+  - `config/` — `VfwServerConfig` (spec), `VfwConfig` (runtime: compiled filters, generation), `ItemFilter`.
+  - `data/` — `SoilProperties` + `ModDataMaps` (soil growth bonus data map).
 - `src/main/resources/assets/virtualfarmworks/` — lang, models, textures.
 - `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata (Gradle expands `${...}` from `gradle.properties`).
