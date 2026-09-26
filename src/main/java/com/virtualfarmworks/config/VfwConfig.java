@@ -1,3 +1,7 @@
+/*
+ * VfwConfig — runtime side of the config: registers the server config, rebuilds the compiled blacklists on
+ * load/reload and bumps a generation counter that machines compare to know when to revalidate.
+ */
 package com.virtualfarmworks.config;
 
 import java.util.EnumMap;

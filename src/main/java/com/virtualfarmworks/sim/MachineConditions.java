@@ -1,3 +1,7 @@
+/*
+ * MachineConditions — builder of the facts that decide a machine's status (on/off, seed, soil, hoe, crux, energy,
+ * output space). Part of the Minecraft-free simulation core (package sim).
+ */
 package com.virtualfarmworks.sim;
 
 /**

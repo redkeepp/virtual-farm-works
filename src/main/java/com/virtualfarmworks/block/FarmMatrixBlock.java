@@ -1,3 +1,7 @@
+/*
+ * FarmMatrixBlock — the Farm Matrix machine block, one class for every tier: horizontal facing (front = placing player)
+ * and the block codec. The BlockEntity (simulation, inventories, GUI) is attached in milestone 1, step 6.
+ */
 package com.virtualfarmworks.block;
 
 import com.mojang.serialization.MapCodec;

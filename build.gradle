@@ -1,3 +1,6 @@
+// Virtual Farm Works — Gradle build (NeoForge ModDevGradle). Defines the dev run configurations (client, server,
+// gameTestServer, data), compile-only optional integrations (Mystical Agriculture), test dependencies (JUnit) and the
+// mod metadata expansion. Based on the official NeoForge 26.1.2 MDK; MDK comments are kept below where still useful.
 plugins {
     id 'java-library'
     id 'maven-publish'

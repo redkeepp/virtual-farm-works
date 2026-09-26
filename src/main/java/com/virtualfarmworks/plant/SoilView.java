@@ -1,3 +1,7 @@
+/*
+ * SoilView — a two-block, in-memory BlockGetter (soil + plant) used to ask vanilla/NeoForge plant rules about a
+ * virtual plot without ever touching the real world.
+ */
 package com.virtualfarmworks.plant;
 
 import org.jspecify.annotations.Nullable;

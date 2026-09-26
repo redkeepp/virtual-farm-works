@@ -1,3 +1,7 @@
+/*
+ * SoilProperties — value type of the soil_properties data map (growth bonus granted by a soil item) and its JSON codec.
+ * Data file: data/virtualfarmworks/data_maps/item/soil_properties.json.
+ */
 package com.virtualfarmworks.data;
 
 import com.mojang.serialization.Codec;

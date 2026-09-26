@@ -1,3 +1,7 @@
+/*
+ * VfwServerConfig — definition of config/virtualfarmworks-server.toml: every balance value pack makers can change
+ * (growth, hoe, output, drops, blacklists, per-tier machine settings) together with the comments they read in the file.
+ */
 package com.virtualfarmworks.config;
 
 import java.util.EnumMap;

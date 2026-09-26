@@ -1,3 +1,7 @@
+/*
+ * GrowthCycle — the single global growth cycle of a Farm Matrix: progress bar, plot groups (ACTIVE/PENDING counters)
+ * and the anti-exploit rules. Part of the Minecraft-free simulation core (package sim), unit-tested in src/test/java.
+ */
 package com.virtualfarmworks.sim;
 
 import java.util.Arrays;

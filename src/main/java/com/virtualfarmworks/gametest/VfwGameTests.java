@@ -1,3 +1,7 @@
+/*
+ * VfwGameTests — automated in-game tests (development only), run headless by `gradlew runGameTestServer`: plant/soil
+ * pairing, slot rules and the Mystical Agriculture integration, against real registries, tags and config.
+ */
 package com.virtualfarmworks.gametest;
 
 import java.util.function.Consumer;

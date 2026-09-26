@@ -1,3 +1,7 @@
+/*
+ * ModBlocks — DeferredRegister of VFW blocks (currently only the Starter Farm Matrix) and the block properties shared
+ * by every Farm Matrix tier.
+ */
 package com.virtualfarmworks.registry;
 
 import com.virtualfarmworks.VirtualFarmWorks;

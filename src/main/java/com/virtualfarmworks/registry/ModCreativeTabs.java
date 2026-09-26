@@ -1,3 +1,6 @@
+/*
+ * ModCreativeTabs — the "Virtual Farm Works" creative tab and the order of its items (progression order).
+ */
 package com.virtualfarmworks.registry;
 
 import com.virtualfarmworks.VirtualFarmWorks;

@@ -1,3 +1,7 @@
+/*
+ * GrowthCycleTest — JUnit tests of sim/GrowthCycle: ACTIVE/PENDING rules, exploit prevention, exact cycle timing,
+ * one-harvest-per-tick guarantee and save/load. Run with `gradlew test`.
+ */
 package com.virtualfarmworks.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

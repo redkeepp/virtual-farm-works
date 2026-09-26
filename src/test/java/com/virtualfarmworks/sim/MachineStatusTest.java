@@ -1,3 +1,7 @@
+/*
+ * MachineStatusTest — JUnit tests of sim/MachineStatus: state priority, colors and safe decoding of synced values.
+ * Run with `gradlew test`.
+ */
 package com.virtualfarmworks.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

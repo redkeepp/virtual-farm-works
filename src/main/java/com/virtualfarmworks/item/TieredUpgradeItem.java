@@ -1,3 +1,7 @@
+/*
+ * TieredUpgradeItem — item class of the tiered upgrades (Water Provider and Growth Speed, 5 tiers each). Holds the
+ * upgrade type and tier, answers "does it fit this machine tier?" and builds the tooltip. No gameplay behavior.
+ */
 package com.virtualfarmworks.item;
 
 import java.util.function.Consumer;

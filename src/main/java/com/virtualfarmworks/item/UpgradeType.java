@@ -1,3 +1,6 @@
+/*
+ * UpgradeType — the kinds of tiered upgrades (Water Provider, Growth Speed) and the registry-name suffix of each.
+ */
 package com.virtualfarmworks.item;
 
 /**

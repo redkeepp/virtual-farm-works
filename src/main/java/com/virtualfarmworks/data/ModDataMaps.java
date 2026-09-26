@@ -1,3 +1,7 @@
+/*
+ * ModDataMaps — registers VFW's data map types (currently soil_properties) and offers lookups such as the speed
+ * multiplier of a soil item.
+ */
 package com.virtualfarmworks.data;
 
 import com.virtualfarmworks.VirtualFarmWorks;

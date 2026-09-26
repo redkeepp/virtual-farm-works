@@ -1,3 +1,7 @@
+/*
+ * PlantAnalysis — pairs a machine's seed slot with its soil slot: MISSING_SEED / MISSING_SOIL / INVALID_SOIL / VALID,
+ * plus whether a hoe or crux is required and the soil's speed bonus. Computed on revalidation, never per tick.
+ */
 package com.virtualfarmworks.plant;
 
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;

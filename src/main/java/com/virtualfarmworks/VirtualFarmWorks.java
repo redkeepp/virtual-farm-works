@@ -1,3 +1,7 @@
+/*
+ * VirtualFarmWorks — mod entry point (@Mod). Wires registries, configs, data maps, game tests and game-bus listeners
+ * onto the event buses. Contains no game logic; see CLAUDE.md for the project map.
+ */
 package com.virtualfarmworks;
 
 import org.slf4j.Logger;

@@ -49,6 +49,14 @@ so production jars load in dev). `run/` is git-ignored.
 - Item models: `assets/<ns>/items/<id>.json` (item definition) -> `models/item/<id>.json`. Both are required.
 - If `gradlew build` says UP-TO-DATE after code changes and the jar is stale, delete the project `.gradle/` folder
   (configuration cache pointing at an old path) and rebuild.
+- Commits: use the Bash tool with a heredoc — `git commit -F - <<'EOF' ... EOF`. From Windows PowerShell 5.1, double
+  quotes inside a `-m` message are split into pathspecs (commit fails), `-F` with the long scratchpad path fails
+  ("Filename too long"), and piping a message adds a UTF-8 BOM to the subject. Never hide git's stderr with
+  `2>$null` — that is how a failed commit went unnoticed once.
+- `src/main/templates/META-INF/neoforge.mods.toml` is a Groovy template: a literal dollar sign followed by `{`, even
+  inside a comment, breaks `generateModMetadata`.
+- `gradlew` must be executable in git (`git ls-files -s gradlew` -> `100755`); the repo is managed from Windows, which
+  loses the bit and makes the GitHub Actions build fail with "Permission denied". Fix: `git update-index --chmod=+x gradlew`.
 
 ## Assets: hand-written JSON, no model datagen
 
@@ -63,6 +71,14 @@ owner removed `pt_br.json`; do not add other languages unless asked), loot table
 1. **Comment everything that needs it, in English only.** Every non-trivial piece of logic must explain *what* it
    does and *why* (invariants, performance reasons, anti-dupe reasoning), so that a future Claude instance never has to
    guess and human devs can maintain it. No Portuguese in code, comments, commit messages or docs inside the repo.
+   Conventions (owner request):
+   - Every Java file starts with a header block comment BEFORE `package`:
+     `/* ClassName — what this file is and where it fits. */` (1–3 lines). The class Javadoc below the imports holds
+     the details (design, rules, why).
+   - Build/config files (gradle, toml, workflow yml) start with a `#`/`//` header saying what the file is.
+   - JSON cannot hold comments: every JSON resource is documented in `docs/resources.md` — update it whenever you add,
+     remove or change the meaning of a resource file.
+   - When behavior changes, update the comments in the same commit. A stale comment is worse than none.
 2. Keep this `CLAUDE.md` current (status section, decisions, gotchas).
 3. Work in small, testable milestones; build after each one; commit per working milestone.
 4. Numbers per tier (plot capacity, energy, speed, upgrade effects) are **not final** unless listed below.
@@ -153,6 +169,7 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 
 - `docs/specs/starter-farm-matrix.md` — Starter Farm Matrix: GUI coordinates, slots, states, behavior, open questions.
 - `docs/specs/configurability.md` — everything pack makers must be able to change without Java.
+- `docs/resources.md` — what every JSON resource file does and who authored it (owner art vs Claude plumbing).
 - Mystical Agriculture exists for 26.1.2 (9.0.x, Blake's Mods). Dev testing uses jars in `run/mods/`
   (MA 9.0.9, Agradditions 9.0.3, Cucumber, plus the owner's other test mods). VFW must not hard-depend on it.
 

@@ -1,3 +1,7 @@
+/*
+ * MysticalCompatImpl — the only code that touches Mystical Agriculture classes (its api.crop package): crop lookup from
+ * a seed and crux detection. Loaded by the JVM only through MysticalCompat, i.e. only when MA is installed.
+ */
 package com.virtualfarmworks.compat.mysticalagriculture;
 
 import org.jspecify.annotations.Nullable;

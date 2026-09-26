@@ -1,3 +1,7 @@
+/*
+ * MachineTier — the five Farm Matrix tiers (Starter, Voltaic, Ionic, Resonant, Entropic): progression order, theme
+ * color and the upgrade compatibility rule (an upgrade fits when upgradeTier >= machineTier).
+ */
 package com.virtualfarmworks.machine;
 
 import com.mojang.serialization.Codec;

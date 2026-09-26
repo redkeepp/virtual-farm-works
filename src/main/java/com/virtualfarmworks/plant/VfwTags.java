@@ -1,3 +1,7 @@
+/*
+ * VfwTags — TagKeys of VFW's datapack-editable plant/soil tags (tillable soils, unplantable seeds, extra plantables,
+ * mushroom soils, glow berry supports). Default contents: src/main/resources/data/virtualfarmworks/tags/.
+ */
 package com.virtualfarmworks.plant;
 
 import com.virtualfarmworks.VirtualFarmWorks;

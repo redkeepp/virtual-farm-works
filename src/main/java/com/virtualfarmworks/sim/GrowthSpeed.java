@@ -1,3 +1,7 @@
+/*
+ * GrowthSpeed — a machine's speed as hydration x growth upgrades x soil bonus, and the progress it adds per tick.
+ * Part of the Minecraft-free simulation core (package sim), unit-tested in src/test/java.
+ */
 package com.virtualfarmworks.sim;
 
 /**

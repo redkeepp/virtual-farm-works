@@ -1,3 +1,7 @@
+/*
+ * MachineStatus — the states shown in the machine GUI (RUNNING, MISSING ..., INVALID SOIL, OUTPUT FULL, SHUTDOWN), their
+ * priority, colors and lang keys. Part of the Minecraft-free simulation core (package sim), unit-tested.
+ */
 package com.virtualfarmworks.sim;
 
 /**

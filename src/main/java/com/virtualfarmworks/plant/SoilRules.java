@@ -1,3 +1,6 @@
+/*
+ * SoilRules — soil-slot acceptance (cached per item, cleared on tag reload), hoe detection and tillable soils.
+ */
 package com.virtualfarmworks.plant;
 
 import java.util.ArrayList;

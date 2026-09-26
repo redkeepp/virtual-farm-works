@@ -1,3 +1,7 @@
+/*
+ * GrowthSpeedTest — JUnit tests of sim/GrowthSpeed: the speed formula checked against the owner's examples.
+ * Run with `gradlew test`.
+ */
 package com.virtualfarmworks.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

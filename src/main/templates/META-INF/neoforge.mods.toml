@@ -1,3 +1,9 @@
+# Virtual Farm Works — mod metadata TEMPLATE. Gradle (generateModMetadata in build.gradle) replaces every
+# dollar-brace placeholder with the values from gradle.properties and puts the result in the jar as
+# META-INF/neoforge.mods.toml. Edit versions and names in gradle.properties, not here.
+# WARNING: this file is a Groovy template. Never write a literal dollar sign followed by a brace, even in a comment:
+# Gradle tries to evaluate it and the build fails. The comments below come from the NeoForge MDK.
+#
 # This is an example neoforge.mods.toml file. It contains the data relating to the loading mods.
 # There are several mandatory fields (#mandatory), and many more that are optional (#optional).
 # The overall format is standard TOML format, v0.5.0.

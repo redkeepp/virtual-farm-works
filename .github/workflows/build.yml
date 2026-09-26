@@ -1,3 +1,8 @@
+# CI for Virtual Farm Works: on every push / pull request, builds the mod on Linux with JDK 25 and runs the JUnit
+# tests (`gradlew build` includes `test`). Game tests (runGameTestServer) are not run here: they need the optional mods
+# in run/mods, which are not in the repository.
+# Note: gradlew must keep its executable bit in git (git update-index --chmod=+x gradlew), otherwise this job fails
+# with "Permission denied" — easy to lose when the repo is managed from Windows.
 name: Build
 
 on: [push, pull_request]

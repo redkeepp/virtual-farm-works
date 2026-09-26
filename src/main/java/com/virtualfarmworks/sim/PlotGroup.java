@@ -1,3 +1,7 @@
+/*
+ * PlotGroup — the ACTIVE/PENDING counters of one group of identical virtual plots (the only per-group state).
+ * Part of the Minecraft-free simulation core (package sim); mutated only by GrowthCycle.
+ */
 package com.virtualfarmworks.sim;
 
 /**

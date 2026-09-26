@@ -1,3 +1,7 @@
+/*
+ * PlantRules — which items are plantable in VFW and whether a plant can grow on a soil (canGrowOn). Mirrors the
+ * vanilla/NeoForge survival rules without a real world, so modded crops and soils work without per-mod code.
+ */
 package com.virtualfarmworks.plant;
 
 import java.lang.invoke.MethodHandle;

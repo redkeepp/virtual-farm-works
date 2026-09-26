@@ -1,3 +1,7 @@
+/*
+ * ItemFilter — a config blacklist compiled into a fast matcher. Entries: exact item ids, whole mods ("modid:*") and
+ * item tags ("#namespace:tag"). Built on config load/reload by VfwConfig, never per tick.
+ */
 package com.virtualfarmworks.config;
 
 import java.util.ArrayList;

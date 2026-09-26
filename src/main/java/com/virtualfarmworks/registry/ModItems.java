@@ -1,3 +1,7 @@
+/*
+ * ModItems — DeferredRegister of VFW items: Farm Matrix block items, Water Provider and Growth Speed upgrades (all
+ * five tiers) and the Crux Provider Upgrade.
+ */
 package com.virtualfarmworks.registry;
 
 import java.util.Collections;

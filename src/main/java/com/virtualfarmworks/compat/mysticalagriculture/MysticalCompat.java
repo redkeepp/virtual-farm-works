@@ -1,3 +1,7 @@
+/*
+ * MysticalCompat — safe entry point for the Mystical Agriculture integration. Callable whether or not MA is installed:
+ * it never references MA classes itself and only calls MysticalCompatImpl after checking that MA is loaded.
+ */
 package com.virtualfarmworks.compat.mysticalagriculture;
 
 import net.minecraft.world.item.ItemStack;

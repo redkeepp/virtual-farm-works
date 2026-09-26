@@ -1,3 +1,7 @@
+/*
+ * CruxProviderUpgradeItem — item class of the single, untiered Crux Provider Upgrade (a generic crux for Mystical
+ * Agriculture seeds). Only provides the tooltip; the machine checks for its presence.
+ */
 package com.virtualfarmworks.item;
 
 import java.util.function.Consumer;
