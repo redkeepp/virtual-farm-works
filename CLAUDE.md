@@ -243,8 +243,32 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   `preRemoveSideEffects`). `MachineInventory` (per-slot rules), `OutputBuffer` (+ extract-only `externalView()`),
   `MachineSlots`, `RelativeSide`. `registry/ModBlockEntities` (one BE type "farm_matrix" for all tiers + item
   capability). 14 game tests pass (7 machine tests), 47 JUnit.
-  Decisions by Claude (owner may revisit): automation can only EXTRACT from the output buffer (inputs not exposed);
-  auto-export keeps running while SHUTDOWN; the hoe only wears when the soil actually needed it.
+  Decisions (confirmed by the owner in step 7): automation can only EXTRACT from the output buffer (inputs not
+  exposed on the Starter); auto-export keeps running while SHUTDOWN; faces are relative to the player looking at the
+  front; the hoe only wears while it is actually needed.
+
+- [x] Step 7: GUI. `menu/FarmMatrixMenu` (slots at the owner's coordinates, shift-click, `ContainerData` synced
+  every 5 ticks + on button press, button intents via vanilla `clickMenuButton`: 0 = power, 1..6 = faces),
+  `menu/FarmMatrixLayout` (all GUI geometry/colors, shared), `client/FarmMatrixScreen` (texture, texts, green bar,
+  40% ghost placeholders, side panel: "O" button + face box, 5 upgrade slots, power button), `client/
+  VirtualFarmWorksClient` (`@Mod(dist = CLIENT)`, registers the screen), `registry/ModMenus`. Right-click opens it
+  (`FarmMatrixBlock#useWithoutItem`). Game test `menu_actions` covers the server side; visuals are tested by the owner.
+  Owner decisions this step: no input automation on the Starter (future tiers may add it); hoe wear is time-based
+  (`hoe.wearIntervalTicks`, default 1200 = 1 per minute of RUNNING while the hoe is needed).
+  Claude's GUI choices (owner may revisit): "Seeds" shows planted plots = min(seeds, soils); "Growth" multiplier
+  includes the soil bonus; power button at the bottom of the side column; face labels T/L/F/R/Bk/Bt + tooltips;
+  no "Inventory" label. Known gap: no JEI/EMI exclusion area for the side panel yet.
+
+## GUI gotchas (26.1)
+
+- Rendering is the "extract" API: `GuiGraphicsExtractor` (not GuiGraphics), `extractBackground`, `extractLabels`
+  (translated to the GUI origin), `extractTooltip`, `text(...)`, `item/fakeItem`, `fill`, `blit(RenderPipelines...)`.
+  Colors are ARGB: always include the alpha byte (0xFF......) or text/fills are invisible.
+- Elements that overlap an earlier item go to a higher layer: draw an item, then a translucent `fill` over it to fade
+  it (ghost placeholders; vanilla recipe book does the same).
+- Input: `mouseClicked(MouseButtonEvent event, boolean doubleClick)`; `event.x()/y()/button()`.
+- Anything drawn outside the texture must be excluded in `hasClickedOutside`, or clicks there drop the carried item.
+- `ContainerData` values travel as 16-bit shorts: scale and clamp (see `FarmMatrixMenu#toShort`).
 
 ## Harvest rules — quick reference (`harvest/`)
 
@@ -257,7 +281,8 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 - Implemented in `FarmMatrixBlockEntity` (keep it this way): roll once when the harvest becomes due, keep the rolled
   drops in memory (`pendingHarvest` + `HarvestKey`) and retry only `tryStore` when the buffer or inputs change (no
   re-rolling per retry: cost + bias). `GrowthCycle#completeHarvest()` only after `tryStore` returned true, in the same
-  call. Hoe durability (config `hoe.consumeDurability`) is consumed after a successful store, 1 per harvest.
+  call. Hoe durability (config `hoe.consumeDurability`, off by default) wears over TIME (owner decision): 1 point
+  every `hoe.wearIntervalTicks` of RUNNING while the soil needs the hoe — not per harvest.
 - A harvest is usually several item types (wheat + seeds): OUTPUT FULL can persist with free slots if not ALL types
   fit. That is correct all-or-nothing behavior (a game test checks it).
 - Never call `tryStore` inside another transaction (it refuses): a rolled-back outer transaction would void a harvest
@@ -295,7 +320,10 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
     indices, persisted — never reorder), `RelativeSide` (faces relative to the front; bit order persisted).
   - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
   - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`. Items carry no behavior.
-  - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModCreativeTabs`.
+  - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
+  - `menu/` — `FarmMatrixMenu` (both sides), `FarmMatrixLayout` (GUI geometry and colors).
+  - `client/` — CLIENT ONLY: `VirtualFarmWorksClient` (second `@Mod`, dist CLIENT), `FarmMatrixScreen`. Never
+    reference `client/` classes from common code (a dedicated server would crash).
   - `config/` — `VfwServerConfig` (spec), `VfwConfig` (runtime: compiled filters, generation), `ItemFilter`.
   - `data/` — `SoilProperties` + `ModDataMaps` (soil growth bonus data map).
   - `plant/` — `PlantRules`, `SoilRules`, `PlantAnalysis`, `SoilView`, `VfwTags`.

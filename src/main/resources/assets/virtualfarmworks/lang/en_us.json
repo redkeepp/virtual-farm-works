@@ -43,5 +43,27 @@
   "side.virtualfarmworks.front": "Front",
   "side.virtualfarmworks.back": "Back",
   "side.virtualfarmworks.left": "Left",
-  "side.virtualfarmworks.right": "Right"
+  "side.virtualfarmworks.right": "Right",
+  "side.virtualfarmworks.top.short": "T",
+  "side.virtualfarmworks.bottom.short": "Bt",
+  "side.virtualfarmworks.front.short": "F",
+  "side.virtualfarmworks.back.short": "Bk",
+  "side.virtualfarmworks.left.short": "L",
+  "side.virtualfarmworks.right.short": "R",
+
+  "gui.virtualfarmworks.starter_farm_matrix": "STARTER FARM MATRIX",
+  "gui.virtualfarmworks.on": "ON",
+  "gui.virtualfarmworks.off": "OFF",
+  "gui.virtualfarmworks.hydration": "Hydration: (%sx speed)",
+  "gui.virtualfarmworks.seeds": "Seeds: %s/%s",
+  "gui.virtualfarmworks.growth": "Growth: %s%% - (%sx speed)",
+  "gui.virtualfarmworks.output_sides": "Auto-output sides (click)",
+  "gui.virtualfarmworks.output_side": "%s: auto-output %s",
+  "gui.virtualfarmworks.power": "Machine: %s (click to switch)",
+  "gui.virtualfarmworks.slot.seed": "Seed or plantable (up to 64)",
+  "gui.virtualfarmworks.slot.soil": "Soil (up to 64)",
+  "gui.virtualfarmworks.slot.water_provider": "Water Provider Upgrade (without it: reduced speed)",
+  "gui.virtualfarmworks.slot.hoe": "Hoe (only needed when the soil must be tilled)",
+  "gui.virtualfarmworks.slot.growth": "Growth Speed Upgrade",
+  "gui.virtualfarmworks.slot.crux": "Crux Provider Upgrade (for seeds that need a crux)"
 }

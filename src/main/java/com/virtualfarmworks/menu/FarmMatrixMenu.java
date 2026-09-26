@@ -1,0 +1,274 @@
+/*
+ * FarmMatrixMenu — the Farm Matrix container menu (both sides): slots at the owner's coordinates, shift-click rules,
+ * throttled sync of the numbers the GUI shows, and the player's button intents (power, output faces) validated and
+ * applied on the server.
+ */
+package com.virtualfarmworks.menu;
+
+import org.jspecify.annotations.Nullable;
+
+import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
+import com.virtualfarmworks.machine.MachineInventory;
+import com.virtualfarmworks.machine.MachineSlots;
+import com.virtualfarmworks.machine.MachineTier;
+import com.virtualfarmworks.machine.OutputBuffer;
+import com.virtualfarmworks.machine.RelativeSide;
+import com.virtualfarmworks.registry.ModMenus;
+import com.virtualfarmworks.sim.GrowthSpeed;
+import com.virtualfarmworks.sim.MachineStatus;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ContainerData;
+import net.minecraft.world.inventory.ContainerLevelAccess;
+import net.minecraft.world.inventory.SimpleContainerData;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
+
+/**
+ * Server-authoritative menu. The client only ever sends intents (vanilla slot clicks and {@link #clickMenuButton}
+ * ids); the server applies them to the real {@link FarmMatrixBlockEntity}. Real quantities are never taken from the
+ * client (owner rule).
+ *
+ * <h2>Slot order (menu indices)</h2>
+ * {@code [0, 9)} machine inputs in {@link MachineSlots} order, {@code [9, 18)} output buffer, {@code [18, 45)} player
+ * inventory, {@code [45, 54)} hotbar.
+ *
+ * <h2>Synced numbers</h2>
+ * Vanilla syncs {@link ContainerData} values as 16-bit shorts, so every value is scaled and clamped to fit (see
+ * {@link #DATA_COUNT} indices). The server refreshes its copy only every {@link #SYNC_INTERVAL} ticks (owner rule:
+ * throttled GUI sync) and immediately after a button press; vanilla then sends only the values that changed.
+ */
+public class FarmMatrixMenu extends AbstractContainerMenu {
+    public static final int INPUT_START = 0;
+    public static final int OUTPUT_START = INPUT_START + MachineSlots.INPUT_COUNT;
+    public static final int PLAYER_START = OUTPUT_START + MachineSlots.OUTPUT_COUNT;
+    public static final int HOTBAR_START = PLAYER_START + 27;
+    public static final int PLAYER_END = HOTBAR_START + 9;
+
+    /** Button ids sent by the client (vanilla ServerboundContainerButtonClickPacket). */
+    public static final int BUTTON_POWER = 0;
+    /** Face toggles use {@code BUTTON_FACE_FIRST + RelativeSide.ordinal()}. */
+    public static final int BUTTON_FACE_FIRST = 1;
+
+    // ContainerData indices.
+    private static final int DATA_STATUS = 0;
+    private static final int DATA_PROGRESS = 1;   // 0..10000 (1/100 of a percent)
+    private static final int DATA_HYDRATION = 2;  // x100
+    private static final int DATA_GROWTH = 3;     // x100 (growth upgrades x soil bonus)
+    private static final int DATA_PLOTS = 4;
+    private static final int DATA_ENABLED = 5;    // 0 / 1
+    private static final int DATA_FACES = 6;      // RelativeSide bit mask
+    private static final int DATA_COUNT = 7;
+
+    private static final int SYNC_INTERVAL = 5;
+
+    private final MachineTier tier;
+    private final ContainerLevelAccess access;
+    private final @Nullable Block block;
+    /** Server side only: the real machine. Null on the client. */
+    private final @Nullable FarmMatrixBlockEntity machine;
+    private final ContainerData data;
+    private int ticksUntilSync;
+
+    /** Server constructor: backed by the real machine. */
+    public FarmMatrixMenu(int containerId, Inventory playerInventory, FarmMatrixBlockEntity machine) {
+        this(containerId, playerInventory, machine.tier(), machine.inputs(), machine.output(), machine,
+                ContainerLevelAccess.create(machine.getLevel(), machine.getBlockPos()), machine.getBlockState().getBlock());
+        refreshData();
+    }
+
+    /**
+     * Client constructor, from the open-menu packet written by {@code FarmMatrixBlock#useWithoutItem} (block position
+     * and tier). The client gets local mirror inventories that vanilla slot sync keeps up to date.
+     */
+    public static FarmMatrixMenu fromNetwork(int containerId, Inventory playerInventory, RegistryFriendlyByteBuf buf) {
+        buf.readBlockPos(); // position, reserved for client-side lookups; not needed yet
+        MachineTier tier = MachineTier.values()[Math.clamp(buf.readVarInt(), 0, MachineTier.values().length - 1)];
+        return new FarmMatrixMenu(containerId, playerInventory, tier, new MachineInventory(tier, () -> {
+        }), new OutputBuffer(() -> {
+        }), null, ContainerLevelAccess.NULL, null);
+    }
+
+    /** Writes what {@link #fromNetwork} reads. */
+    public static void writeOpenData(RegistryFriendlyByteBuf buf, BlockPos pos, MachineTier tier) {
+        buf.writeBlockPos(pos);
+        buf.writeVarInt(tier.ordinal());
+    }
+
+    private FarmMatrixMenu(int containerId, Inventory playerInventory, MachineTier tier, MachineInventory inputs,
+                           OutputBuffer output, @Nullable FarmMatrixBlockEntity machine, ContainerLevelAccess access,
+                           @Nullable Block block) {
+        super(ModMenus.FARM_MATRIX.get(), containerId);
+        this.tier = tier;
+        this.machine = machine;
+        this.access = access;
+        this.block = block;
+        this.data = new SimpleContainerData(DATA_COUNT);
+
+        // Inputs, in MachineSlots order: 4 slots on the texture, then the side column (4 growth + crux).
+        for (int i = 0; i < 4; i++) {
+            addSlot(new ResourceHandlerSlot(inputs, inputs::set, i, FarmMatrixLayout.TOP_SLOT_X[i],
+                    FarmMatrixLayout.TOP_SLOT_Y));
+        }
+        for (int i = 0; i < FarmMatrixLayout.UPGRADE_SLOTS; i++) {
+            addSlot(new ResourceHandlerSlot(inputs, inputs::set, MachineSlots.GROWTH_FIRST + i,
+                    FarmMatrixLayout.panelSlotX(), FarmMatrixLayout.upgradeFrameY(i) + 1));
+        }
+        // Output buffer: take-only.
+        for (int i = 0; i < MachineSlots.OUTPUT_COUNT; i++) {
+            addSlot(new OutputSlot(output, i, FarmMatrixLayout.OUTPUT_X + i * FarmMatrixLayout.SLOT_SPACING,
+                    FarmMatrixLayout.OUTPUT_Y));
+        }
+        addStandardInventorySlots(playerInventory, FarmMatrixLayout.PLAYER_INVENTORY_X,
+                FarmMatrixLayout.PLAYER_INVENTORY_Y);
+        addDataSlots(data);
+    }
+
+    // --- sync -------------------------------------------------------------------------------------------------------
+
+    @Override
+    public void broadcastChanges() {
+        if (machine != null && --ticksUntilSync <= 0) {
+            refreshData();
+        }
+        super.broadcastChanges();
+    }
+
+    /** Copies the machine's current numbers into the synced data (server only). */
+    private void refreshData() {
+        if (machine == null) {
+            return;
+        }
+        ticksUntilSync = SYNC_INTERVAL;
+        GrowthSpeed speed = machine.speed();
+        data.set(DATA_STATUS, machine.status().ordinal());
+        data.set(DATA_PROGRESS, toShort(Math.round(machine.progress() * 10_000)));
+        data.set(DATA_HYDRATION, toShort(Math.round(speed.hydration() * 100)));
+        data.set(DATA_GROWTH, toShort(Math.round(speed.upgrades() * speed.soil() * 100)));
+        data.set(DATA_PLOTS, toShort(machine.totalPlots()));
+        data.set(DATA_ENABLED, machine.isEnabled() ? 1 : 0);
+        data.set(DATA_FACES, machine.outputFaces());
+    }
+
+    private static int toShort(long value) {
+        return (int) Math.clamp(value, 0, Short.MAX_VALUE);
+    }
+
+    // --- values for the screen (client reads the synced copy) ------------------------------------------------------
+
+    public MachineTier tier() {
+        return tier;
+    }
+
+    public MachineStatus status() {
+        return MachineStatus.byOrdinal(data.get(DATA_STATUS));
+    }
+
+    /** Cycle progress, 0.0..1.0. */
+    public double progress() {
+        return Math.clamp(data.get(DATA_PROGRESS) / 10_000.0, 0.0, 1.0);
+    }
+
+    public double hydrationMultiplier() {
+        return data.get(DATA_HYDRATION) / 100.0;
+    }
+
+    /** Growth upgrades x soil bonus (the "Growth" line of the GUI). */
+    public double growthMultiplier() {
+        return data.get(DATA_GROWTH) / 100.0;
+    }
+
+    public int plots() {
+        return data.get(DATA_PLOTS);
+    }
+
+    public boolean isEnabled() {
+        return data.get(DATA_ENABLED) != 0;
+    }
+
+    public boolean isOutputEnabled(RelativeSide side) {
+        return (data.get(DATA_FACES) & side.bit()) != 0;
+    }
+
+    // --- player intents ---------------------------------------------------------------------------------------------
+
+    /**
+     * Server side: a GUI button was pressed. Vanilla calls this only for the player who has this menu open and only
+     * while {@link #stillValid} holds. Unknown ids are ignored.
+     */
+    @Override
+    public boolean clickMenuButton(Player player, int id) {
+        if (machine == null) {
+            return false;
+        }
+        if (id == BUTTON_POWER) {
+            machine.setEnabled(!machine.isEnabled());
+        } else if (id >= BUTTON_FACE_FIRST && id < BUTTON_FACE_FIRST + RelativeSide.values().length) {
+            machine.toggleOutput(RelativeSide.values()[id - BUTTON_FACE_FIRST]);
+        } else {
+            return false;
+        }
+        refreshData();
+        return true;
+    }
+
+    @Override
+    public boolean stillValid(Player player) {
+        return block == null || stillValid(access, player, block);
+    }
+
+    /**
+     * Shift-click. Machine slots go to the player's inventory; player items go to the first machine input slot that
+     * accepts them (the slots' own rules decide), otherwise between inventory and hotbar. Never into the output buffer.
+     */
+    @Override
+    public ItemStack quickMoveStack(Player player, int index) {
+        Slot slot = slots.get(index);
+        if (!slot.hasItem()) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack stack = slot.getItem();
+        ItemStack original = stack.copy();
+
+        if (index < PLAYER_START) {
+            if (!moveItemStackTo(stack, PLAYER_START, PLAYER_END, true)) {
+                return ItemStack.EMPTY;
+            }
+        } else if (!moveItemStackTo(stack, INPUT_START, OUTPUT_START, false)) {
+            boolean fromMainInventory = index < HOTBAR_START;
+            if (!moveItemStackTo(stack, fromMainInventory ? HOTBAR_START : PLAYER_START,
+                    fromMainInventory ? PLAYER_END : HOTBAR_START, false)) {
+                return ItemStack.EMPTY;
+            }
+        }
+
+        if (stack.isEmpty()) {
+            slot.setByPlayer(ItemStack.EMPTY);
+        } else {
+            slot.setChanged();
+        }
+        if (stack.getCount() == original.getCount()) {
+            return ItemStack.EMPTY;
+        }
+        slot.onTake(player, stack);
+        return original;
+    }
+
+    /** Output buffer slot: players can take items, never put any in (owner spec). */
+    private static final class OutputSlot extends ResourceHandlerSlot {
+        OutputSlot(OutputBuffer output, int index, int x, int y) {
+            super(output, output::set, index, x, y);
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return false;
+        }
+    }
+}

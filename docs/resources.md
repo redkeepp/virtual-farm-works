@@ -21,7 +21,7 @@ drop entries (see NeoForge data map docs).
 | `models/item/*_water_provider_upgrade.json` | owner | Flat item models (`minecraft:item/generated`) for the Water Provider textures. |
 | `models/item/*_growth_upgrade.json`, `models/item/crux_provider_upgrade.json` | Claude | Flat item models pointing at the owner's textures `textures/item/<same name>.png`. |
 | `textures/**` | owner | All art. Portuguese file names on purpose. `textures/gui/starter_farm_matrix_gui.png` is the Starter GUI (coordinates in `docs/specs/starter-farm-matrix.md`). Ignore `textures/gui/starter_farm_matrix_gui2.png` and `textures/item/antigos_nao_usar/` (unused). |
-| `lang/en_us.json` | Claude | English texts. Key groups: `itemGroup.*` (creative tab), `block.*`, `item.*`, `tier.*` (tier names used in tooltips), `tooltip.*` (`%s` = argument filled by code, `%%` = a literal percent sign), `status.*` (machine states, keys built by `MachineStatus#translationKey`), `side.*` (machine faces, keys built by `RelativeSide#translationKey`). Only English for now (owner decision). |
+| `lang/en_us.json` | Claude | English texts. Key groups: `itemGroup.*` (creative tab), `block.*`, `item.*`, `tier.*` (tier names used in tooltips), `tooltip.*` (`%s` = argument filled by code, `%%` = a literal percent sign), `status.*` (machine states, keys built by `MachineStatus#translationKey`), `side.*` (machine faces, keys built by `RelativeSide#translationKey`; `side.*.short` = labels in the face box), `gui.*` (GUI title per tier, info lines, button and slot tooltips). Only English for now (owner decision). |
 
 ## data/ (server side: rules pack makers can change)
 

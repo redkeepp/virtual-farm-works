@@ -14,6 +14,7 @@ import com.virtualfarmworks.config.VfwServerConfig;
 import com.virtualfarmworks.harvest.DropSource;
 import com.virtualfarmworks.harvest.HarvestPlans;
 import com.virtualfarmworks.harvest.Harvester;
+import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.plant.PlantAnalysis;
 import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.registry.ModBlockEntities;
@@ -25,8 +26,13 @@ import com.virtualfarmworks.sim.MachineStatus;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -70,7 +76,7 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  * <h2>Chunk unload</h2>
  * No ticking while unloaded, no catch-up when reloaded, no chunk loading (owner rules).
  */
-public class FarmMatrixBlockEntity extends BlockEntity {
+public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     /** Owner spec: one global cycle; the Starter has one seed slot, so one plot group. */
     private static final int PLOT_GROUPS = 1;
     private static final int PROGRESS_SAVE_INTERVAL = 20;
@@ -101,6 +107,9 @@ public class FarmMatrixBlockEntity extends BlockEntity {
     private int exportInterval;
     private int maxLootRolls;
     private boolean hoeWears;
+    private int hoeWearInterval;
+    /** Ticks of RUNNING-with-a-needed-hoe since the hoe last lost durability (not saved: at most one interval lost). */
+    private int hoeWearTicks;
 
     // --- harvest / export runtime state -----------------------------------------------------------------------------
     private @Nullable List<DropTally.Entry<ItemResource>> pendingHarvest;
@@ -154,6 +163,11 @@ public class FarmMatrixBlockEntity extends BlockEntity {
             }
         }
 
+        if (hoeWears && status.isRunning() && analysis.needsHoe() && ++hoeWearTicks >= hoeWearInterval) {
+            hoeWearTicks = 0;
+            wearHoe(level);
+        }
+
         autoExport(level);
     }
 
@@ -185,7 +199,6 @@ public class FarmMatrixBlockEntity extends BlockEntity {
             pendingHarvest = null;
             pendingHarvestKey = null;
             harvestBlocked = false;
-            wearHoe(level);
             markForSave();
         } else {
             harvestBlocked = true;
@@ -193,11 +206,12 @@ public class FarmMatrixBlockEntity extends BlockEntity {
         updateStatus();
     }
 
-    /** Config {@code hoe.consumeDurability}: 1 durability per harvest, only if the hoe was needed and can wear. */
+    /**
+     * Config {@code hoe.consumeDurability} (owner decision: wear over TIME, not per harvest): called every
+     * {@code hoe.wearIntervalTicks} ticks of RUNNING while the soil needs the hoe. Removes 1 durability; a hoe that
+     * breaks leaves the slot empty and the machine switches to MISSING HOE on its next revalidation.
+     */
     private void wearHoe(ServerLevel level) {
-        if (!hoeWears || !analysis.needsHoe()) {
-            return;
-        }
         ItemStack hoe = inputs.stackInSlot(MachineSlots.HOE);
         if (hoe.isEmpty() || !hoe.isDamageableItem()) {
             return; // unbreakable / energy hoes never wear
@@ -251,6 +265,7 @@ public class FarmMatrixBlockEntity extends BlockEntity {
         exportInterval = VfwServerConfig.AUTO_EXPORT_INTERVAL_TICKS.get();
         maxLootRolls = VfwServerConfig.MAX_LOOT_ROLLS_PER_HARVEST.get();
         hoeWears = VfwServerConfig.HOE_CONSUMES_DURABILITY.get();
+        hoeWearInterval = VfwServerConfig.HOE_WEAR_INTERVAL_TICKS.get();
 
         // Drop source: rebuilt only when what it depends on changed (not for upgrade changes).
         SourceKey sourceKey = new SourceKey(seedItem, soil.isEmpty() ? null : soil.getItem(),
@@ -423,7 +438,22 @@ public class FarmMatrixBlockEntity extends BlockEntity {
     }
 
     // =================================================================================================================
-    // Accessors (menu in step 7, capabilities, game tests)
+    // Menu
+    // =================================================================================================================
+
+    /** GUI title, e.g. "STARTER FARM MATRIX" (upper case per owner spec; one lang key per tier). */
+    @Override
+    public Component getDisplayName() {
+        return Component.translatable("gui.virtualfarmworks." + tier.getSerializedName() + "_farm_matrix");
+    }
+
+    @Override
+    public AbstractContainerMenu createMenu(int containerId, Inventory playerInventory, Player player) {
+        return new FarmMatrixMenu(containerId, playerInventory, this);
+    }
+
+    // =================================================================================================================
+    // Accessors (menu, capabilities, game tests)
     // =================================================================================================================
 
     public MachineTier tier() {

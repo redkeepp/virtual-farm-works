@@ -15,6 +15,7 @@ import com.virtualfarmworks.registry.ModBlockEntities;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModCreativeTabs;
 import com.virtualfarmworks.registry.ModItems;
+import com.virtualfarmworks.registry.ModMenus;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -36,6 +37,7 @@ public class VirtualFarmWorks {
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
         ModBlockEntities.register(modEventBus); // also registers capabilities
+        ModMenus.register(modEventBus);
         ModCreativeTabs.register(modEventBus);
         ModDataMaps.register(modEventBus);
         VfwConfig.register(modEventBus, modContainer);

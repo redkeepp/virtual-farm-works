@@ -1,6 +1,7 @@
 /*
  * MachineGameTests — game tests of the placed Farm Matrix: a full growth cycle into the buffer, status reporting,
- * OUTPUT FULL holding the harvest, save/load, auto-export per face, contents dropped on break, and slot rules.
+ * OUTPUT FULL holding the harvest, save/load, auto-export per face, contents dropped on break, slot rules, and the
+ * server side of the GUI menu (buttons, shift-click, output slots, synced data).
  */
 package com.virtualfarmworks.gametest;
 
@@ -10,6 +11,7 @@ import com.virtualfarmworks.machine.MachineInventory;
 import com.virtualfarmworks.machine.MachineSlots;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.machine.RelativeSide;
+import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModItems;
@@ -20,12 +22,14 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.transfer.item.ItemResource;
 import net.neoforged.neoforge.transfer.transaction.Transaction;
@@ -240,6 +244,58 @@ final class MachineGameTests {
             check(helper, external.insert(ItemResource.of(Items.WHEAT), 1, tx) == 0, "the buffer refuses insertion");
             check(helper, external.extract(ItemResource.of(Items.WHEAT), 5, tx) == 5, "the buffer allows extraction");
         }
+        helper.succeed();
+    }
+
+    /**
+     * Server side of the GUI: button intents change the machine, shift-click puts items in the right input slot, the
+     * output slots refuse items, and the synced numbers reflect the machine.
+     */
+    static void menuActions(GameTestHelper helper) {
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        FarmMatrixMenu menu = new FarmMatrixMenu(1, player.getInventory(), machine);
+
+        // Buttons (the client sends only these ids; the server applies them).
+        menu.clickMenuButton(player, FarmMatrixMenu.BUTTON_POWER);
+        check(helper, !machine.isEnabled() && !menu.isEnabled(), "power button must switch the machine off");
+        menu.clickMenuButton(player, FarmMatrixMenu.BUTTON_POWER);
+        check(helper, machine.isEnabled(), "power button must switch the machine back on");
+        menu.clickMenuButton(player, FarmMatrixMenu.BUTTON_FACE_FIRST + RelativeSide.LEFT.ordinal());
+        check(helper, !machine.isOutputEnabled(RelativeSide.LEFT) && !menu.isOutputEnabled(RelativeSide.LEFT),
+                "face button must disable the left face");
+        check(helper, !menu.clickMenuButton(player, 99), "unknown button ids must be ignored");
+
+        // Shift-click from the player's inventory (menu PLAYER_START = player inventory index 9).
+        player.getInventory().setItem(9, new ItemStack(Items.WHEAT_SEEDS, 32));
+        player.getInventory().setItem(10, new ItemStack(ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.STARTER).get()));
+        // A diamond fits no machine slot (note: stone would be accepted as a soil, glow berries hang from stone).
+        player.getInventory().setItem(11, new ItemStack(Items.DIAMOND, 5));
+        menu.quickMoveStack(player, FarmMatrixMenu.PLAYER_START);
+        menu.quickMoveStack(player, FarmMatrixMenu.PLAYER_START + 1);
+        menu.quickMoveStack(player, FarmMatrixMenu.PLAYER_START + 2);
+        check(helper, machine.inputs().getAmountAsInt(MachineSlots.SEED) == 32, "seeds must go to the seed slot");
+        check(helper, machine.inputs().getAmountAsInt(MachineSlots.WATER_PROVIDER) == 1, "water provider must go to its slot");
+        check(helper, player.getInventory().countItem(Items.DIAMOND) == 5, "a diamond must stay with the player");
+        for (int i = 0; i < MachineSlots.OUTPUT_COUNT; i++) {
+            check(helper, machine.output().isEmpty(), "shift-click must never fill the output buffer");
+            check(helper, !menu.slots.get(FarmMatrixMenu.OUTPUT_START + i).mayPlace(new ItemStack(Items.WHEAT)),
+                    "output slots must refuse items");
+        }
+
+        // Taking from the output buffer works through the menu.
+        machine.output().set(0, ItemResource.of(Items.WHEAT), 7);
+        menu.quickMoveStack(player, FarmMatrixMenu.OUTPUT_START);
+        check(helper, machine.output().isEmpty() && player.getInventory().countItem(Items.WHEAT) == 7,
+                "shift-click must move output items to the player");
+
+        // Synced numbers (server copy) follow the machine after a sync.
+        machine.revalidate();
+        menu.broadcastChanges();
+        for (int i = 0; i < 5; i++) {
+            menu.broadcastChanges(); // the copy refreshes every few ticks
+        }
+        check(helper, menu.status() == machine.status(), "menu status must mirror the machine");
         helper.succeed();
     }
 

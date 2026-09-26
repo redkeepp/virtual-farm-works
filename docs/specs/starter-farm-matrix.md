@@ -150,13 +150,26 @@ A harvest yields what an equivalent physical farm would, per ACTIVE plot:
 ## Machine behavior details (implemented, milestone 1 step 6)
 
 - **Automation**: pipes/hoppers/other mods can only EXTRACT from the 9-slot output buffer, from any face. Nothing
-  can be inserted from outside (seed, soil, upgrades and hoe are placed by the player). Decision by Claude; revisit
-  if the owner wants automated inputs.
+  can be inserted from outside (seed, soil, upgrades and hoe are placed by the player). Owner: correct for the
+  Starter (64 seeds/soils do not need automation); future tiers may allow automated inputs.
 - **Auto-export**: every `output.autoExportIntervalTicks` (default 20), the buffer is pushed into adjacent inventories
   on each enabled face. Faces are relative to the machine's front, as the player sees it standing in front of the
   machine: LEFT is the player's left. Keeps running while the machine is SHUTDOWN (it only empties the buffer).
 - **Breaking the machine** drops every stored item (inputs and buffer).
-- **Hoe wear** (config): 1 durability per harvest, only when the soil actually needed the hoe.
+- **Hoe wear** (config, off by default): over time (owner decision) — 1 durability every `hoe.wearIntervalTicks`
+  (default 1200 = 1 minute) of RUNNING, only while the soil needs the hoe.
+
+## GUI (implemented, milestone 1 step 7)
+
+- Right-click the machine to open it. Title, status and info lines are drawn by code (the texture has no text).
+- Info lines: status (colored), `Hydration: (Nx speed)`, `Seeds: planted/64` (planted = min(seeds, soils), what
+  actually grows), `Growth: X% - (Nx speed)` where the multiplier is Growth Speed Upgrades x soil bonus. The bar
+  shows 1%..100% while something is planted.
+- Side panel (left of the texture): "O" auto-output button, 4 Growth Speed Upgrade slots, 1 Crux Provider slot, and
+  the ON/OFF button at the bottom (the spec did not place it; Claude's choice). Each has a 1 px white (theme) outer
+  border. The "O" opens the face box in the owner's layout (T / L F R / Bk Bt), green = auto-output on, red = off,
+  full side names in tooltips.
+- Empty input slots show 40% placeholders; hovering an empty slot tells what it accepts.
 
 ## Implementation decisions
 

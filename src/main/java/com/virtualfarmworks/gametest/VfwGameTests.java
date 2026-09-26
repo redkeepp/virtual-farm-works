@@ -77,7 +77,9 @@ public final class VfwGameTests {
             test("machine_saves_and_loads", MachineGameTests::savesAndLoads, 20),
             test("machine_auto_exports_to_enabled_faces", MachineGameTests::autoExportsToEnabledFaces, 120),
             test("machine_drops_its_contents", MachineGameTests::dropsItsContents, 20),
-            test("machine_slot_rules", MachineGameTests::slotRules, 20));
+            test("machine_slot_rules", MachineGameTests::slotRules, 20),
+            // GUI, server side (step 7)
+            test("menu_actions", MachineGameTests::menuActions, 20));
 
     private VfwGameTests() {
     }

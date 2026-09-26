@@ -37,6 +37,7 @@ public final class VfwServerConfig {
     // --- hoe --------------------------------------------------------------------------------------------------------
     public static final ModConfigSpec.BooleanValue REQUIRE_HOE;
     public static final ModConfigSpec.BooleanValue HOE_CONSUMES_DURABILITY;
+    public static final ModConfigSpec.IntValue HOE_WEAR_INTERVAL_TICKS;
 
     // --- output -----------------------------------------------------------------------------------------------------
     public static final ModConfigSpec.IntValue AUTO_EXPORT_INTERVAL_TICKS;
@@ -114,9 +115,15 @@ public final class VfwServerConfig {
                         "(e.g. wheat on dirt). If false, the hoe slot is never required.")
                 .define("requireHoe", true);
         HOE_CONSUMES_DURABILITY = b
-                .comment("If true, the hoe loses 1 durability per harvest cycle (only hoes that have durability;",
-                        "unbreakable or energy hoes are never worn). Hoes never consume energy.")
+                .comment("If true, the hoe wears over time: it loses 1 durability every wearIntervalTicks while the",
+                        "machine is RUNNING and actually needs the hoe (the soil must be tilled). Only hoes that have",
+                        "durability wear; unbreakable or energy hoes never do. Hoes never consume energy.")
                 .define("consumeDurability", false);
+        HOE_WEAR_INTERVAL_TICKS = b
+                .comment("Ticks of RUNNING between two points of hoe wear (20 ticks = 1 second). Default 1200 = one",
+                        "minute: a wooden hoe (59) lasts about 1 hour, iron (250) about 4 hours, diamond (1561) about",
+                        "26 hours of machine time. Only used when consumeDurability is true.")
+                .defineInRange("wearIntervalTicks", 1200, 1, 1_728_000);
         b.pop();
 
         b.comment("Output buffer").push("output");

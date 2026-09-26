@@ -10,11 +10,16 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineTier;
+import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.registry.ModBlockEntities;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -75,6 +80,20 @@ public class FarmMatrixBlock extends HorizontalDirectionalBlock implements Entit
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         // Same convention as the vanilla furnace: the front faces the placing player.
         return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+    }
+
+    /**
+     * Right-click (empty hand or any item): open the machine GUI. Server side only; the client just reports success so
+     * the hand swings. The open packet carries the position and tier so the client can build its menu mirror.
+     */
+    @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
+                                               BlockHitResult hitResult) {
+        if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer
+                && level.getBlockEntity(pos) instanceof FarmMatrixBlockEntity machine) {
+            serverPlayer.openMenu(machine, buf -> FarmMatrixMenu.writeOpenData(buf, pos, tier));
+        }
+        return InteractionResult.SUCCESS;
     }
 
     @Override

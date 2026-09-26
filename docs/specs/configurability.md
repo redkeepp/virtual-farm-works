@@ -10,7 +10,7 @@ Implemented in milestone 1 step 2. Server config file: `config/virtualfarmworks-
 | Requirement | Mechanism | Key |
 |---|---|---|
 | Base growth time, per machine tier (default Starter 30 s) | Server config, per tier | `machines.<tier>.growthTicks` |
-| Hoe loses durability (only items with durability) | Server config (default false) | `hoe.consumeDurability` |
+| Hoe loses durability (only items with durability), over time | Server config (default false; 1 point per interval) | `hoe.consumeDurability`, `hoe.wearIntervalTicks` |
 | Disable the hoe requirement entirely | Server config (default true) | `hoe.requireHoe` |
 | Blacklist seeds (default: all allowed) | Config list | `filters.seedBlacklist` |
 | Blacklist soils | Config list | `filters.soilBlacklist` |
