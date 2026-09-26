@@ -87,6 +87,14 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
+        // VFW load benchmark (`gradlew runBenchmark`): the same headless game test server, but it registers only the
+        // benchmark (gametest/LoadBenchmark), which writes a cost table to the log and to run/vfw-benchmark.txt.
+        benchmark {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'virtualfarmworks.benchmark', 'true'
+        }
+
         data {
             clientData()
             // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it

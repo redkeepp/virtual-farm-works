@@ -32,6 +32,8 @@ Run from the repository root (this folder). `JAVA_HOME` must point to JDK 25 (al
                                   # build/test-results/test/*.xml
 .\gradlew.bat runGameTestServer   # headless: boots the mod, runs game tests, exits (exit code 0 = all passed). Use it to
                                   # catch registry/datapack errors without opening the client; check run/logs/latest.log.
+.\gradlew.bat runBenchmark        # headless load benchmark (gametest/LoadBenchmark, runs alone): cost per machine per
+                                  # tick; table in the log and in run/vfw-benchmark.txt. Close runClient first (CPU noise).
 ```
 
 Dev mods for testing (Mystical Agriculture, Mystical Agradditions, ...) go as jars in `run/mods/` (26.1 is unobfuscated,
@@ -296,7 +298,16 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   keeps the rest in `heldDrops` (saved, stored first, owner-approved). No GUI/Jade indicator (owner). Details: spec,
   section "Output". 21 game tests (20 VFW + 1 vanilla), 63 JUnit.
   Also decided: the machine does not imitate natural growth times; config comments must not promise a "physical farm".
-  Still to do: load benchmark (after this fix, since it changed the harvest code the benchmark measures).
+  Load benchmark: `gametest/LoadBenchmark` (`gradlew runBenchmark`, registered alone via -Dvirtualfarmworks.benchmark).
+  Detached machines ticked directly (ticker work only, vanilla BE-ticking overhead excluded), warm-up + best of 3;
+  scenarios: growing 1 vs 64 plots, OUTPUT FULL waiting, harvest tick (wheat x64/x1, MA x64), busy farm average,
+  revalidation, auto-export into a real chest. Never fails on numbers (machine-dependent).
+  Results 2026-09-26 (owner's PC, 16 threads, Java 25, owner's game open at the same time): growing 0.013-0.021 us
+  per machine-tick (1 and 64 plots alike), OUTPUT FULL waiting 0.020 us, harvest tick 103 us (64 wheat plots, 64
+  loot rolls), 7.4 us (1 wheat plot), 7.8 us (64 MA Inferium plots, formula), busy farm (64 wheat, 3x, harvests
+  included) 0.36 us average -> ~2,800 busy machines per 1 ms of tick, 1,000 = 0.7% of a 50 ms tick; revalidation
+  2.6 us; auto-export of 9 full stacks into a chest 127 us per export (~14 us per stack, NeoForge transfer + vanilla
+  chest; the priciest part when a buffer is always full, tunable with output.autoExportIntervalTicks).
   Dev tip: the owner often has `runClient` open on the same `run/` folder. An old build running there reverts new
   config keys (its file watcher "corrects" the shared TOML), and both processes write `run/logs/latest.log`.
 

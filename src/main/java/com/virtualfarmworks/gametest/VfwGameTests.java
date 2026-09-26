@@ -89,6 +89,12 @@ public final class VfwGameTests {
             test("machine_extreme_harvest_holds_the_rest", MachineGameTests::extremeHarvestHoldsTheRest, 20),
             test("machine_hidden_slots_refill_visible", MachineGameTests::hiddenSlotsRefillTheVisibleOnes, 20));
 
+    /**
+     * Load benchmark: registered as a test ONLY in the {@code benchmark} run ({@code gradlew runBenchmark}, which sets
+     * the {@link LoadBenchmark#PROPERTY} system property), and then alone. Synchronous, so it needs a single tick.
+     */
+    private static final Spec BENCHMARK = test("load_benchmark", LoadBenchmark::run, 20);
+
     private VfwGameTests() {
     }
 
@@ -103,7 +109,8 @@ public final class VfwGameTests {
         FUNCTIONS.register(modEventBus);
         modEventBus.addListener(RegisterGameTestsEvent.class, event -> {
             Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(id("default"));
-            for (Spec spec : TESTS) {
+            List<Spec> specs = Boolean.getBoolean(LoadBenchmark.PROPERTY) ? List.of(BENCHMARK) : TESTS;
+            for (Spec spec : specs) {
                 // Vanilla's empty structure; "required" so a failure fails the whole run (non-zero exit code).
                 event.registerTest(spec.function().getId(), new FunctionGameTestInstance(spec.function().getKey(),
                         new TestData<>(environment, Identifier.withDefaultNamespace("empty"), spec.maxTicks(), 0,
