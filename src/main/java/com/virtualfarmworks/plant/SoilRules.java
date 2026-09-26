@@ -43,6 +43,11 @@ public final class SoilRules {
     private static final Map<Item, Boolean> SOIL_CACHE = new ConcurrentHashMap<>();
     /** One representative plant state per plant block CLASS (see {@link #probes()}). Null = not built yet. */
     private static volatile @Nullable List<BlockState> probes;
+    /**
+     * Incremented whenever tags (and with them datapack data such as the soil data map) reload. Machines compare it
+     * with the value they last validated against, exactly like {@code VfwConfig#generation()} for config changes.
+     */
+    private static volatile int cacheGeneration;
 
     private SoilRules() {
     }
@@ -51,10 +56,16 @@ public final class SoilRules {
         gameEventBus.addListener(TagsUpdatedEvent.class, event -> clearCaches());
     }
 
-    /** Drops every cached answer. Called on tag reload; safe to call any time. */
+    /** Drops every cached answer and tells machines to revalidate. Called on tag reload; safe to call any time. */
     public static void clearCaches() {
         SOIL_CACHE.clear();
         probes = null;
+        cacheGeneration++;
+    }
+
+    /** Changes on every tag/datapack reload; see {@link #cacheGeneration}. */
+    public static int cacheGeneration() {
+        return cacheGeneration;
     }
 
     /**

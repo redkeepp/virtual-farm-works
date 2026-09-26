@@ -11,6 +11,7 @@ import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.data.ModDataMaps;
 import com.virtualfarmworks.gametest.VfwGameTests;
 import com.virtualfarmworks.plant.SoilRules;
+import com.virtualfarmworks.registry.ModBlockEntities;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModCreativeTabs;
 import com.virtualfarmworks.registry.ModItems;
@@ -34,6 +35,7 @@ public class VirtualFarmWorks {
         // the order readable anyway).
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
+        ModBlockEntities.register(modEventBus); // also registers capabilities
         ModCreativeTabs.register(modEventBus);
         ModDataMaps.register(modEventBus);
         VfwConfig.register(modEventBus, modContainer);

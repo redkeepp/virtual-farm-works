@@ -236,6 +236,16 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   with config multipliers, `tryStore` = root NeoForge Transaction + `insertStacking`, all-or-nothing). Pure math in
   `sim/HarvestMath` + `sim/DropTally` (JUnit). Tag `#virtualfarmworks:harvest_byproducts`. 47 JUnit + 7 game tests.
 
+- [x] Step 6: `machine/FarmMatrixBlockEntity` (server ticker; revalidates only on slot/config/tag change; one addition
+  per normal tick; harvest rolled once and retried only when buffer or inputs change; auto-export via
+  `BlockCapabilityCache` every `output.autoExportIntervalTicks`; persistence of inventories, progress, counters, on/off,
+  faces; progress saved at most every 20 ticks via `level.blockEntityChanged`; contents dropped in
+  `preRemoveSideEffects`). `MachineInventory` (per-slot rules), `OutputBuffer` (+ extract-only `externalView()`),
+  `MachineSlots`, `RelativeSide`. `registry/ModBlockEntities` (one BE type "farm_matrix" for all tiers + item
+  capability). 14 game tests pass (7 machine tests), 47 JUnit.
+  Decisions by Claude (owner may revisit): automation can only EXTRACT from the output buffer (inputs not exposed);
+  auto-export keeps running while SHUTDOWN; the hoe only wears when the soil actually needed it.
+
 ## Harvest rules — quick reference (`harvest/`)
 
 - Replanting cost: crops/nether wart/cocoa/MA pay 1 planting item per harvested plot (the plot keeps its seed, a real
@@ -244,10 +254,12 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 - MAIN vs SECONDARY: planting-item surplus is SECONDARY only if the planting item is in `#c:seeds`; items in
   `#virtualfarmworks:harvest_byproducts` are SECONDARY; the rest is MAIN. MAIN x global x tier production multiplier,
   SECONDARY x `secondaryDropMultiplier`; `DropTally.finish` rounds stochastically (expected value exact).
-- Step 6 MUST: roll once when the harvest becomes due, keep the rolled drops in memory and retry only `tryStore` when
-  the buffer changes (no re-rolling per retry: cost + bias). Invalidate the cached roll when the active plot count or
-  the drop source changes. Call `GrowthCycle#completeHarvest()` only after `tryStore` returned true, in the same tick.
-  Hoe durability (config `hoe.consumeDurability`) is consumed after a successful store, 1 per harvest.
+- Implemented in `FarmMatrixBlockEntity` (keep it this way): roll once when the harvest becomes due, keep the rolled
+  drops in memory (`pendingHarvest` + `HarvestKey`) and retry only `tryStore` when the buffer or inputs change (no
+  re-rolling per retry: cost + bias). `GrowthCycle#completeHarvest()` only after `tryStore` returned true, in the same
+  call. Hoe durability (config `hoe.consumeDurability`) is consumed after a successful store, 1 per harvest.
+- A harvest is usually several item types (wheat + seeds): OUTPUT FULL can persist with free slots if not ALL types
+  fit. That is correct all-or-nothing behavior (a game test checks it).
 - Never call `tryStore` inside another transaction (it refuses): a rolled-back outer transaction would void a harvest
   whose cycle was already completed.
 
@@ -279,9 +291,11 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
 
 - `src/main/java/com/virtualfarmworks/` — mod code (main class `VirtualFarmWorks`, only wires registries).
   - `machine/MachineTier` — tier enum; order = progression; `accepts()` implements the upgrade compatibility gate.
+  - `machine/FarmMatrixBlockEntity` — the running machine; `MachineInventory`, `OutputBuffer`, `MachineSlots` (slot
+    indices, persisted — never reorder), `RelativeSide` (faces relative to the front; bit order persisted).
   - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
   - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`. Items carry no behavior.
-  - `registry/` — `ModBlocks`, `ModItems`, `ModCreativeTabs` (DeferredRegisters).
+  - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModCreativeTabs`.
   - `config/` — `VfwServerConfig` (spec), `VfwConfig` (runtime: compiled filters, generation), `ItemFilter`.
   - `data/` — `SoilProperties` + `ModDataMaps` (soil growth bonus data map).
   - `plant/` — `PlantRules`, `SoilRules`, `PlantAnalysis`, `SoilView`, `VfwTags`.
@@ -292,6 +306,8 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
     `MachineConditions`, `HarvestMath`, `DropTally`.
   - `harvest/` — `DropSource`, `LootDropSource`, `HarvestPlans`, `Harvester` (drops + transactional storage).
   - `gametest/MysticalHarvestTests` — MA-only game test (references MA classes; called only when MA is loaded).
+  - `gametest/MachineGameTests` — tests on a placed machine. Register new tests in `VfwGameTests.TESTS` with a
+    max tick count. `FarmMatrixBlockEntity#setProgressForTesting` exists only so tests need not wait a full cycle.
 - `src/test/java/com/virtualfarmworks/sim/` — JUnit tests for `sim/` (`gradlew test`).
 - `src/main/resources/data/virtualfarmworks/tags/` — VFW item/block tags (datapack-editable plant/soil rules).
 - `src/main/resources/assets/virtualfarmworks/` — lang, models, textures.

@@ -49,27 +49,41 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
  * {@code /test} lists. Each test is a plain function: it runs checks against real registries/tags/config and calls
  * {@code helper.succeed()}; a failed {@link #check} fails the test with a readable message.
  *
- * <p>Add a test: write a {@code static void name(GameTestHelper)} and register it in {@link #FUNCTIONS} with
- * {@link #test}.
+ * <p>Add a test: write a {@code static void name(GameTestHelper)} and add one {@link #test} line to {@link #TESTS}
+ * with the maximum number of ticks it may take (logic-only tests finish on their first tick; machine tests that wait
+ * for real growth need more).
  */
 public final class VfwGameTests {
     private static final DeferredRegister<Consumer<GameTestHelper>> FUNCTIONS =
             DeferredRegister.create(Registries.TEST_FUNCTION, VirtualFarmWorks.MODID);
 
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> PLANT_RULES_VANILLA =
-            FUNCTIONS.register("plant_rules_vanilla", () -> VfwGameTests::plantRulesVanilla);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> SLOT_RULES =
-            FUNCTIONS.register("slot_rules", () -> VfwGameTests::slotRules);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> PLANT_RULES_MYSTICAL =
-            FUNCTIONS.register("plant_rules_mystical", () -> VfwGameTests::plantRulesMystical);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> HARVEST_VANILLA =
-            FUNCTIONS.register("harvest_vanilla_yields", () -> VfwGameTests::harvestVanillaYields);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> HARVEST_ATOMIC =
-            FUNCTIONS.register("harvest_is_all_or_nothing", () -> VfwGameTests::harvestIsAllOrNothing);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> HARVEST_MYSTICAL =
-            FUNCTIONS.register("mystical_drops_match_ma", () -> VfwGameTests::mysticalDropsMatchMa);
+    /** A registered test function and how many ticks it may run before it counts as failed. */
+    private record Spec(DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> function, int maxTicks) {
+    }
+
+    private static final List<Spec> TESTS = List.of(
+            // plant / soil rules (step 3)
+            test("plant_rules_vanilla", VfwGameTests::plantRulesVanilla, 20),
+            test("slot_rules", VfwGameTests::slotRules, 20),
+            test("plant_rules_mystical", VfwGameTests::plantRulesMystical, 20),
+            // harvest (step 5)
+            test("harvest_vanilla_yields", VfwGameTests::harvestVanillaYields, 20),
+            test("harvest_is_all_or_nothing", VfwGameTests::harvestIsAllOrNothing, 20),
+            test("mystical_drops_match_ma", VfwGameTests::mysticalDropsMatchMa, 20),
+            // placed machine (step 6)
+            test("machine_runs_a_full_cycle", MachineGameTests::runsAFullCycle, 300), // 200-tick cycle at 3.0x
+            test("machine_reports_states", MachineGameTests::reportsStates, 20),
+            test("machine_output_full_holds_the_harvest", MachineGameTests::outputFullHoldsTheHarvest, 100),
+            test("machine_saves_and_loads", MachineGameTests::savesAndLoads, 20),
+            test("machine_auto_exports_to_enabled_faces", MachineGameTests::autoExportsToEnabledFaces, 120),
+            test("machine_drops_its_contents", MachineGameTests::dropsItsContents, 20),
+            test("machine_slot_rules", MachineGameTests::slotRules, 20));
 
     private VfwGameTests() {
+    }
+
+    private static Spec test(String name, Consumer<GameTestHelper> function, int maxTicks) {
+        return new Spec(FUNCTIONS.register(name, () -> function), maxTicks);
     }
 
     public static void register(IEventBus modEventBus) {
@@ -79,11 +93,11 @@ public final class VfwGameTests {
         FUNCTIONS.register(modEventBus);
         modEventBus.addListener(RegisterGameTestsEvent.class, event -> {
             Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(id("default"));
-            for (DeferredHolder<Consumer<GameTestHelper>, ? extends Consumer<GameTestHelper>> function
-                    : FUNCTIONS.getEntries()) {
-                // Logic-only tests: vanilla's empty structure, 1 tick is enough, required so a failure fails the run.
-                event.registerTest(function.getId(), new FunctionGameTestInstance(function.getKey(),
-                        new TestData<>(environment, Identifier.withDefaultNamespace("empty"), 20, 0, true)));
+            for (Spec spec : TESTS) {
+                // Vanilla's empty structure; "required" so a failure fails the whole run (non-zero exit code).
+                event.registerTest(spec.function().getId(), new FunctionGameTestInstance(spec.function().getKey(),
+                        new TestData<>(environment, Identifier.withDefaultNamespace("empty"), spec.maxTicks(), 0,
+                                true)));
             }
         });
     }

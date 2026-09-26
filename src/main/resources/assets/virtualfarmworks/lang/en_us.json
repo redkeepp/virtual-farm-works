@@ -36,5 +36,12 @@
   "status.virtualfarmworks.missing_crux": "MISSING CRUX",
   "status.virtualfarmworks.missing_fe": "MISSING FE",
   "status.virtualfarmworks.output_full": "OUTPUT FULL",
-  "status.virtualfarmworks.shutdown": "SHUTDOWN"
+  "status.virtualfarmworks.shutdown": "SHUTDOWN",
+
+  "side.virtualfarmworks.top": "Top",
+  "side.virtualfarmworks.bottom": "Bottom",
+  "side.virtualfarmworks.front": "Front",
+  "side.virtualfarmworks.back": "Back",
+  "side.virtualfarmworks.left": "Left",
+  "side.virtualfarmworks.right": "Right"
 }

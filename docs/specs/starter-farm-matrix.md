@@ -147,6 +147,17 @@ A harvest yields what an equivalent physical farm would, per ACTIVE plot:
   `configurability.md`.
 - Storage is all-or-nothing (NeoForge transaction). If the harvest does not fit: OUTPUT FULL, bar held at 100%.
 
+## Machine behavior details (implemented, milestone 1 step 6)
+
+- **Automation**: pipes/hoppers/other mods can only EXTRACT from the 9-slot output buffer, from any face. Nothing
+  can be inserted from outside (seed, soil, upgrades and hoe are placed by the player). Decision by Claude; revisit
+  if the owner wants automated inputs.
+- **Auto-export**: every `output.autoExportIntervalTicks` (default 20), the buffer is pushed into adjacent inventories
+  on each enabled face. Faces are relative to the machine's front, as the player sees it standing in front of the
+  machine: LEFT is the player's left. Keeps running while the machine is SHUTDOWN (it only empties the buffer).
+- **Breaking the machine** drops every stored item (inputs and buffer).
+- **Hoe wear** (config): 1 durability per harvest, only when the soil actually needed the hoe.
+
 ## Implementation decisions
 
 - **Seed/soil compatibility** (implemented, step 3): computed generically in a tiny in-memory block view (no world

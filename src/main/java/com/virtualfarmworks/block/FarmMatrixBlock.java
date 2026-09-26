@@ -1,17 +1,28 @@
 /*
- * FarmMatrixBlock — the Farm Matrix machine block, one class for every tier: horizontal facing (front = placing player)
- * and the block codec. The BlockEntity (simulation, inventories, GUI) is attached in milestone 1, step 6.
+ * FarmMatrixBlock — the Farm Matrix machine block, one class for every tier: horizontal facing (front = placing
+ * player), block codec, and its block entity (FarmMatrixBlockEntity), ticked on the server only.
  */
 package com.virtualfarmworks.block;
 
+import org.jspecify.annotations.Nullable;
+
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineTier;
+import com.virtualfarmworks.registry.ModBlockEntities;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -23,11 +34,11 @@ import net.minecraft.world.level.block.state.StateDefinition;
  * expressed relative to it (front/back/left/right/top/bottom), like Mekanism or Industrial Foregoing machines. The
  * front faces the player who placed it.
  *
- * <p>Milestone 1, step 1: registration only. The BlockEntity (simulation, inventories, GUI) is added in a later step;
- * this block will then implement {@code EntityBlock}. Do NOT give it a random tick: growth is simulated by one global
- * progress bar in the BlockEntity (see CLAUDE.md, performance rules).
+ * <p>All machine logic lives in {@link FarmMatrixBlockEntity}. Do NOT give this block a random tick: growth is
+ * simulated by one global progress bar in the block entity (see CLAUDE.md, performance rules). The ticker is created
+ * on the server only; the client never simulates anything.
  */
-public class FarmMatrixBlock extends HorizontalDirectionalBlock {
+public class FarmMatrixBlock extends HorizontalDirectionalBlock implements EntityBlock {
     /**
      * Block codec required by vanilla since 1.20.5 for every block type. The tier is part of it so that a codec
      * round-trip rebuilds the correct tier.
@@ -64,5 +75,23 @@ public class FarmMatrixBlock extends HorizontalDirectionalBlock {
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         // Same convention as the vanilla furnace: the front faces the placing player.
         return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+    }
+
+    @Override
+    public @Nullable BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new FarmMatrixBlockEntity(pos, state);
+    }
+
+    @Override
+    public <T extends BlockEntity> @Nullable BlockEntityTicker<T> getTicker(Level level, BlockState state,
+                                                                             BlockEntityType<T> type) {
+        if (level.isClientSide() || type != ModBlockEntities.FARM_MATRIX.get()) {
+            return null;
+        }
+        return (tickLevel, pos, tickState, blockEntity) -> {
+            if (blockEntity instanceof FarmMatrixBlockEntity machine && tickLevel instanceof ServerLevel serverLevel) {
+                machine.serverTick(serverLevel);
+            }
+        };
     }
 }
