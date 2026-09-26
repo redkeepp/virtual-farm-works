@@ -128,10 +128,26 @@ public final class VfwServerConfig {
                         "Fertilized Essence. 1.0 = normal, 0.0 = disabled.")
                 .defineInRange("secondaryDropMultiplier", 1.0, 0.0, 1000.0);
         b.push("mysticalagriculture");
+        // Base chances below were read from Mystical Agriculture 9.0.9 (Crop#getSecondaryChance): 10% on any
+        // essence farmland, +10% more when the farmland matches the crop tier, 0% on non-essence soil. They can differ
+        // if MA changes them or a crop overrides its base chance. Keep the examples in sync if that happens.
         MYSTICAL_SECONDARY_SEED_MULTIPLIER = b
-                .comment("Multiplier for Mystical Agriculture's own chance of dropping an extra seed (that chance",
-                        "depends on the essence farmland used as soil). 1.0 = Mystical Agriculture's normal chance,",
-                        "0.0 = crops never drop extra seeds. Final chance is capped at 100%.")
+                .comment("MULTIPLIES Mystical Agriculture's own chance of dropping an extra seed. It is NOT a chance",
+                        "by itself: final chance = MA chance x this value (capped at 100%).",
+                        "MA's chances (MA 9.0.x defaults):",
+                        "  - soil is not an essence farmland ............. 0%  (no multiplier can raise it)",
+                        "  - any essence farmland ........................ 10%",
+                        "  - farmland of the SAME tier as the crop ....... 20% (e.g. Inferium crop on Inferium Farmland)",
+                        "Examples:",
+                        "  1.0 -> MA's normal chances: 10% / 20%",
+                        "  0.0 -> never drops an extra seed",
+                        "  0.5 -> half: 5% / 10%",
+                        "  1.5 -> 15% / 30%   (use this if you want 30% on the matching farmland)",
+                        "  3.0 -> 30% / 60%   (use this if you want 30% on any essence farmland)",
+                        "  5.0 -> 50% / 100%",
+                        "To get X% on the matching farmland use X / 20 (e.g. 30% -> 1.5); on any essence farmland",
+                        "use X / 10 (e.g. 30% -> 3.0).",
+                        "The extra seed is also affected by drops.secondaryDropMultiplier.")
                 .defineInRange("secondarySeedChanceMultiplier", 1.0, 0.0, 100.0);
         b.pop(2);
 

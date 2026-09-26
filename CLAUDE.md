@@ -53,8 +53,8 @@ so production jars load in dev). `run/` is git-ignored.
 The owner authored the block models in Blockbench. NeoForge's `ModelProvider` datagen requires generating a model for
 every registered block/item, which would overwrite them. So blockstates, item definitions and simple item models are
 **hand-written JSON** in `src/main/resources`. When adding a block/item, add: `blockstates/` (blocks), `items/`,
-`models/item/` (flat items: parent `minecraft:item/generated`), lang keys in `en_us.json` AND `pt_br.json`, loot table
-and `mineable` tag (blocks).
+`models/item/` (flat items: parent `minecraft:item/generated`), lang keys in `en_us.json` (ONLY English for now —
+owner removed `pt_br.json`; do not add other languages unless asked), loot table and `mineable` tag (blocks).
 
 ## Working rules (owner requirements)
 
@@ -163,6 +163,10 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   extra seed (only if MA config `secondarySeedDrops`), plus Fertilized Essence with MA config
   `fertilizedEssenceChance`. A virtual machine has no real farmland below the crop, so the generic loot path is WRONG
   for MA crops: VFW needs an MA compat path that uses `Crop#getSecondaryChance(soilBlock)` with the soil from the slot.
+- `Crop#getSecondaryChance(Block soil)`: 0 if the tier has no secondary seed drop; +base (crop override if > -1,
+  else tier base, default 0.1) when soil is any `IEssenceFarmland`; +0.1 more when the crop respects effective
+  farmland and `tier.isEffectiveFarmland(soil)` (tier's own farmland or block tag `ALWAYS_EFFECTIVE_FARMLAND`); capped
+  at 1.0. So by default: 0% plain soil, 10% any essence farmland, 20% matching tier farmland.
 - Crux: `Crop#getCruxBlock()` (null when the crop needs none) -> satisfied by the Crux Provider Upgrade.
 - Farmlands: `InfusedFarmlandBlock extends FarmlandBlock implements IEssenceFarmland`, `getTier()`. Ids:
   `mysticalagriculture:{inferium,prudentium,tertium,imperium,supremium,awakened_supremium}_farmland`,
@@ -184,8 +188,9 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Growth upgrades are registered as `<tier>_growth_upgrade` to match the owner's texture names. Recipes: none yet
   (owner: ignore recipes for now; they will be datapack JSON only).
 - [x] Step 2: server config (`config/VfwServerConfig`, `VfwConfig` with compiled blacklists + generation counter,
-  `ItemFilter`), soil data map (`data/SoilProperties`, `ModDataMaps`) with MA/Agradditions farmland bonuses.
-  Pending owner: bonus for `awakened_supremium_farmland` (not in the owner's list).
+  `ItemFilter`), soil data map (`data/SoilProperties`, `ModDataMaps`) with MA/Agradditions farmland bonuses
+  (Awakened Supremium = +40%, same as Insanium, owner decision). The MA extra-seed option is a MULTIPLIER over MA's
+  own chance; its config comment has worked examples (owner asked for pack-maker-friendly examples).
 - Milestone 1 scope (agreed): **Starter Farm Matrix only**, to validate the architecture before the other tiers.
   I/O by face, autocrafting and integrations come in later milestones.
 
