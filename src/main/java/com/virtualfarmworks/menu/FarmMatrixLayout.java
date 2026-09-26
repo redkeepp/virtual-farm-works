@@ -17,34 +17,39 @@ import com.virtualfarmworks.machine.RelativeSide;
  */
 public final class FarmMatrixLayout {
     // --- owner's texture ------------------------------------------------------------------------------------------
+    // Revision 2 of the texture (owner, step 7): 3 px taller than the first one, to give the info lines more room.
+    // Every value below was checked against the texture's pixels (slot interiors, 1 px #34586B frames).
     public static final int GUI_WIDTH = 176;
-    public static final int GUI_HEIGHT = 219;
+    public static final int GUI_HEIGHT = 222; // (0,0)-(175,221)
     public static final int TEXTURE_SIZE = 256;
 
     /** Seed, soil, water provider, hoe: owner coordinates (25,26), (61,26), (98,26), (134,26). */
     public static final int[] TOP_SLOT_X = {25, 61, 98, 134};
     public static final int TOP_SLOT_Y = 26;
 
-    /** Output buffer row: (8,111)-(167,126), 9 slots, 18 px apart. */
+    /** Output buffer row: (8,114)-(167,129), 9 slots, 18 px apart. */
     public static final int OUTPUT_X = 8;
-    public static final int OUTPUT_Y = 111;
+    public static final int OUTPUT_Y = 114;
     public static final int SLOT_SPACING = 18;
 
-    /** Player inventory (8,140)-(167,191) and hotbar (8,198)-(167,213): vanilla's standard 58 px apart. */
+    /** Player inventory (8,143)-(167,194) and hotbar (8,201)-(167,216): vanilla's standard 58 px apart. */
     public static final int PLAYER_INVENTORY_X = 8;
-    public static final int PLAYER_INVENTORY_Y = 140;
+    public static final int PLAYER_INVENTORY_Y = 143;
 
-    /** Progress bar (12,94)-(163,98): 152 x 5 px. */
+    /** Progress bar interior (12,97)-(163,101): 152 x 5 px. */
     public static final int BAR_X = 12;
-    public static final int BAR_Y = 94;
+    public static final int BAR_Y = 97;
     public static final int BAR_WIDTH = 152;
     public static final int BAR_HEIGHT = 5;
 
-    /** Info panel (13,57)-(164,89). Text starts with a small padding; 4 lines, 8 px apart (fits the 33 px). */
-    public static final int INFO_X = 16;
-    public static final int INFO_Y = 58;
-    public static final int INFO_WIDTH = 146;
-    public static final int INFO_LINE_HEIGHT = 8;
+    /**
+     * Info lines inside the info panel (frame (7,53)-(168,106), interior x 8..167). Owner-tuned positions: x = 11,
+     * and one y per line — status 58, hydration 67, seeds 76, growth 86 (uneven on purpose, owner's choice).
+     * {@link #INFO_WIDTH} is the room up to x 166; longer texts (translations) are scaled down to fit.
+     */
+    public static final int INFO_X = 11;
+    public static final int[] INFO_LINE_Y = {58, 67, 76, 86};
+    public static final int INFO_WIDTH = 156;
 
     public static final int TITLE_Y = 9;
 

@@ -7,23 +7,23 @@ Theme color: `#FFFFFF`.
 
 ## GUI texture and coordinates
 
-Texture: `assets/virtualfarmworks/textures/gui/starter_farm_matrix_gui.png` (256x256 image, real GUI area is
-`(0,0)–(175,218)`, i.e. 176x219). Ignore `starter_farm_matrix_gui2.png`. The PNG has **no text**; every text is drawn
-by code. Coordinates below are inclusive pixel ranges inside the texture (a 16x16 slot `(25,26)–(40,41)` means the
-item renders at x=25, y=26).
+Texture: `assets/virtualfarmworks/textures/gui/starter_farm_matrix_gui.png` (256x256 image). Revision 2 (owner, step 7)
+is 3 px taller than the original: real GUI area `(0,0)–(175,221)`, i.e. 176x222. Ignore `starter_farm_matrix_gui2.png`.
+The PNG has **no text**; every text is drawn by code. Coordinates below are inclusive pixel ranges inside the texture
+(a 16x16 slot `(25,26)–(40,41)` means the item renders at x=25, y=26). Revision-2 values were verified on the pixels.
 
 | # | Area | Purpose |
 |---|------|---------|
-| 1 | `(0,0)–(175,218)` | Whole GUI background |
+| 1 | `(0,0)–(175,221)` | Whole GUI background |
 | 2 | `(25,26)–(40,41)` | Seed slot |
 | 3 | `(61,26)–(76,41)` | Soil slot |
 | 4 | `(98,26)–(113,41)` | Water Provider Upgrade slot |
 | 5 | `(134,26)–(149,41)` | Hoe slot |
-| 6 | `(12,94)–(163,98)` | Progress bar (green), shows 1%..100% |
-| 7 | `(8,111)–(167,126)` | 9 output buffer slots (one row, hotbar-like) |
-| 8 | `(8,140)–(167,191)` | Player inventory (27 slots) |
-| 9 | `(8,198)–(167,213)` | Player hotbar |
-| 10 | `(13,57)–(164,89)` | Info panel (dynamic text, see below) |
+| 6 | `(12,97)–(163,101)` | Progress bar (green), shows 1%..100% |
+| 7 | `(8,114)–(167,129)` | 9 output buffer slots (one row, hotbar-like) |
+| 8 | `(8,143)–(167,194)` | Player inventory (27 slots) |
+| 9 | `(8,201)–(167,216)` | Player hotbar |
+| 10 | frame `(7,53)–(168,106)` | Info panel (dynamic text, see below); text at x=11, lines at y 58 / 67 / 76 / 86 |
 
 Title "STARTER FARM MATRIX" at the top, centered, in the theme color.
 

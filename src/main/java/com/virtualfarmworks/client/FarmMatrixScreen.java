@@ -208,17 +208,15 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
                 themeColor, false);
 
         MachineStatus status = menu.status();
-        int y = FarmMatrixLayout.INFO_Y;
-        extractFittedText(graphics, Component.translatable(status.translationKey()), y, 0xFF000000 | status.tone().rgb());
-        y += FarmMatrixLayout.INFO_LINE_HEIGHT;
+        int[] lineY = FarmMatrixLayout.INFO_LINE_Y;
+        extractFittedText(graphics, Component.translatable(status.translationKey()), lineY[0],
+                0xFF000000 | status.tone().rgb());
         extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.hydration",
-                formatMultiplier(menu.hydrationMultiplier())), y, FarmMatrixLayout.COLOR_TEXT);
-        y += FarmMatrixLayout.INFO_LINE_HEIGHT;
+                formatMultiplier(menu.hydrationMultiplier())), lineY[1], FarmMatrixLayout.COLOR_TEXT);
         extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.seeds", menu.plots(),
-                MachineSlots.SEED_SOIL_LIMIT), y, FarmMatrixLayout.COLOR_TEXT);
-        y += FarmMatrixLayout.INFO_LINE_HEIGHT;
+                MachineSlots.SEED_SOIL_LIMIT), lineY[2], FarmMatrixLayout.COLOR_TEXT);
         extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.growth", displayPercent(),
-                formatMultiplier(menu.growthMultiplier())), y, FarmMatrixLayout.COLOR_TEXT);
+                formatMultiplier(menu.growthMultiplier())), lineY[3], FarmMatrixLayout.COLOR_TEXT);
     }
 
     /** Info line at {@link FarmMatrixLayout#INFO_X}, shrunk to the panel width if needed (long translations). */
