@@ -121,10 +121,21 @@ Item (single, untiered): **Crux Provider Upgrade**.
 Progression: starts as a simple alternative to the Hopper Botany Pot and ends with machines representing thousands of
 plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pending owner's spec (config-driven).
 
+## Specs (read before implementing)
+
+- `docs/specs/starter-farm-matrix.md` — Starter Farm Matrix: GUI coordinates, slots, states, behavior, open questions.
+- `docs/specs/configurability.md` — everything pack makers must be able to change without Java.
+- Mystical Agriculture exists for 26.1.2 (9.0.x, Blake's Mods). Planned as a dev-only runtime dependency for testing;
+  VFW must not hard-depend on it.
+- Assets: `blockstates/` and some item definitions/models (growth upgrades, crux) are not in the owner's asset drop;
+  they are plumbing, not art — generate them (datagen) pointing at the owner's existing textures.
+  Ignore `textures/item/antigos_nao_usar/` (old, unused).
+
 ## Status
 
 - [x] Project scaffolded from official MDK 26.1.2, renamed to `virtualfarmworks`, builds successfully.
-- [ ] Waiting for the owner's Starter Farm Matrix spec (what the initial machine does).
+- [x] Starter Farm Matrix spec received (`docs/specs/`). Open questions sent to the owner.
+- [ ] Owner answers + explicit go-ahead. **Do not start implementing until the owner says so.**
 - Milestone 1 scope (agreed): **Starter Farm Matrix only**, to validate the architecture before the other tiers.
   I/O by face, autocrafting and integrations come in later milestones.
 
