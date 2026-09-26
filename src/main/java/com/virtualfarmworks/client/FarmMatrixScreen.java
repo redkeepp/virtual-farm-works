@@ -1,7 +1,7 @@
 /*
  * FarmMatrixScreen — the Farm Matrix GUI (client only): the owner's texture, the dynamic texts (title, status,
- * hydration, seeds, growth), the green progress bar, 40% ghost placeholders in empty slots, and the side panel drawn by
- * code (auto-output button + face box, 5 upgrade slots, power button).
+ * hydration, seeds, growth), the green progress bar, 40% ghost placeholders in empty slots, and the side column drawn
+ * by code and glued to the texture (auto-output button + face box, 5-cell upgrade block, power button).
  */
 package com.virtualfarmworks.client;
 
@@ -98,24 +98,43 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         }
     }
 
-    /** "O" button, 5 upgrade slot frames and the power button, each with a 1 px theme-colored outer border. */
+    /**
+     * The side column glued to the texture (see {@link FarmMatrixLayout}): the "O" box, the 5-cell upgrade block and
+     * the ON/OFF box. No theme border on the right: the texture's own white border is the column's right edge.
+     */
     private void extractSidePanel(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
-        int frameX = x0 + FarmMatrixLayout.PANEL_FRAME_X;
+        int outputTop = y0 + FarmMatrixLayout.OUTPUT_BOX_TOP;
+        boolean outputActive = faceBoxOpen || isOverBox(FarmMatrixLayout.OUTPUT_BOX_TOP, 1, mouseX, mouseY);
+        extractPanelBox(graphics, x0, outputTop, 1,
+                outputActive ? FarmMatrixLayout.COLOR_BUTTON_ACTIVE : FarmMatrixLayout.COLOR_BACKGROUND);
+        extractCellLabel(graphics, Component.literal("O"), x0, FarmMatrixLayout.cellY(outputTop, 0), themeColor);
 
-        int outputY = y0 + FarmMatrixLayout.OUTPUT_BUTTON_Y;
-        extractFrame(graphics, frameX, outputY, faceBoxOpen || isOver(frameX, outputY, mouseX, mouseY)
-                ? FarmMatrixLayout.COLOR_BUTTON_ACTIVE : FarmMatrixLayout.COLOR_BACKGROUND);
-        extractCenteredLabel(graphics, Component.literal("O"), frameX, outputY, themeColor);
+        extractPanelBox(graphics, x0, y0 + FarmMatrixLayout.UPGRADE_BOX_TOP, FarmMatrixLayout.UPGRADE_SLOTS,
+                FarmMatrixLayout.COLOR_BACKGROUND);
 
-        for (int i = 0; i < FarmMatrixLayout.UPGRADE_SLOTS; i++) {
-            extractFrame(graphics, frameX, y0 + FarmMatrixLayout.upgradeFrameY(i), FarmMatrixLayout.COLOR_BACKGROUND);
-        }
-
-        int powerY = y0 + FarmMatrixLayout.POWER_BUTTON_Y;
+        int powerTop = y0 + FarmMatrixLayout.POWER_BOX_TOP;
         boolean on = menu.isEnabled();
-        extractFrame(graphics, frameX, powerY, on ? FarmMatrixLayout.COLOR_ON : FarmMatrixLayout.COLOR_OFF);
-        extractCenteredLabel(graphics, Component.translatable(on ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off"),
-                frameX, powerY, 0xFFFFFFFF);
+        extractPanelBox(graphics, x0, powerTop, 1, on ? FarmMatrixLayout.COLOR_ON : FarmMatrixLayout.COLOR_OFF);
+        extractCellLabel(graphics, Component.translatable(on ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off"),
+                x0, FarmMatrixLayout.cellY(powerTop, 0), 0xFFFFFFFF);
+    }
+
+    /**
+     * One side-panel box with {@code cells} stacked cells, painted as three nested rectangles so every line is exactly
+     * one pixel: theme color (left/top/bottom border; its right column is covered by the next rectangle), blue frame
+     * (whose right column is x = -1, touching the texture's white border at x = 0), then each 16x16 interior. The blue
+     * rows left between two interiors are the single shared separator line the owner asked for.
+     */
+    private void extractPanelBox(GuiGraphicsExtractor graphics, int x0, int top, int cells, int interior) {
+        int bottom = top + FarmMatrixLayout.boxHeight(cells); // exclusive
+        int right = x0; // exclusive: x = 0 belongs to the texture
+        graphics.fill(x0 + FarmMatrixLayout.PANEL_BORDER_X, top, right, bottom, themeColor);
+        graphics.fill(x0 + FarmMatrixLayout.PANEL_BORDER_X + 1, top + 1, right, bottom - 1, FarmMatrixLayout.COLOR_FRAME);
+        int interiorX = x0 + FarmMatrixLayout.PANEL_INTERIOR_X;
+        for (int i = 0; i < cells; i++) {
+            int y = FarmMatrixLayout.cellY(top, i);
+            graphics.fill(interiorX, y, interiorX + FarmMatrixLayout.CELL, y + FarmMatrixLayout.CELL, interior);
+        }
     }
 
     /** The auto-output face box, owner layout (see {@link FarmMatrixLayout#FACE_GRID}). */
@@ -162,24 +181,16 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         }
     }
 
-    /** An 18x18 frame like the texture's slots, plus the owner's 1 px outer border in the theme color. */
-    private void extractFrame(GuiGraphicsExtractor graphics, int x, int y, int interior) {
-        int size = FarmMatrixLayout.FRAME_SIZE;
-        graphics.fill(x - 1, y - 1, x + size + 1, y + size + 1, themeColor);
-        graphics.fill(x, y, x + size, y + size, FarmMatrixLayout.COLOR_FRAME);
-        graphics.fill(x + 1, y + 1, x + size - 1, y + size - 1, interior);
-    }
-
-    /** Text centered in an 18x18 frame, scaled down if wider than the 16 px interior. */
-    private void extractCenteredLabel(GuiGraphicsExtractor graphics, Component text, int frameX, int frameY, int color) {
-        int inner = FarmMatrixLayout.FRAME_SIZE - 2;
+    /** Text centered in a side-panel cell (16x16 interior at y {@code cellY}), shrunk if wider than the cell. */
+    private void extractCellLabel(GuiGraphicsExtractor graphics, Component text, int x0, int cellY, int color) {
+        int cell = FarmMatrixLayout.CELL;
         int width = font.width(text);
-        float scale = width > inner ? (float) inner / width : 1.0F;
+        float scale = width > cell ? (float) cell / width : 1.0F;
         float drawnWidth = width * scale;
         float drawnHeight = 8 * scale;
         graphics.pose().pushMatrix();
-        graphics.pose().translate(frameX + (FarmMatrixLayout.FRAME_SIZE - drawnWidth) / 2.0F,
-                frameY + (FarmMatrixLayout.FRAME_SIZE - drawnHeight) / 2.0F);
+        graphics.pose().translate(x0 + FarmMatrixLayout.PANEL_INTERIOR_X + (cell - drawnWidth) / 2.0F,
+                cellY + (cell - drawnHeight) / 2.0F);
         graphics.pose().scale(scale, scale);
         graphics.text(font, text, 0, 0, color, false);
         graphics.pose().popMatrix();
@@ -257,10 +268,9 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
 
     private List<Component> tooltipAt(int mouseX, int mouseY) {
         List<Component> lines = new ArrayList<>();
-        int frameX = leftPos + FarmMatrixLayout.PANEL_FRAME_X;
-        if (isOver(frameX, topPos + FarmMatrixLayout.OUTPUT_BUTTON_Y, mouseX, mouseY)) {
+        if (isOverBox(FarmMatrixLayout.OUTPUT_BOX_TOP, 1, mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.output_sides"));
-        } else if (isOver(frameX, topPos + FarmMatrixLayout.POWER_BUTTON_Y, mouseX, mouseY)) {
+        } else if (isOverBox(FarmMatrixLayout.POWER_BOX_TOP, 1, mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.power",
                     Component.translatable(menu.isEnabled() ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off")));
         } else if (faceBoxOpen && faceAt(mouseX, mouseY) != null) {
@@ -302,15 +312,14 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() == 0) {
-            int mouseX = (int) event.x();
-            int mouseY = (int) event.y();
-            int frameX = leftPos + FarmMatrixLayout.PANEL_FRAME_X;
-            if (isOver(frameX, topPos + FarmMatrixLayout.OUTPUT_BUTTON_Y, mouseX, mouseY)) {
+            double mouseX = event.x();
+            double mouseY = event.y();
+            if (isOverBox(FarmMatrixLayout.OUTPUT_BOX_TOP, 1, mouseX, mouseY)) {
                 faceBoxOpen = !faceBoxOpen;
                 playClick();
                 return true;
             }
-            if (isOver(frameX, topPos + FarmMatrixLayout.POWER_BUTTON_Y, mouseX, mouseY)) {
+            if (isOverBox(FarmMatrixLayout.POWER_BOX_TOP, 1, mouseX, mouseY)) {
                 sendButton(FarmMatrixMenu.BUTTON_POWER);
                 return true;
             }
@@ -356,20 +365,20 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
     // Hit testing
     // =================================================================================================================
 
-    /** Whether the mouse is over an 18x18 frame (border included) whose frame starts at (x, y). */
-    private static boolean isOver(int x, int y, double mouseX, double mouseY) {
-        return isInside(mouseX, mouseY, x - 1, y - 1, FarmMatrixLayout.FRAME_SIZE + 2, FarmMatrixLayout.FRAME_SIZE + 2);
+    /** Whether the mouse is over a side-panel box (borders included) whose white top line is at GUI y {@code top}. */
+    private boolean isOverBox(int top, int cells, double mouseX, double mouseY) {
+        return isInside(mouseX, mouseY, leftPos + FarmMatrixLayout.PANEL_BORDER_X, topPos + top,
+                -FarmMatrixLayout.PANEL_BORDER_X, FarmMatrixLayout.boxHeight(cells));
     }
 
     private static boolean isInside(double mouseX, double mouseY, int x, int y, int width, int height) {
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
     }
 
+    /** The whole column, gaps included (a click between two boxes must not count as "outside the GUI" either). */
     private boolean isInSidePanel(double mouseX, double mouseY) {
-        int x = leftPos + FarmMatrixLayout.PANEL_FRAME_X - 1;
-        int top = topPos + FarmMatrixLayout.OUTPUT_BUTTON_Y - 1;
-        int bottom = topPos + FarmMatrixLayout.POWER_BUTTON_Y + FarmMatrixLayout.FRAME_SIZE + 1;
-        return isInside(mouseX, mouseY, x, top, FarmMatrixLayout.FRAME_SIZE + 2, bottom - top);
+        return isInside(mouseX, mouseY, leftPos + FarmMatrixLayout.PANEL_BORDER_X, topPos + FarmMatrixLayout.OUTPUT_BOX_TOP,
+                -FarmMatrixLayout.PANEL_BORDER_X, FarmMatrixLayout.PANEL_BOTTOM - FarmMatrixLayout.OUTPUT_BOX_TOP);
     }
 
     private boolean isInFaceBox(double mouseX, double mouseY) {

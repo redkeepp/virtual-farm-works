@@ -66,27 +66,39 @@ public final class FarmMatrixLayout {
     public static final int COLOR_GHOST_COVER = 0x990F1A26;
 
     // --- side panel (drawn by code) ---------------------------------------------------------------------------------
-    // One column left of the texture. Every element is an 18x18 frame (like the texture's slots) with a 1 px outer
-    // border in the machine's theme color (owner spec), i.e. 20x20 on screen, 4 px away from the texture.
-    public static final int FRAME_SIZE = 18;
-    /** Left edge of the column's 18x18 frames. */
-    public static final int PANEL_FRAME_X = -23;
-    /** Auto-output ("O") button frame, vertically centered on the top slot row (owner spec). */
-    public static final int OUTPUT_BUTTON_Y = 25;
-    /** First upgrade slot frame; the 5 frames are {@link #PANEL_STEP} apart (18 frame + 2 border + 2 gap). */
-    public static final int FIRST_UPGRADE_FRAME_Y = 47;
-    public static final int PANEL_STEP = 22;
+    // One column glued to the LEFT edge of the texture (owner's revision, step 7). Pixel columns, x relative to the
+    // GUI origin (the texture's own white border is at x = 0):
+    //   x = -19        theme-color (white) border, left side only
+    //   x = -18        blue frame line (COLOR_FRAME)
+    //   x = -17..-2    16 px interior (item / label)
+    //   x = -1         blue frame line
+    //   x =  0         the texture's white border, which is also the column's right border — so the column has NO
+    //                  theme border on its right side and only one white line shows where they touch.
+    // Three boxes from top to bottom, 3 px apart: the "O" button (1 cell), the upgrade block (5 cells separated by a
+    // single blue line, no white lines between them) and the ON/OFF button (1 cell). Each box: white top line, blue
+    // line, cells, blue line, white bottom line.
+    public static final int PANEL_BORDER_X = -19;
+    public static final int PANEL_INTERIOR_X = -17;
+    public static final int CELL = 16;
+    /** Distance between two stacked cells of the upgrade block: 16 px interior + 1 shared blue line. */
+    public static final int CELL_PITCH = CELL + 1;
+    public static final int PANEL_BOX_GAP = 3;
     public static final int UPGRADE_SLOTS = MachineSlots.GROWTH_COUNT + 1; // 4 growth + 1 crux
-    /** On/off button frame, below the upgrade slots. */
-    public static final int POWER_BUTTON_Y = FIRST_UPGRADE_FRAME_Y + UPGRADE_SLOTS * PANEL_STEP;
 
-    // Face box, opened by the "O" button, left of the column. 3x3 grid of 16 px cells, 2 px apart, 3 px padding.
+    /** Top (white line) of the "O" box; its interior (y 26) lines up with the texture's top slot row (owner spec). */
+    public static final int OUTPUT_BOX_TOP = 24;
+    public static final int UPGRADE_BOX_TOP = OUTPUT_BOX_TOP + boxHeight(1) + PANEL_BOX_GAP;       // 47
+    public static final int POWER_BOX_TOP = UPGRADE_BOX_TOP + boxHeight(UPGRADE_SLOTS) + PANEL_BOX_GAP; // 138
+    public static final int PANEL_BOTTOM = POWER_BOX_TOP + boxHeight(1);                           // 158 (exclusive)
+
+    // Face box, opened by the "O" button, left of the column (3 px gap). 3x3 grid of 16 px cells, 2 px apart, 3 px
+    // padding, inside a blue frame and a theme-color border. FACE_BOX_X/Y are the inner (blue frame) top-left corner.
     public static final int FACE_CELL = 16;
     public static final int FACE_GAP = 2;
     public static final int FACE_PADDING = 3;
-    public static final int FACE_BOX_SIZE = 3 * FACE_CELL + 2 * FACE_GAP + 2 * FACE_PADDING; // 58
-    public static final int FACE_BOX_X = PANEL_FRAME_X - 1 - 3 - FACE_BOX_SIZE;                // -85
-    public static final int FACE_BOX_Y = OUTPUT_BUTTON_Y - 1;
+    public static final int FACE_BOX_SIZE = 3 * FACE_CELL + 2 * FACE_GAP + 2 * FACE_PADDING;      // 58
+    public static final int FACE_BOX_X = PANEL_BORDER_X - PANEL_BOX_GAP - 1 - FACE_BOX_SIZE;      // -81
+    public static final int FACE_BOX_Y = OUTPUT_BOX_TOP + 1;                                      // 25
 
     /**
      * Owner's face layout ({@code null} = empty cell):
@@ -105,14 +117,22 @@ public final class FarmMatrixLayout {
     private FarmMatrixLayout() {
     }
 
-    /** Item x of the side column's slots (frame + 1). */
-    public static int panelSlotX() {
-        return PANEL_FRAME_X + 1;
+    /**
+     * Height of a side-panel box with {@code cells} stacked cells: white + blue line on top, the cells with one shared
+     * blue line between two cells, blue + white line at the bottom.
+     */
+    public static int boxHeight(int cells) {
+        return 2 + cells * CELL + (cells - 1) + 2;
     }
 
-    /** Frame y of upgrade slot {@code i} (0..3 growth, 4 crux). */
-    public static int upgradeFrameY(int i) {
-        return FIRST_UPGRADE_FRAME_Y + i * PANEL_STEP;
+    /** Interior (item) y of cell {@code i} of a box whose white top line is at {@code boxTop}. */
+    public static int cellY(int boxTop, int i) {
+        return boxTop + 2 + i * CELL_PITCH;
+    }
+
+    /** Item y of upgrade slot {@code i} (0..3 growth, 4 crux). */
+    public static int upgradeSlotY(int i) {
+        return cellY(UPGRADE_BOX_TOP, i);
     }
 
     /** Top-left of the face cell at grid (row, col). */

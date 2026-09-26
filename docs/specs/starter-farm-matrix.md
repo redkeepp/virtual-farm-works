@@ -165,10 +165,13 @@ A harvest yields what an equivalent physical farm would, per ACTIVE plot:
 - Info lines: status (colored), `Hydration: (Nx speed)`, `Seeds: planted/64` (planted = min(seeds, soils), what
   actually grows), `Growth: X% - (Nx speed)` where the multiplier is Growth Speed Upgrades x soil bonus. The bar
   shows 1%..100% while something is planted.
-- Side panel (left of the texture): "O" auto-output button, 4 Growth Speed Upgrade slots, 1 Crux Provider slot, and
-  the ON/OFF button at the bottom (the spec did not place it; Claude's choice). Each has a 1 px white (theme) outer
-  border. The "O" opens the face box in the owner's layout (T / L F R / Bk Bt), green = auto-output on, red = off,
-  full side names in tooltips.
+- Side column (owner revision after the first in-game test): glued to the left edge of the texture. Three boxes,
+  3 px apart: the "O" auto-output button, one block with the 4 Growth Speed Upgrade slots + the Crux Provider slot
+  (a single blue line between cells, no white lines between them), and the ON/OFF button. Boxes have a theme-color
+  (white) border on the left, top and bottom only: the texture's own white border is their right edge, so only one
+  white line shows where they touch. Exact pixel columns in `menu/FarmMatrixLayout`.
+- The "O" opens the face box (3 px left of the column) in the owner's layout (T / L F R / Bk Bt), green =
+  auto-output on, red = off, full side names in tooltips. ON/OFF sits at the bottom of the column (Claude's choice).
 - Empty input slots show 40% placeholders; hovering an empty slot tells what it accepts.
 
 ## Implementation decisions

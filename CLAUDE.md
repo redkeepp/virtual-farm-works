@@ -258,6 +258,10 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Claude's GUI choices (owner may revisit): "Seeds" shows planted plots = min(seeds, soils); "Growth" multiplier
   includes the soil bonus; power button at the bottom of the side column; face labels T/L/F/R/Bk/Bt + tooltips;
   no "Inventory" label. Known gap: no JEI/EMI exclusion area for the side panel yet.
+  Owner tested everything in game (all OK) and revised the side column: glued to the texture (no theme border on its
+  right side), the 5 upgrade slots merged in one block with single blue separators (17 px pitch), 3 px between boxes.
+  Tip: to check pixel geometry without the game, paint the same fills on the texture with a script and READ THE
+  PIXELS — the image viewer downsizes previews and can hide 1 px lines.
 
 ## GUI gotchas (26.1)
 

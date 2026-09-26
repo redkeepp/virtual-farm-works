@@ -118,7 +118,7 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         }
         for (int i = 0; i < FarmMatrixLayout.UPGRADE_SLOTS; i++) {
             addSlot(new ResourceHandlerSlot(inputs, inputs::set, MachineSlots.GROWTH_FIRST + i,
-                    FarmMatrixLayout.panelSlotX(), FarmMatrixLayout.upgradeFrameY(i) + 1));
+                    FarmMatrixLayout.PANEL_INTERIOR_X, FarmMatrixLayout.upgradeSlotY(i)));
         }
         // Output buffer: take-only.
         for (int i = 0; i < MachineSlots.OUTPUT_COUNT; i++) {
