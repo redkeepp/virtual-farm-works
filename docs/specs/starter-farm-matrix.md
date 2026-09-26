@@ -132,7 +132,9 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
 
 ## Harvest (implemented, milestone 1 step 5)
 
-A harvest yields what an equivalent physical farm would, per ACTIVE plot:
+Per ACTIVE plot, a harvest yields what one mature plant drops when harvested by hand. Only the AMOUNT follows the
+real plant: the machine does not imitate natural growth times, it is simply faster, with one shared cycle for every
+crop (owner decision, step 8: the machine is just faster, no growth-time imitation). Per plot:
 - **Crops** (wheat, carrot, potato, beetroot, nether wart, cocoa, modded crops): the mature crop's loot, minus one
   planting item that goes back into the ground (the "replanting cost" — the plot keeps its seed in VFW). E.g. wheat:
   1 wheat + 0..3 extra seeds; carrot: 1..4 carrots; cocoa: 2 beans.

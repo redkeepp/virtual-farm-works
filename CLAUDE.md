@@ -285,7 +285,13 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   MA effective farmland: VFW switch `mysticalagriculture.requiresEffectiveFarmland` (default off, see the MA findings
   above). Owner corrections: 3 px between the two ON/OFF boxes (not 5; all side boxes are now 3 px apart), and the
   Fertilized Essence tooltip reads "Drops Fertilized Essence: ON/OFF". 18 game tests (17 VFW + 1 vanilla), 47 JUnit.
-  Still to do: config-reload test, load benchmark, dedicated-server check (owner), publishing metadata (at release).
+  Owner verified by hand: editing the config with the game open affects machines at once, and the dedicated server
+  works (no automated reload test needed). Deferred by the owner: EMI, publishing metadata.
+  Still to do: load benchmark.
+  KNOWN BUG (under discussion, do not fix without the owner's go-ahead): a harvest is stored all-or-nothing, so a
+  harvest bigger than the whole 9-slot buffer (e.g. high production multipliers, future tiers with thousands of
+  plots) never fits, even in an empty buffer: permanent OUTPUT FULL. Owner rejects a big hidden overflow inventory.
+  Also decided: the machine does not imitate natural growth times; config comments must not promise a "physical farm".
   Dev tip: the owner often has `runClient` open on the same `run/` folder. An old build running there reverts new
   config keys (its file watcher "corrects" the shared TOML), and both processes write `run/logs/latest.log`.
 

@@ -141,7 +141,8 @@ public final class VfwServerConfig {
         b.comment("Drops").push("drops");
         GLOBAL_PRODUCTION_MULTIPLIER = b
                 .comment("Global yield multiplier for the main product of every harvest (multiplied with the",
-                        "per-tier one). 1.0 = the same as an equivalent physical farm.")
+                        "per-tier one). 1.0 = each plot gives what one mature plant drops when harvested by hand.",
+                        "Only the amount changes; how often the machine harvests is set by growthTicks and upgrades.")
                 .defineInRange("productionMultiplier", 1.0, 0.0, 1000.0);
         SECONDARY_DROP_MULTIPLIER = b
                 .comment("Multiplier for secondary drops: extra seeds and by-products such as Mystical Agriculture's",
