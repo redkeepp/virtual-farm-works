@@ -192,6 +192,9 @@ No GUI or Jade indicator for waiting plots or hidden items (owner: "não, esquec
 - Info lines: status (colored), `Hydration: (Nx speed)`, `Seeds: planted/64` (planted = min(seeds, soils), what
   actually grows), `Growth: X% - (Nx speed)` where the multiplier is Growth Speed Upgrades x soil bonus. The bar
   shows 1%..100% while something is planted.
+- Smooth bar (owner, step 8): the server still sends the progress every 5 ticks; the client animates the bar and the
+  Growth % from the previous value to the new one over the time between syncs (`client/SmoothProgress`), so 10% -> 14%
+  passes through 11, 12 and 13%. It never runs ahead of the server; a restart after a harvest is shown at once.
 - Side column (owner revision after the first in-game test): glued to the left edge of the texture. Three boxes,
   3 px apart: the "O" auto-output button, one block with the 4 Growth Speed Upgrade slots + the Crux Provider slot
   (a single blue line between cells, no white lines between them), and the ON/OFF button. Boxes have a theme-color

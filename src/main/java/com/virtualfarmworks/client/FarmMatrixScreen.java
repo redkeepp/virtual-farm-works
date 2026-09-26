@@ -30,6 +30,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -52,6 +53,10 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
     private final ItemStack[] ghosts;
     /** Whether the auto-output face box is open (client-only UI state). */
     private boolean faceBoxOpen;
+    /** Smooths the 5-tick progress syncs into continuous movement (owner request, step 8). */
+    private final SmoothProgress smoothProgress = new SmoothProgress();
+    /** Progress drawn in the current frame, shared by the bar and the Growth line so both always agree. */
+    private double shownProgress;
 
     public FarmMatrixScreen(FarmMatrixMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title, FarmMatrixLayout.GUI_WIDTH, FarmMatrixLayout.GUI_HEIGHT);
@@ -78,6 +83,8 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         super.extractBackground(graphics, mouseX, mouseY, a);
+        // Once per frame, before the bar (here) and the Growth line (extractLabels, drawn later in the same frame).
+        shownProgress = smoothProgress.update(menu.progress(), Util.getMillis());
         int x0 = leftPos;
         int y0 = topPos;
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x0, y0, 0.0F, 0.0F, FarmMatrixLayout.GUI_WIDTH,
@@ -90,9 +97,9 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         extractGhosts(graphics, x0, y0);
     }
 
-    /** Green fill of the owner's bar area, proportional to the cycle progress. */
+    /** Green fill of the owner's bar area, proportional to the (smoothed) cycle progress. */
     private void extractProgressBar(GuiGraphicsExtractor graphics, int x0, int y0) {
-        int filled = (int) Math.round(menu.progress() * FarmMatrixLayout.BAR_WIDTH);
+        int filled = (int) Math.round(shownProgress * FarmMatrixLayout.BAR_WIDTH);
         if (filled > 0) {
             int x = x0 + FarmMatrixLayout.BAR_X;
             int y = y0 + FarmMatrixLayout.BAR_Y;
@@ -227,7 +234,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.seeds", menu.plots(),
                 MachineSlots.SEED_SOIL_LIMIT), lineY[2], FarmMatrixLayout.COLOR_TEXT);
         extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.growth",
-                DisplayFormats.growthPercent(menu.progress(), menu.plots()),
+                DisplayFormats.growthPercent(shownProgress, menu.plots()),
                 DisplayFormats.multiplier(menu.growthMultiplier())), lineY[3], FarmMatrixLayout.COLOR_TEXT);
     }
 

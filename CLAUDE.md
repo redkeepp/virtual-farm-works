@@ -292,7 +292,8 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   add an exclusion-area plugin when it does.
   MA effective farmland: VFW switch `mysticalagriculture.requiresEffectiveFarmland` (default off, see the MA findings
   above). Owner corrections: 3 px between the two ON/OFF boxes (not 5; all side boxes are now 3 px apart), and the
-  Fertilized Essence tooltip reads "Drops Fertilized Essence: ON/OFF".
+  Fertilized Essence tooltip reads "Drops Fertilized Essence: ON/OFF". Smooth progress bar: `client/SmoothProgress`
+  interpolates the 5-tick syncs on the client (bar and Growth % share one value per frame); sync rate unchanged.
   Owner verified by hand: editing the config with the game open affects machines at once, and the dedicated server
   works (no automated reload test needed). Deferred by the owner: EMI, publishing metadata.
   Output deadlock FIXED (owner's overclock report): a whole harvest was stored all-or-nothing, so one bigger than the
