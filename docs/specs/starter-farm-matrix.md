@@ -35,7 +35,17 @@ Water Provider Upgrade; hoe slot = Stone Hoe; growth slots = Starter Growth Spee
 Upgrade. Placeholders are client-only rendering, never real items.
 
 **Seed slot (2).** Only plantables (any vanilla/modded seed or plantable, *except flowers*). Up to 64, all the same
-item. Which vanilla plantables are allowed: **OPEN** (see list sent to owner; record the answer here).
+item.
+
+DECIDED — vanilla plantables:
+- ALLOWED: wheat seeds, carrot, potato, beetroot seeds; melon seeds, pumpkin seeds (produce the melon/pumpkin block);
+  sugar cane, cactus, bamboo; cocoa beans (jungle log); nether wart (soul sand); sweet berries, glow berries;
+  brown/red mushroom; chorus flower.
+- NOT ALLOWED: torchflower seeds, pitcher pod; crimson/warped fungus; kelp, sea pickle (maybe later); saplings,
+  azalea, mangrove propagule (trees); vines (vine, twisting, weeping); decorative plants (grass, fern, bush, firefly
+  bush, dripleaf, leaf litter, moss); all flowers.
+- Modded crops (Mystical Agriculture, Mystical Agradditions, others) are accepted generically when the compatibility
+  check passes; pack makers restrict them with blacklists.
 
 **Soil slot (3).** Only soils a plant can grow on (any vanilla/modded farmland/soil that actually grows crops; a grass
 block that grows nothing is not accepted). Also soul sand, jungle log (cocoa), sand (sugar cane), etc. Up to 64, all
@@ -47,7 +57,12 @@ dirt/farmland, etc. The machine only runs with a valid pair.
 
 **Water Provider slot (4).** Only Water Provider Upgrades (any tier). Max 1. Not required to run: without it the
 machine runs at 0.25x; with it at 1.0x. (1.0x is the designed baseline — the upgrade removes a penalty, it does not
-add speed.) Meaning of the Water Provider tiers: **OPEN** (owner's sentence was cut off: "the tiers are only for ...").
+add speed.)
+
+DECIDED — upgrade tiers (Water Provider AND Growth Speed) are purely a COMPATIBILITY gate, never a quality level.
+An upgrade fits a machine when `upgradeTier >= machineTier` (tier order: Starter < Voltaic < Ionic < Resonant <
+Entropic). Examples: Ionic upgrade fits Starter/Voltaic/Ionic but not Resonant/Entropic; Entropic fits everything;
+Starter fits only Starter. All tiers give exactly the same effect.
 
 **Hoe slot (5).** Only hoes (vanilla or any mod). Level does not matter (wood hoe == endgame hoe). Accepts damaged
 hoes and FE hoes with any charge. By default the hoe does NOT lose durability and does NOT consume FE (configurable,
@@ -58,12 +73,12 @@ tilled. Examples: wheat + Supremium Farmland -> no hoe; wheat + dirt -> hoe requ
 - An "O" (Output) button at the top-left, vertically centered on the seed slot row. Clicking opens a small box with the
   6 sides of the machine to toggle auto-output per side. Layout requested by owner:
   ```
-  X T X
-  L F R
-  B B X      (first B = back, second B = bottom — see OPEN below)
+  X     Top     X
+  Left  Front   Right
+  Back  Bottom  X
   ```
-  X = empty, T = top, L = left, F = front, R = right. Reference: Mekanism / Industrial Foregoing side config.
-  **OPEN:** Mekanism uses `X T X / L F R / X Bottom Back`; confirm final row.
+  DECIDED: exactly the owner's layout (NOT Mekanism's). The owner's legend listed "B = back" then "B = bottom", so the
+  last row is read as Back, Bottom, empty. Each button shows its side name/tooltip, so a swap is a one-line change.
 - Below the "O", 5 vertical upgrade slots, 1 item each: slots 1–4 = Growth Speed Upgrade (any tier), slot 5 = Crux
   Provider Upgrade. Same placeholder behavior.
 - The "O" box (open and closed) and the 5 upgrade slots get a 1-pixel OUTER border in the theme color.
@@ -86,7 +101,8 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
   `MISSING FE` (machine needs FE; never for Starter).
 - `OUTPUT FULL` — red, output buffer cannot take the harvest.
 - `SHUTDOWN` — red, player turned the machine off with the on/off button.
-- **OPEN:** state for an incompatible seed/soil pair (e.g. `INVALID SOIL`, orange, after `MISSING SOIL`).
+- DECIDED: `INVALID SOIL` (orange) for an incompatible seed/soil pair, placed right after `MISSING SOIL`.
+  Final order: MISSING SEED > MISSING SOIL > INVALID SOIL > MISSING HOE > MISSING CRUX > MISSING FE.
 
 ## Machine behavior
 
@@ -100,18 +116,27 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
   inventories (e.g. a chest).
 - Output buffer (9 slots): output only. Players/automation can extract, nothing can be inserted.
 
+## DECIDED numbers (defaults; all configurable)
+
+- **Base cycle time (Starter): 30 seconds (600 ticks)** at 1.0x = Water Provider installed, no growth upgrades, no
+  accelerating soil. The Water Provider is part of the "pure" machine.
+- **Plot count** = `min(seedCount, soilCount)`. Surplus seeds or soils are simply idle.
+- **Speed** = `hydrationFactor x (1 + growthBonus x upgradeCount) x soilMultiplier` (multiplicative, owner OK "for now").
+- **Soil growth bonuses** (soilMultiplier = 1 + bonus): Inferium Farmland +15%, Prudentium +20%, Tertium +25%,
+  Imperium +30%, Supremium +35% (Mystical Agriculture), Insanium Farmland +40% (Mystical Agradditions — must be
+  supported too). Shipped as datapack-editable defaults, never hard-coded.
+- **Output full**: machine stops completely; drops already in the buffer stay there; no partial harvest, nothing voided.
+
 ## PROPOSED implementation decisions (pending confirmation)
 
-- **Plot count** = `min(seedCount, soilCount)`.
-- **Speed** = `hydrationFactor x (1 + growthBonus x upgradeCount) x soilMultiplier`.
 - **Seed/soil compatibility** is computed generically by asking the plant block whether it can survive on the soil
   block in a tiny in-memory block view (no world access). This reuses vanilla/NeoForge placement logic and the 26.1
   `#supports_*` block tags, so modded crops/soils work without per-mod code. Computed once when a slot changes, cached.
 - **Hoe need**: plant cannot survive on the soil, but can survive on the soil's hoe-tilled state -> hoe required.
-- **Soil growth multipliers**: no universal API exists, so use a NeoForge data map on items
-  (`virtualfarmworks:soil_properties`, e.g. `growth_multiplier`) with shipped defaults for known mods (Mystical
-  Agriculture farmlands) — pack makers can edit via datapack.
-- **Output full**: harvest is all-or-nothing. Compute the whole cycle's drops, simulate insertion into the buffer; if
-  everything fits, commit; otherwise hold at 100% with `OUTPUT FULL` and retry only when the buffer changes.
+- **Soil growth multipliers** (mechanism): NeoForge data map on items (`virtualfarmworks:soil_properties`, e.g.
+  `growth_bonus`), shipped defaults for the MA/Agradditions farmlands above; optional entries so VFW does not
+  hard-depend on those mods.
+- **Output full** (mechanism): compute the whole cycle's drops, simulate insertion into the buffer; if everything fits,
+  commit; otherwise hold at 100% with `OUTPUT FULL` and retry only when the buffer changes (event-driven).
 - **Removing seeds**: PENDING plots are removed first, then ACTIVE.
 - **Hoe wear (when enabled by config)**: 1 durability per harvest cycle, not per plot.
