@@ -44,6 +44,13 @@ Run from the repository root (this folder). `JAVA_HOME` must point to JDK 25 (al
 6. Windows: the working path can be long; `git clone` of external repos into deep paths may fail with
    `'$GIT_DIR' too big` — download a ZIP or clone into a short path instead.
 
+7. **Art assets (owner decisions):** everything under `src/main/resources/assets/virtualfarmworks/` was made by the
+   owner and is considered complete. Do NOT rename, reorganize or "fix" it: keep the Portuguese texture file names
+   (`azul.png`, `corpo.png`, `preto.png`, ...) — this is the one exception to the English-only rule. Ignore
+   `textures/gui/starter_farm_matrix_gui2.png` (unused variant). Ignore any missing Entropic-tier assets. If something
+   renders as a missing-texture (purple/black) in game, first check that the code's resource paths match the
+   existing files, and only then tell the owner — do not create replacement art.
+
 ## Core design (from the owner's spec — source of truth)
 
 ### Central principle
