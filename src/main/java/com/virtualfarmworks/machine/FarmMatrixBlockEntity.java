@@ -128,6 +128,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private int outputFaces = RelativeSide.ALL;
     /** GUI switch (owner spec): whether Mystical Agriculture crops produce Fertilized Essence. On by default. */
     private boolean fertilizedEssence = true;
+    /**
+     * Completed cycles since this block entity was loaded. Only its CHANGES matter (the GUI sees a cycle wrap and runs
+     * the bar to the end before restarting it), so it is not saved.
+     */
+    private int completedHarvests;
 
     // --- derived state (rebuilt by revalidate, never saved) ---------------------------------------------------------
     private boolean inputsDirty = true;
@@ -267,6 +272,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
         if (cycle.isHarvestDue() && cycle.plotsToHarvest() == 0 && heldDrops.isEmpty()) {
             cycle.completeHarvest(); // every plot of the cycle harvested AND stored: the bar starts again
+            completedHarvests++;
             markForSave();
         }
         harvestBlocked = blocked;
@@ -720,6 +726,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     public void toggleOutput(RelativeSide side) {
         outputFaces ^= side.bit();
         markForSave();
+    }
+
+    /** Completed cycles since load (see the field); the menu syncs it so the GUI can animate a cycle wrap. */
+    public int completedHarvests() {
+        return completedHarvests;
     }
 
     public boolean isFertilizedEssenceEnabled() {

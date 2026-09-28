@@ -83,8 +83,11 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         super.extractBackground(graphics, mouseX, mouseY, a);
-        // Once per frame, before the bar (here) and the Growth line (extractLabels, drawn later in the same frame).
-        shownProgress = smoothProgress.update(menu.progress(), Util.getMillis());
+        // Once per frame, before the bar (here) and the Growth line (extractLabels, drawn later in the same frame). Until
+        // the server's first value arrives the menu reads 0: show nothing rather than animating up from that 0.
+        shownProgress = menu.isDataSynced()
+                ? smoothProgress.update(menu.progress(), menu.harvestCount(), Util.getMillis())
+                : 0.0;
         int x0 = leftPos;
         int y0 = topPos;
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x0, y0, 0.0F, 0.0F, FarmMatrixLayout.GUI_WIDTH,

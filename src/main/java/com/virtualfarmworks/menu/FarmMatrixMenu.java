@@ -67,7 +67,8 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
     private static final int DATA_ENABLED = 5;    // 0 / 1
     private static final int DATA_FACES = 6;      // RelativeSide bit mask
     private static final int DATA_FERTILIZED = 7; // 0 / 1
-    private static final int DATA_COUNT = 8;
+    private static final int DATA_HARVESTS = 8;   // completed cycles, mod 32768 (only changes matter)
+    private static final int DATA_COUNT = 9;
 
     private static final int SYNC_INTERVAL = 5;
 
@@ -78,6 +79,8 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
     private final @Nullable FarmMatrixBlockEntity machine;
     private final ContainerData data;
     private int ticksUntilSync;
+    /** Client side: every synced value has arrived at least once (see {@link #isDataSynced()}). */
+    private boolean dataSynced;
 
     /** Server constructor: backed by the real machine. */
     public FarmMatrixMenu(int containerId, Inventory playerInventory, FarmMatrixBlockEntity machine) {
@@ -158,6 +161,7 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         data.set(DATA_ENABLED, machine.isEnabled() ? 1 : 0);
         data.set(DATA_FACES, machine.outputFaces());
         data.set(DATA_FERTILIZED, machine.isFertilizedEssenceEnabled() ? 1 : 0);
+        data.set(DATA_HARVESTS, machine.completedHarvests() & 0x7FFF); // stays a positive short
     }
 
     private static int toShort(long value) {
@@ -198,6 +202,33 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
 
     public boolean isOutputEnabled(RelativeSide side) {
         return (data.get(DATA_FACES) & side.bit()) != 0;
+    }
+
+    /** Completed cycles, mod 32768: a change means the bar wrapped (see {@code client.SmoothProgress}). */
+    public int harvestCount() {
+        return data.get(DATA_HARVESTS);
+    }
+
+    /**
+     * Client side: whether the server's values have arrived. Right after the GUI opens the data can still be the
+     * defaults (0) for a frame or two; the smooth bar must not start from that 0 (owner report: the bar raced from 1%
+     * to the real value on every open).
+     */
+    public boolean isDataSynced() {
+        return dataSynced;
+    }
+
+    /**
+     * Client side: called for every value the server sends (vanilla ClientboundContainerSetDataPacket). When a menu
+     * opens, vanilla sends EVERY value in index order (ServerPlayer's sendInitialData), so receiving the last index
+     * means all of them arrived — progress and harvest counter together, which the smooth bar needs.
+     */
+    @Override
+    public void setData(int id, int value) {
+        super.setData(id, value);
+        if (id == DATA_COUNT - 1) {
+            dataSynced = true;
+        }
     }
 
     public boolean isFertilizedEssenceEnabled() {

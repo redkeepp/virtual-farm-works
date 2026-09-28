@@ -294,6 +294,9 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   above). Owner corrections: 3 px between the two ON/OFF boxes (not 5; all side boxes are now 3 px apart), and the
   Fertilized Essence tooltip reads "Drops Fertilized Essence: ON/OFF". Smooth progress bar: `client/SmoothProgress`
   interpolates the 5-tick syncs on the client (bar and Growth % share one value per frame); sync rate unchanged.
+  Menu data slot 8 = completed-harvest counter (BE `completedHarvests`, not saved): a change = cycle wrap, animated
+  through 100%. The screen starts the smoother only after `FarmMatrixMenu#isDataSynced` (the last data index arrived;
+  vanilla sends every value in index order when a menu opens).
   Owner verified by hand: editing the config with the game open affects machines at once, and the dedicated server
   works (no automated reload test needed). Deferred by the owner: EMI, publishing metadata.
   Output deadlock FIXED (owner's overclock report): a whole harvest was stored all-or-nothing, so one bigger than the
