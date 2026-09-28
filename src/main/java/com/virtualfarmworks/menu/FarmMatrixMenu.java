@@ -144,10 +144,12 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
             addSlot(new ResourceHandlerSlot(inputs, inputs::set, MachineSlots.GROWTH_FIRST + i,
                     FarmMatrixLayout.PANEL_INTERIOR_X, FarmMatrixLayout.upgradeSlotY(i)));
         }
-        // Output buffer: take-only.
+        // Output buffer: a plain inventory for the player (owner revision, step 8: take AND put items by hand).
+        // Automation still only extracts (the capability is OutputBuffer#externalView), and shift-click never fills
+        // it (see quickMoveStack). Items the harvest filter rejects are removed by the machine.
         for (int i = 0; i < MachineSlots.OUTPUT_COUNT; i++) {
-            addSlot(new OutputSlot(output, i, FarmMatrixLayout.OUTPUT_X + i * FarmMatrixLayout.SLOT_SPACING,
-                    FarmMatrixLayout.OUTPUT_Y));
+            addSlot(new ResourceHandlerSlot(output, output::set, i,
+                    FarmMatrixLayout.OUTPUT_X + i * FarmMatrixLayout.SLOT_SPACING, FarmMatrixLayout.OUTPUT_Y));
         }
         addStandardInventorySlots(playerInventory, FarmMatrixLayout.PLAYER_INVENTORY_X,
                 FarmMatrixLayout.PLAYER_INVENTORY_Y);
@@ -377,7 +379,9 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
 
     /**
      * Shift-click. Machine slots go to the player's inventory; player items go to the first machine input slot that
-     * accepts them (the slots' own rules decide), otherwise between inventory and hotbar. Never into the output buffer.
+     * accepts them (the slots' own rules decide), otherwise between inventory and hotbar. Never into the output buffer,
+     * even though players may put items there by clicking: extra seeds shift-clicked at a full seed slot would
+     * otherwise land in the output and be auto-exported away.
      */
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
@@ -439,18 +443,6 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         @Override
         public int getMaxStackSize() {
             return 1;
-        }
-    }
-
-    /** Output buffer slot: players can take items, never put any in (owner spec). */
-    private static final class OutputSlot extends ResourceHandlerSlot {
-        OutputSlot(OutputBuffer output, int index, int x, int y) {
-            super(output, output::set, index, x, y);
-        }
-
-        @Override
-        public boolean mayPlace(ItemStack stack) {
-            return false;
         }
     }
 }

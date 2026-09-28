@@ -439,8 +439,8 @@ final class MachineGameTests {
         check(helper, player.getInventory().countItem(Items.DIAMOND) == 5, "a diamond must stay with the player");
         for (int i = 0; i < MachineSlots.OUTPUT_COUNT; i++) {
             check(helper, machine.output().isEmpty(), "shift-click must never fill the output buffer");
-            check(helper, !menu.slots.get(FarmMatrixMenu.OUTPUT_START + i).mayPlace(new ItemStack(Items.WHEAT)),
-                    "output slots must refuse items");
+            check(helper, menu.slots.get(FarmMatrixMenu.OUTPUT_START + i).mayPlace(new ItemStack(Items.WHEAT)),
+                    "players may put items in the output by hand (owner revision, step 8)");
         }
 
         // Taking from the output buffer works through the menu.

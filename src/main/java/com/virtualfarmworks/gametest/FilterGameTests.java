@@ -1,7 +1,7 @@
 /*
  * FilterGameTests — game tests of the harvest filter (owner design, step 8): filtered items are never produced,
- * empty lists filter nothing, and the menu's ghost slots, pages, mode button and JEI path edit the machine's filter
- * without ever moving real items.
+ * empty lists filter nothing, the menu's ghost slots, pages, mode button and JEI path edit the machine's filter
+ * without ever moving real items, and rejected items are deleted from the output.
  */
 package com.virtualfarmworks.gametest;
 
@@ -141,6 +141,51 @@ final class FilterGameTests {
         check(helper, count(machine, Items.WHEAT) == 0 && count(machine, Items.WHEAT_SEEDS) > 0,
                 "whitelisted seeds only: wheat " + count(machine, Items.WHEAT) + ", seeds "
                         + count(machine, Items.WHEAT_SEEDS));
+        helper.succeed();
+    }
+
+    /**
+     * Owner rule: the output never keeps what the filter rejects. Items already there when the filter changes are
+     * deleted (visible and hidden output), and so is a rejected item a player puts back by hand; with an empty
+     * filter nothing is touched.
+     */
+    static void filterPurgesTheOutput(GameTestHelper helper) {
+        helper.setBlock(MACHINE, ModBlocks.STARTER_FARM_MATRIX.get().defaultBlockState());
+        FarmMatrixBlockEntity machine = helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+        for (RelativeSide side : RelativeSide.all()) {
+            if (machine.isOutputEnabled(side)) {
+                machine.toggleOutput(side);
+            }
+        }
+        machine.revalidate(); // sizes the hidden output
+        ServerLevel level = helper.getLevel();
+        machine.output().set(0, ItemResource.of(Items.WHEAT), 10);
+        machine.output().set(1, ItemResource.of(Items.WHEAT_SEEDS), 5);
+        machine.internalOutput().set(0, ItemResource.of(Items.WHEAT_SEEDS), 7);
+        machine.serverTick(level);
+        check(helper, count(machine, Items.WHEAT_SEEDS) == 12 && count(machine, Items.WHEAT) == 10,
+                "an empty filter must not touch the output");
+
+        machine.filter().set(0, Items.WHEAT_SEEDS); // blacklist the seeds
+        machine.serverTick(level);
+        check(helper, count(machine, Items.WHEAT_SEEDS) == 0, "seeds already in the output (visible and hidden) "
+                + "must be deleted when they get blacklisted");
+        check(helper, count(machine, Items.WHEAT) == 10, "allowed items stay");
+
+        // The owner's scenario: the player puts the blacklisted seed back into the output by hand, through the menu.
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        FarmMatrixMenu menu = new FarmMatrixMenu(1, player.getInventory(), machine);
+        menu.setCarried(new ItemStack(Items.WHEAT_SEEDS, 3));
+        menu.clicked(FarmMatrixMenu.OUTPUT_START + 4, 0, ContainerInput.PICKUP, player);
+        check(helper, count(machine, Items.WHEAT_SEEDS) == 3 && menu.getCarried().isEmpty(),
+                "the output accepts items by hand");
+        machine.serverTick(level);
+        check(helper, count(machine, Items.WHEAT_SEEDS) == 0, "a blacklisted item put in by hand must be deleted");
+
+        // Whitelist of the seeds: now the wheat is the rejected one.
+        machine.filter().toggleMode();
+        machine.serverTick(level);
+        check(helper, count(machine, Items.WHEAT) == 0, "switching to a whitelist must delete what is not listed");
         helper.succeed();
     }
 

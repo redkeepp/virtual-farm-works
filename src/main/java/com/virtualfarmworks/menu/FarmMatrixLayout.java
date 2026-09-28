@@ -118,11 +118,12 @@ public final class FarmMatrixLayout {
     public static final int FACE_BOX_Y = OUTPUT_BOX_TOP + 1;                                      // 25
 
     // Harvest filter box (owner spec and mockup, step 8), opened by the filter button like the "O" opens the face box:
-    // same place and width as the face box (the two never show together), top aligned with the "O" box, the GUI does
-    // not move. From the outside in: 1 px theme border, 1 px blue frame, then 2 px padding left/right and 1 px
-    // top/bottom around a content column: the mode strip (WHITELISTED / BLACKLISTED), 1 px, a 3x3 ghost-slot block drawn
-    // like the upgrade block (16 px cells, single blue lines between them and around them), 1 px, the page row
-    // (< page >). Pixel values measured on the owner's mockup (drawn at ~1.9x) and snapped to GUI pixels.
+    // same width and column as the face box, but next to its own button: its bottom lines up with the filter button's
+    // bottom (owner revision), so it sits below the face box and both can be open at once; the GUI does not move.
+    // From the outside in: 1 px theme border, 1 px blue frame, then 2 px padding left/right and 1 px top/bottom around
+    // a content column: the mode strip (WHITELISTED / BLACKLISTED), 1 px, a 3x3 ghost-slot block drawn like the
+    // upgrade block (16 px cells, single blue lines between them and around them), 1 px, the page row (< page >).
+    // Pixel values measured on the owner's mockup (drawn at ~1.9x) and snapped to GUI pixels.
     public static final int FILTER_GRID_CELLS = 3;
     /** Block of 3 cells: blue line, cell, blue line, cell, blue line, cell, blue line. */
     public static final int FILTER_GRID_SIZE = FILTER_GRID_CELLS * CELL + FILTER_GRID_CELLS + 1;   // 52
@@ -132,14 +133,14 @@ public final class FarmMatrixLayout {
     public static final int FILTER_BOX_WIDTH = 1 + 1 + 2 + FILTER_GRID_SIZE + 2 + 1 + 1;            // 60
     public static final int FILTER_BOX_HEIGHT = 1 + 1 + 1 + FILTER_STRIP_HEIGHT + 1 + FILTER_GRID_SIZE + 1
             + FILTER_PAGE_ROW_HEIGHT + 1 + 1 + 1;                                                   // 80
-    /** Outer top-left corner (theme border): exactly where the face box's border is. */
+    /** Outer top-left corner (theme border): the face box's column, bottom aligned with the filter button. */
     public static final int FILTER_BOX_X = PANEL_BORDER_X - PANEL_BOX_GAP - FILTER_BOX_WIDTH;     // -82
-    public static final int FILTER_BOX_Y = OUTPUT_BOX_TOP;                                        // 24
+    public static final int FILTER_BOX_Y = FILTER_BUTTON_TOP + boxHeight(1) - FILTER_BOX_HEIGHT;  // 101 (bottom 181)
     /** Content column: strip, block and page row all start here and are FILTER_GRID_SIZE wide. */
     public static final int FILTER_CONTENT_X = FILTER_BOX_X + 4;                                  // -78
-    public static final int FILTER_STRIP_Y = FILTER_BOX_Y + 3;                                    // 27
-    public static final int FILTER_GRID_Y = FILTER_STRIP_Y + FILTER_STRIP_HEIGHT + 1;             // 38
-    public static final int FILTER_PAGE_ROW_Y = FILTER_GRID_Y + FILTER_GRID_SIZE + 1;             // 91
+    public static final int FILTER_STRIP_Y = FILTER_BOX_Y + 3;                                    // 104
+    public static final int FILTER_GRID_Y = FILTER_STRIP_Y + FILTER_STRIP_HEIGHT + 1;             // 115
+    public static final int FILTER_PAGE_ROW_Y = FILTER_GRID_Y + FILTER_GRID_SIZE + 1;             // 168
     /** Previous/next page buttons: squares at both ends of the page row. */
     public static final int FILTER_ARROW_SIZE = FILTER_PAGE_ROW_HEIGHT;
     /** Mode strip (owner spec): WHITELISTED = black on white, BLACKLISTED = white on black. */

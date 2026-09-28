@@ -1,6 +1,7 @@
 /*
- * OutputBuffer — the 9-slot output buffer of a Farm Matrix. The machine inserts harvests into it; everything outside
- * the machine (players, pipes, hoppers, auto-export targets) can only EXTRACT through externalView().
+ * OutputBuffer — the 9-slot visible output buffer of a Farm Matrix. The machine inserts harvests into it and players
+ * may take or put items by hand (menu slots); automation (pipes, hoppers, other machines) can only EXTRACT, through
+ * externalView().
  */
 package com.virtualfarmworks.machine;
 
@@ -13,9 +14,11 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 import net.neoforged.neoforge.transfer.transaction.TransactionContext;
 
 /**
- * Owner spec: "these 9 slots are only a buffer for the items produced by the seeds; items only come out, never go
- * in." The buffer itself accepts insertion (the {@code Harvester} needs it); the rule is enforced by only ever exposing
- * {@link #externalView()} to the outside (capabilities) and output-only slots in the menu.
+ * Owner spec, first version: "these 9 slots are only a buffer for the items produced by the seeds; items only come
+ * out, never go in." Owner revision (step 8): players may now put items in by hand, like an inventory; automated input
+ * stays impossible. The buffer itself accepts insertion (the {@code Harvester} and the menu slots need it); automation
+ * only ever gets {@link #externalView()} (capabilities). Items the machine's harvest filter rejects are removed by the
+ * machine, including ones a player puts here.
  *
  * <p>Every change calls {@code onChange}: the machine uses it to retry a harvest that was blocked by OUTPUT FULL only
  * when space may have appeared, instead of retrying every tick.

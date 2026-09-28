@@ -56,7 +56,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
     private final ItemStack[] ghosts;
     /** Whether the auto-output face box is open (client-only UI state). */
     private boolean faceBoxOpen;
-    /** Whether the harvest filter box is open (client-only UI state; it takes the face box's place). */
+    /** Whether the harvest filter box is open (client-only UI state; independent from the face box). */
     private boolean filterBoxOpen;
     /** Smooths the 5-tick progress syncs into continuous movement (owner request, step 8). */
     private final SmoothProgress smoothProgress = new SmoothProgress();
@@ -451,17 +451,12 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
             double mouseY = event.y();
             if (isOverBox(FarmMatrixLayout.OUTPUT_BOX_TOP, 1, mouseX, mouseY)) {
                 faceBoxOpen = !faceBoxOpen;
-                if (faceBoxOpen) {
-                    setFilterBoxOpen(false); // both boxes use the same place
-                }
                 playClick();
                 return true;
             }
+            // The filter box sits next to its own button, below the face box: both can be open (owner revision).
             if (isOverBox(FarmMatrixLayout.FILTER_BUTTON_TOP, 1, mouseX, mouseY)) {
                 setFilterBoxOpen(!filterBoxOpen);
-                if (filterBoxOpen) {
-                    faceBoxOpen = false;
-                }
                 playClick();
                 return true;
             }

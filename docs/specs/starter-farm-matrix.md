@@ -118,7 +118,9 @@ Growth: <X>% - (<speed>x speed)     speed = 1.0x + growth upgrades (+50% each by
 - On/off button.
 - Auto-export ON by default on all 6 faces; player can disable per face. Pushes output buffer items into adjacent
   inventories (e.g. a chest).
-- Output buffer (9 slots): output only. Players/automation can extract, nothing can be inserted.
+- Output buffer (9 slots): players can take AND put items by hand, like an inventory (owner revision, step 8; it
+  was output-only before). Automation can only extract; shift-click never fills it. Auto-export pushes out
+  everything in it, hand-placed items included. Items the harvest filter rejects are deleted (see below).
 - Hidden output slots (owner, step 8; Starter default 27, config `machines.<tier>.internalBufferSlots`): harvests fill
   the 9 visible slots first, then the hidden ones; the hidden slots refill the visible ones as those empty. Nobody
   sees or reaches them (no GUI, no capability).
@@ -214,8 +216,9 @@ No GUI or Jade indicator for waiting plots or hidden items (owner: "não, esquec
 - Owner addition (step 8): right-clicking the machine (GUI closed) while holding a Water Provider, Growth Speed or
   Crux Provider Upgrade pulls in as many as fit; if none fits, the GUI opens instead.
 - Harvest filter (owner, step 8), see the section below: a half white / half black button below the Fertilized
-  Essence box (3 px above and below; the machine ON/OFF moved down) opens a small box in the face box's place, like
-  the "O" does (the GUI does not move; only one of the two boxes shows).
+  Essence box (3 px above and below; the machine ON/OFF moved down) opens a small box next to it, like the "O" does:
+  same column as the face box, bottom aligned with the button's bottom; the GUI does not move and both boxes can be
+  open together (owner revision).
 
 ## Harvest filter (owner design, step 8)
 
@@ -223,7 +226,10 @@ No GUI or Jade indicator for waiting plots or hidden items (owner: "não, esquec
   An EMPTY list lets everything through in both modes (owner rule), so the default changes nothing.
 - "Never generated", not "generated then deleted" (owner): the filter is part of the harvest roll (`DropTally` with
   the filter; MA crops even skip computing filtered parts). Filtered items never exist, never use output space.
-- Box (owner mockup): 60 px wide like the face box, top aligned with the "O". Mode strip on top: WHITELISTED = black
+- The output never keeps what the filter rejects (owner revision): items already in the output (visible, hidden,
+  held) when the filter changes are DELETED, and so is a rejected item a player puts in by hand (e.g. the seed they
+  just blacklisted). With a whitelist, anything not listed that lands in the output is deleted. Empty filter: nothing.
+- Box (owner mockup): 60 px wide like the face box, bottom aligned with the filter button. Mode strip on top: WHITELISTED = black
   text on white, BLACKLISTED = white text on black; click it to switch. Below: 3x3 ghost slots drawn like the upgrade
   block, then a page row `< 1/3 >`. Pages are created on demand when going forward, up to 16 pages (144 items,
   owner-approved cap).

@@ -16,6 +16,7 @@ import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.config.VfwServerConfig;
 import com.virtualfarmworks.harvest.DropSource;
 import com.virtualfarmworks.harvest.HarvestPlans;
+import com.virtualfarmworks.harvest.HarvestFilter;
 import com.virtualfarmworks.harvest.Harvester;
 import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.plant.PlantAnalysis;
@@ -50,6 +51,7 @@ import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.ResourceHandlerUtil;
 import net.neoforged.neoforge.transfer.item.ItemResource;
+import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 import net.neoforged.neoforge.transfer.transaction.Transaction;
 
 /**
@@ -84,6 +86,10 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  * retry. The pending roll is dropped when the seed/soil/config/tags/Fertilized Essence switch it was rolled for change
  * ({@link HarvestKey}) or fewer plots are left; it is never saved (after a reload it is rolled again — nothing was
  * produced yet, so nothing can be duplicated or lost).
+ *
+ * <p>Harvest filter (owner, step 8): the roll never produces what the machine's filter rejects ({@link MachineFilter}),
+ * and {@link #purgeFilteredOutput()} deletes rejected items that are already in the output when the filter changes,
+ * or that a player puts in by hand (the visible output is a player inventory since step 8; automation only extracts).
  *
  * <p>Extreme case (owner-approved): a batch too big even for EMPTY buffers (one plot yielding more than every output
  * slot, only possible with absurd multipliers) is stored as far as it fits and the rest is kept in {@link #heldDrops},
@@ -177,6 +183,10 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private boolean refillRequested;
     /** True while the machine itself refills the visible output (its change callback must not ask for another one). */
     private boolean refilling;
+    /** The filter or the output changed: remove from the output what the filter rejects on the next tick. */
+    private boolean purgeRequested;
+    /** True while the machine itself removes rejected items (its change callback must not ask for another pass). */
+    private boolean purging;
     private int exportCooldown;
     private int ticksSinceProgressSave;
     /** Capability caches of the 6 neighbours, by world direction ordinal; created lazily on the server. */
@@ -213,6 +223,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         if (inputsDirty || validatedConfigGeneration != VfwConfig.generation()
                 || validatedTagGeneration != SoilRules.cacheGeneration()) {
             revalidate();
+        }
+        if (purgeRequested) {
+            purgeFilteredOutput(); // before the refill, so rejected hidden items never move up
         }
         if (refillRequested) {
             refillVisibleOutput();
@@ -534,11 +547,12 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * A player changed the harvest filter: save it, and let a batch waiting for space be re-rolled with the new filter
-     * (its {@link HarvestKey} no longer matches).
+     * A player changed the harvest filter: save it, let a batch waiting for space be re-rolled with the new filter
+     * (its {@link HarvestKey} no longer matches), and remove from the output what the filter now rejects.
      */
     private void onFilterChanged() {
         harvestRetryRequested = true;
+        purgeRequested = true;
         markForSave();
     }
 
@@ -547,7 +561,44 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         if (!refilling) {
             refillRequested = true; // room may have appeared for the hidden buffer's items
         }
+        if (!purging) {
+            purgeRequested = true;  // a player may have put in an item the filter rejects
+        }
         markForSave();
+    }
+
+    /**
+     * Owner rule (step 8): the output never keeps what the harvest filter rejects. The harvest never produces such
+     * items, but the output may already hold them when the filter changes, and players may put them in by hand; both
+     * are DELETED here, from the visible and the hidden output and from held drops. Runs on the tick after a filter or
+     * output change; returns at once while the filter is empty (it then rejects nothing).
+     */
+    private void purgeFilteredOutput() {
+        purgeRequested = false;
+        HarvestFilter current = filter.snapshot();
+        if (current.items().isEmpty()) {
+            return;
+        }
+        purging = true;
+        try {
+            removeRejected(output, current);
+            removeRejected(internal, current);
+        } finally {
+            purging = false;
+        }
+        if (heldDrops.stream().anyMatch(drop -> !current.allows(drop.key()))) {
+            heldDrops = heldDrops.stream().filter(drop -> current.allows(drop.key())).toList();
+            markForSave();
+        }
+    }
+
+    private static void removeRejected(ItemStacksResourceHandler handler, HarvestFilter filter) {
+        for (int i = 0; i < handler.size(); i++) {
+            ItemResource resource = handler.getResource(i);
+            if (!resource.isEmpty() && !filter.allows(resource)) {
+                handler.set(i, ItemResource.EMPTY, 0);
+            }
+        }
     }
 
     /**
@@ -606,6 +657,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         yieldSampleKey = null;
         harvestBlocked = false;
         harvestRetryRequested = false;
+        purgeRequested = true; // a save may hold output items the filter rejects (put in right before saving)
     }
 
     /**

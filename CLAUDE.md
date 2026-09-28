@@ -305,7 +305,12 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   buttons 8 mode / 9 previous / 10 next page, data 9 mode / 10 page / 11 page count (the last index, so
   `isDataSynced` still means "everything arrived"). JEI drag-and-drop: `VfwJeiPlugin` ghost handler ->
   `network/SetFilterGhostPayload` (the only custom packet) -> `FarmMatrixMenu#setFilterGhost`. Screen: button at
-  `FILTER_BUTTON_TOP`, box in the face box's place (mutually exclusive), slots active only while it is open.
+  `FILTER_BUTTON_TOP`, box next to it (bottom aligned with the button, same column as the face box, both can be
+  open), slots active only while it is open.
+  Owner revision: the visible output is a player inventory (plain `ResourceHandlerSlot`, players put items by hand;
+  automation still extract-only; shift-click never fills it), and `FarmMatrixBlockEntity#purgeFilteredOutput`
+  DELETES what the filter rejects from visible/hidden output and held drops, on the tick after a filter or output
+  change (and after load). 25 game tests (24 VFW + 1 vanilla), 73 JUnit.
   Owner verified by hand: editing the config with the game open affects machines at once, and the dedicated server
   works (no automated reload test needed). Deferred by the owner: EMI, publishing metadata.
   Output deadlock FIXED (owner's overclock report): a whole harvest was stored all-or-nothing, so one bigger than the

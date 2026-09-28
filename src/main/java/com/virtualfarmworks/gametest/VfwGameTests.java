@@ -91,6 +91,7 @@ public final class VfwGameTests {
             // harvest filter (step 8)
             test("filter_roll_honors_the_filter", FilterGameTests::rollHonorsTheFilter, 20),
             test("filter_menu_edits_the_filter", FilterGameTests::menuEditsTheFilter, 20),
+            test("filter_purges_the_output", FilterGameTests::filterPurgesTheOutput, 20),
             test("mystical_filter_keeps_only_essence", VfwGameTests::mysticalFilterKeepsOnlyEssence, 20));
 
     /**
