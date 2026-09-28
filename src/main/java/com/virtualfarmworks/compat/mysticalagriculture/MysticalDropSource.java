@@ -83,18 +83,24 @@ final class MysticalDropSource implements DropSource {
         var random = context.random();
         double chance = crop.getSecondaryChance(soil);
 
-        long essenceCount = inferium
-                ? inferiumEssence(plots, random::nextDouble)
-                : plots + HarvestMath.countSuccesses(plots, chance, random::nextDouble);
-        tally.add(essence, essenceCount, Category.MAIN);
+        // Each part is computed only if the machine's harvest filter lets it through (owner: filtered items are never
+        // generated at all); the tally would ignore them anyway.
+        if (tally.allows(essence)) {
+            long essenceCount = inferium
+                    ? inferiumEssence(plots, random::nextDouble)
+                    : plots + HarvestMath.countSuccesses(plots, chance, random::nextDouble);
+            tally.add(essence, essenceCount, Category.MAIN);
+        }
 
-        double seedChance = secondarySeedsEnabled()
-                ? Math.min(1.0, chance * VfwServerConfig.MYSTICAL_SECONDARY_SEED_MULTIPLIER.get())
-                : 0.0;
-        tally.add(seed, HarvestMath.countSuccesses(plots, seedChance, random::nextDouble), Category.SECONDARY);
+        if (tally.allows(seed)) {
+            double seedChance = secondarySeedsEnabled()
+                    ? Math.min(1.0, chance * VfwServerConfig.MYSTICAL_SECONDARY_SEED_MULTIPLIER.get())
+                    : 0.0;
+            tally.add(seed, HarvestMath.countSuccesses(plots, seedChance, random::nextDouble), Category.SECONDARY);
+        }
 
         // Fertilized Essence: never from Inferium crops (MA rule), and never when the machine's switch is OFF.
-        if (!inferium && fertilizedEssence != null && context.fertilizedEssence()) {
+        if (!inferium && fertilizedEssence != null && context.fertilizedEssence() && tally.allows(fertilizedEssence)) {
             tally.add(fertilizedEssence,
                     HarvestMath.countSuccesses(plots, fertilizedEssenceChance(), random::nextDouble),
                     Category.SECONDARY);

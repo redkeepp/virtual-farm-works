@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
+import java.util.function.Predicate;
 
 /**
  * Sum of a harvest's drops, keyed by item ({@code K} is {@code ItemResource} in the game; any key in tests).
@@ -28,6 +29,12 @@ import java.util.function.DoubleSupplier;
  * yield is exact and no item is invented or lost on average.
  *
  * <p>Insertion order is kept (LinkedHashMap) so harvests fill the output buffer in a stable, readable order.
+ *
+ * <h2>Harvest filter</h2>
+ * A tally can be built with a filter (the machine's whitelist/blacklist, owner design step 8): {@link #add} simply
+ * ignores keys the filter rejects, so filtered items are never counted and never become items — not produced then
+ * deleted. Every drop source goes through {@code add}, so the rule holds for loot tables and Mystical Agriculture
+ * alike.
  */
 public final class DropTally<K> {
     public enum Category {
@@ -41,10 +48,26 @@ public final class DropTally<K> {
 
     /** key -> {main amount, secondary amount}. */
     private final Map<K, double[]> amounts = new LinkedHashMap<>();
+    private final Predicate<K> allowed;
 
-    /** Adds {@code amount} of {@code key}. Non-positive and NaN amounts are ignored. */
+    /** A tally that counts everything. */
+    public DropTally() {
+        this(key -> true);
+    }
+
+    /** A tally that ignores every key {@code allowed} rejects (the harvest filter, see the class doc). */
+    public DropTally(Predicate<K> allowed) {
+        this.allowed = allowed;
+    }
+
+    /** Whether the filter lets this key through; drop sources may skip computing rejected drops at all. */
+    public boolean allows(K key) {
+        return allowed.test(key);
+    }
+
+    /** Adds {@code amount} of {@code key}. Non-positive and NaN amounts, and filtered keys, are ignored. */
     public void add(K key, double amount, Category category) {
-        if (!(amount > 0.0)) {
+        if (!(amount > 0.0) || !allowed.test(key)) {
             return;
         }
         amounts.computeIfAbsent(key, k -> new double[2])[category.ordinal()] += amount;

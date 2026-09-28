@@ -41,13 +41,15 @@ public final class Harvester {
     }
 
     /**
-     * Rolls the drops of {@code plots} ripe plots (a batch) and applies the config multipliers: MAIN drops x
+     * Rolls the drops of {@code plots} ripe plots (a batch), leaving out what the machine's harvest filter rejects
+     * ({@link DropSource.Context#filter()}), and applies the config multipliers: MAIN drops x
      * {@code drops.productionMultiplier} x {@code machines.<tier>.productionMultiplier}, SECONDARY drops x
      * {@code drops.secondaryDropMultiplier}. Server thread only (reads the server config and evaluates loot).
      */
     public static List<DropTally.Entry<ItemResource>> roll(DropSource source, int plots, MachineTier tier,
                                                            DropSource.Context context) {
-        DropTally<ItemResource> tally = new DropTally<>();
+        // The machine's harvest filter is part of the tally: rejected items are never counted, never become items.
+        DropTally<ItemResource> tally = new DropTally<>(context.filter()::allows);
         source.roll(plots, context, tally);
         double main = VfwServerConfig.GLOBAL_PRODUCTION_MULTIPLIER.get()
                 * VfwServerConfig.machine(tier).productionMultiplier.get();

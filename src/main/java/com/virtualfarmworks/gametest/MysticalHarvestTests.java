@@ -9,8 +9,14 @@ import com.blakebr0.mysticalagriculture.api.crop.Crop;
 import com.blakebr0.mysticalagriculture.api.crop.CropTier;
 import com.blakebr0.mysticalagriculture.api.crop.ICropProvider;
 import com.blakebr0.mysticalagriculture.block.InferiumCropBlock;
+import java.util.List;
+import java.util.Set;
+
 import com.virtualfarmworks.harvest.DropSource;
+import com.virtualfarmworks.harvest.HarvestFilter;
 import com.virtualfarmworks.harvest.HarvestPlans;
+import com.virtualfarmworks.harvest.Harvester;
+import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.DropTally.Category;
 
@@ -116,6 +122,35 @@ final class MysticalHarvestTests {
                 Component.literal(label + ": Fertilized Essence switch OFF must produce none"));
         assertClose(helper, label + " essence/plot with the switch OFF", maEssence,
                 switchedOff.raw(ItemResource.of(essence), Category.MAIN));
+    }
+
+    /**
+     * The owner's example for the harvest filter: an MA seed yields essence, extra seeds and Fertilized Essence; with
+     * a whitelist holding only the essence, the machine produces essence and nothing else.
+     */
+    static void whitelistKeepsOnlyEssence(GameTestHelper helper) {
+        Item seedItem = firstTierOneResourceSeed(helper);
+        Item essence = cropOf(seedItem).getEssenceItem();
+        Item fertilized = BuiltInRegistries.ITEM.getValue(FERTILIZED_ESSENCE);
+        // The crop's own farmland: 20% extra-seed chance, so the unfiltered roll surely has every kind of drop.
+        DropSource source = HarvestPlans.create(new ItemStack(seedItem),
+                new ItemStack(CropTier.ONE.getFarmlandBlock().asItem()));
+        helper.assertTrue(source != null, Component.literal("no drop source for " + seedItem));
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(BlockPos.ZERO);
+
+        List<DropTally.Entry<ItemResource>> everything = Harvester.roll(source, 2_000, MachineTier.STARTER,
+                new DropSource.Context(level, pos, level.getRandom(), 64, true));
+        helper.assertTrue(everything.stream().anyMatch(drop -> drop.key().is(seedItem))
+                        && everything.stream().anyMatch(drop -> drop.key().is(fertilized)),
+                Component.literal("without a filter the crop must drop extra seeds and Fertilized Essence: " + everything));
+
+        List<DropTally.Entry<ItemResource>> essenceOnly = Harvester.roll(source, 2_000, MachineTier.STARTER,
+                new DropSource.Context(level, pos, level.getRandom(), 64, true,
+                        new HarvestFilter(true, Set.of(essence))));
+        helper.assertTrue(!essenceOnly.isEmpty() && essenceOnly.stream().allMatch(drop -> drop.key().is(essence)),
+                Component.literal("a whitelist of the essence must produce essence only: " + essenceOnly));
+        helper.succeed();
     }
 
     private static void assertClose(GameTestHelper helper, String what, double maTotal, double vfwTotal) {

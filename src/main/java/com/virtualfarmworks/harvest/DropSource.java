@@ -37,8 +37,16 @@ public interface DropSource {
      *                     harvest, see {@link LootDropSource}
      * @param fertilizedEssence the machine's Fertilized Essence switch (GUI button): when false, Mystical Agriculture
      *                     crops never produce Fertilized Essence. No effect on other plants.
+     * @param filter       the machine's harvest filter (whitelist/blacklist). {@link Harvester#roll} builds the tally
+     *                     with it, so rejected items are never produced; sources may also skip computing them.
      */
     record Context(ServerLevel level, BlockPos machinePos, RandomSource random, int maxLootRolls,
-                   boolean fertilizedEssence) {
+                   boolean fertilizedEssence, HarvestFilter filter) {
+
+        /** Without a harvest filter (tests, tools). */
+        public Context(ServerLevel level, BlockPos machinePos, RandomSource random, int maxLootRolls,
+                       boolean fertilizedEssence) {
+            this(level, machinePos, random, maxLootRolls, fertilizedEssence, HarvestFilter.NONE);
+        }
     }
 }

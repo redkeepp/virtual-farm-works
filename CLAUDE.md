@@ -297,6 +297,15 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Menu data slot 8 = completed-harvest counter (BE `completedHarvests`, not saved): a change = cycle wrap, animated
   through 100%. The screen starts the smoother only after `FarmMatrixMenu#isDataSynced` (the last data index arrived;
   vanilla sends every value in index order when a menu opens).
+  Harvest filter (spec, section "Harvest filter"): `machine/MachineFilter` (mode + item types at fixed positions,
+  pages of 9, max 16 pages, saved under "filter", `version` part of `HarvestKey`), snapshot `harvest/HarvestFilter`
+  (empty list = no filtering in both modes) passed in `DropSource.Context#filter` and applied by the `DropTally` built
+  in `Harvester#roll` (never produced, not deleted). Menu: ghost slots [54, 63) backed by `menu/FilterPageView`
+  (server) or a SimpleContainer (client), all clicks handled in `FarmMatrixMenu#clicked` (never moves real items),
+  buttons 8 mode / 9 previous / 10 next page, data 9 mode / 10 page / 11 page count (the last index, so
+  `isDataSynced` still means "everything arrived"). JEI drag-and-drop: `VfwJeiPlugin` ghost handler ->
+  `network/SetFilterGhostPayload` (the only custom packet) -> `FarmMatrixMenu#setFilterGhost`. Screen: button at
+  `FILTER_BUTTON_TOP`, box in the face box's place (mutually exclusive), slots active only while it is open.
   Owner verified by hand: editing the config with the game open affects machines at once, and the dedicated server
   works (no automated reload test needed). Deferred by the owner: EMI, publishing metadata.
   Output deadlock FIXED (owner's overclock report): a whole harvest was stored all-or-nothing, so one bigger than the
@@ -306,7 +315,7 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   (`GrowthCycle#plotsToHarvest`, harvested counter saved). Batches sized by `sim/HarvestBatching` + `sim/YieldSample`,
   each rolled once and stored all-or-nothing; extreme case (one batch bigger than empty buffers) stores what fits and
   keeps the rest in `heldDrops` (saved, stored first, owner-approved). No GUI/Jade indicator (owner). Details: spec,
-  section "Output". 21 game tests (20 VFW + 1 vanilla), 63 JUnit.
+  section "Output". After the harvest filter: 24 game tests (23 VFW + 1 vanilla), 73 JUnit.
   Also decided: the machine does not imitate natural growth times; config comments must not promise a "physical farm".
   Load benchmark: `gametest/LoadBenchmark` (`gradlew runBenchmark`, registered alone via -Dvirtualfarmworks.benchmark).
   Detached machines ticked directly (ticker work only, vanilla BE-ticking overhead excluded), warm-up + best of 3;
@@ -395,7 +404,9 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
   - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`. Items carry no behavior.
   - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
-  - `menu/` — `FarmMatrixMenu` (both sides), `FarmMatrixLayout` (GUI geometry and colors).
+  - `menu/` — `FarmMatrixMenu` (both sides), `FarmMatrixLayout` (GUI geometry and colors), `FilterPageView`
+    (server view of one filter page for the ghost slots).
+  - `network/` — `SetFilterGhostPayload`, the only custom packet (JEI drag-and-drop onto the harvest filter).
   - `client/` — CLIENT ONLY: `VirtualFarmWorksClient` (second `@Mod`, dist CLIENT), `FarmMatrixScreen`,
     `compat/VfwJeiPlugin`. Never reference `client/` classes from common code (a dedicated server would crash).
   - `compat/jade/` — Jade plugin (`@WailaPlugin`), server data provider and client tooltip, kept in separate classes.
@@ -408,7 +419,8 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   - `gametest/` — `VfwGameTests` (dev only). Run `gradlew runGameTestServer`; exit code 0 = all passed.
   - `sim/` — Minecraft-free simulation core: `GrowthCycle`, `PlotGroup`, `GrowthSpeed`, `MachineStatus`,
     `MachineConditions`, `HarvestMath`, `DropTally`, `HarvestBatching` + `YieldSample` (batch sizes).
-  - `harvest/` — `DropSource`, `LootDropSource`, `HarvestPlans`, `Harvester` (drops + transactional storage).
+  - `harvest/` — `DropSource`, `LootDropSource`, `HarvestPlans`, `Harvester` (drops + transactional storage),
+    `HarvestFilter` (the machine's whitelist/blacklist snapshot).
   - `gametest/MysticalHarvestTests` — MA-only game test (references MA classes; called only when MA is loaded).
   - `gametest/MachineGameTests` — tests on a placed machine. Register new tests in `VfwGameTests.TESTS` with a
     max tick count. `FarmMatrixBlockEntity#setProgressForTesting` exists only so tests need not wait a full cycle.

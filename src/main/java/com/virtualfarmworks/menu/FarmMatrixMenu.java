@@ -8,6 +8,7 @@ package com.virtualfarmworks.menu;
 import org.jspecify.annotations.Nullable;
 
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
+import com.virtualfarmworks.machine.MachineFilter;
 import com.virtualfarmworks.machine.MachineInventory;
 import com.virtualfarmworks.machine.MachineSlots;
 import com.virtualfarmworks.machine.MachineTier;
@@ -19,10 +20,13 @@ import com.virtualfarmworks.sim.MachineStatus;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.world.Container;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
@@ -37,7 +41,7 @@ import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
  *
  * <h2>Slot order (menu indices)</h2>
  * {@code [0, 9)} machine inputs in {@link MachineSlots} order, {@code [9, 18)} output buffer, {@code [18, 45)} player
- * inventory, {@code [45, 54)} hotbar.
+ * inventory, {@code [45, 54)} hotbar, {@code [54, 63)} harvest filter ghost slots (one 3x3 page).
  *
  * <h2>Synced numbers</h2>
  * Vanilla syncs {@link ContainerData} values as 16-bit shorts, so every value is scaled and clamped to fit (see
@@ -50,6 +54,9 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
     public static final int PLAYER_START = OUTPUT_START + MachineSlots.OUTPUT_COUNT;
     public static final int HOTBAR_START = PLAYER_START + 27;
     public static final int PLAYER_END = HOTBAR_START + 9;
+    /** Harvest filter ghost slots: one 9x9 page, after the player slots so no vanilla range ever reaches them. */
+    public static final int FILTER_START = PLAYER_END;
+    public static final int FILTER_END = FILTER_START + MachineFilter.PAGE_SIZE;
 
     /** Button ids sent by the client (vanilla ServerboundContainerButtonClickPacket). */
     public static final int BUTTON_POWER = 0;
@@ -57,6 +64,10 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
     public static final int BUTTON_FACE_FIRST = 1;
     /** Fertilized Essence switch. */
     public static final int BUTTON_FERTILIZED = BUTTON_FACE_FIRST + 6;
+    /** Harvest filter: switch WHITELIST / BLACKLIST, previous page, next page. */
+    public static final int BUTTON_FILTER_MODE = BUTTON_FERTILIZED + 1;
+    public static final int BUTTON_FILTER_PREVIOUS = BUTTON_FILTER_MODE + 1;
+    public static final int BUTTON_FILTER_NEXT = BUTTON_FILTER_PREVIOUS + 1;
 
     // ContainerData indices.
     private static final int DATA_STATUS = 0;
@@ -68,7 +79,10 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
     private static final int DATA_FACES = 6;      // RelativeSide bit mask
     private static final int DATA_FERTILIZED = 7; // 0 / 1
     private static final int DATA_HARVESTS = 8;   // completed cycles, mod 32768 (only changes matter)
-    private static final int DATA_COUNT = 9;
+    private static final int DATA_FILTER_MODE = 9;   // 0 = blacklist, 1 = whitelist
+    private static final int DATA_FILTER_PAGE = 10;  // page this menu shows (0-based)
+    private static final int DATA_FILTER_PAGES = 11; // pages to show: last page with entries or current page, + 1
+    private static final int DATA_COUNT = 12;
 
     private static final int SYNC_INTERVAL = 5;
 
@@ -81,6 +95,10 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
     private int ticksUntilSync;
     /** Client side: every synced value has arrived at least once (see {@link #isDataSynced()}). */
     private boolean dataSynced;
+    /** Server side: the harvest filter page this player is looking at (each viewer browses on their own). */
+    private int filterPage;
+    /** Client side: whether the filter box is open; its ghost slots are only active (drawn, clickable) then. */
+    private boolean filterVisible;
 
     /** Server constructor: backed by the real machine. */
     public FarmMatrixMenu(int containerId, Inventory playerInventory, FarmMatrixBlockEntity machine) {
@@ -133,6 +151,15 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         }
         addStandardInventorySlots(playerInventory, FarmMatrixLayout.PLAYER_INVENTORY_X,
                 FarmMatrixLayout.PLAYER_INVENTORY_Y);
+        // Harvest filter: 9 ghost slots showing one page. Server: a view of the machine's filter at this menu's page.
+        // Client: a plain mirror that vanilla slot sync fills.
+        Container filterPageContainer = machine != null
+                ? new FilterPageView(machine.filter(), () -> filterPage)
+                : new SimpleContainer(MachineFilter.PAGE_SIZE);
+        for (int i = 0; i < MachineFilter.PAGE_SIZE; i++) {
+            addSlot(new FilterSlot(filterPageContainer, i, FarmMatrixLayout.filterSlotX(i),
+                    FarmMatrixLayout.filterSlotY(i)));
+        }
         addDataSlots(data);
     }
 
@@ -162,6 +189,10 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         data.set(DATA_FACES, machine.outputFaces());
         data.set(DATA_FERTILIZED, machine.isFertilizedEssenceEnabled() ? 1 : 0);
         data.set(DATA_HARVESTS, machine.completedHarvests() & 0x7FFF); // stays a positive short
+        MachineFilter filter = machine.filter();
+        data.set(DATA_FILTER_MODE, filter.isWhitelist() ? 1 : 0);
+        data.set(DATA_FILTER_PAGE, filterPage);
+        data.set(DATA_FILTER_PAGES, Math.max(filter.lastUsedPage(), filterPage) + 1);
     }
 
     private static int toShort(long value) {
@@ -235,6 +266,79 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         return data.get(DATA_FERTILIZED) != 0;
     }
 
+    /** Harvest filter mode: true = WHITELISTED, false = BLACKLISTED. */
+    public boolean isFilterWhitelist() {
+        return data.get(DATA_FILTER_MODE) != 0;
+    }
+
+    /** Filter page shown, 0-based. */
+    public int filterPage() {
+        return data.get(DATA_FILTER_PAGE);
+    }
+
+    /** Filter pages to show: up to the last page holding an item, or the current page if it is further. */
+    public int filterPageCount() {
+        return Math.max(1, data.get(DATA_FILTER_PAGES));
+    }
+
+    /** Client side: the screen opens/closes the filter box; its ghost slots are active only while it is open. */
+    public void setFilterVisible(boolean visible) {
+        filterVisible = visible;
+    }
+
+    /** Whether a menu slot index is one of the filter's ghost slots. */
+    public static boolean isFilterSlot(int slotIndex) {
+        return slotIndex >= FILTER_START && slotIndex < FILTER_END;
+    }
+
+    // --- harvest filter ghost slots ---------------------------------------------------------------------------------
+
+    /**
+     * Vanilla slot clicks on the ghost slots never move real items. Both sides run this (the client predicts, the
+     * server decides and corrects the client when it disagrees, e.g. a duplicate refused): with an item on the cursor
+     * the slot records its type and the cursor stack is untouched; with an empty cursor, or shift-click, it is cleared.
+     * Every other input (number keys, middle click, Q, drag) does nothing.
+     */
+    @Override
+    public void clicked(int slotIndex, int buttonNum, ContainerInput input, Player player) {
+        if (!isFilterSlot(slotIndex)) {
+            super.clicked(slotIndex, buttonNum, input, player);
+            return;
+        }
+        Slot slot = slots.get(slotIndex);
+        if (input == ContainerInput.QUICK_MOVE) {
+            slot.set(ItemStack.EMPTY);
+        } else if (input == ContainerInput.PICKUP) {
+            ItemStack carried = getCarried();
+            slot.set(carried.isEmpty() ? ItemStack.EMPTY : carried.copyWithCount(1));
+        }
+    }
+
+    /**
+     * Server side: puts an item type in a ghost slot of the current page, for items dragged from JEI (the player
+     * does not hold them; see {@code network.SetFilterGhostPayload}). Returns false for an invalid slot.
+     */
+    public boolean setFilterGhost(int filterSlot, ItemStack stack) {
+        if (machine == null || filterSlot < 0 || filterSlot >= MachineFilter.PAGE_SIZE) {
+            return false;
+        }
+        slots.get(FILTER_START + filterSlot).set(stack.isEmpty() ? ItemStack.EMPTY : stack.copyWithCount(1));
+        broadcastChanges();
+        return true;
+    }
+
+    /** A drag over several slots never includes ghost slots. */
+    @Override
+    public boolean canDragTo(Slot slot) {
+        return !(slot instanceof FilterSlot) && super.canDragTo(slot);
+    }
+
+    /** Double-click collecting never takes ghosts. */
+    @Override
+    public boolean canTakeItemForPickAll(ItemStack carried, Slot target) {
+        return !(target instanceof FilterSlot) && super.canTakeItemForPickAll(carried, target);
+    }
+
     // --- player intents ---------------------------------------------------------------------------------------------
 
     /**
@@ -252,6 +356,13 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
             machine.toggleOutput(RelativeSide.values()[id - BUTTON_FACE_FIRST]);
         } else if (id == BUTTON_FERTILIZED) {
             machine.toggleFertilizedEssence();
+        } else if (id == BUTTON_FILTER_MODE) {
+            machine.filter().toggleMode();
+        } else if (id == BUTTON_FILTER_PREVIOUS) {
+            filterPage = Math.max(0, filterPage - 1);
+        } else if (id == BUTTON_FILTER_NEXT) {
+            // Pages are created on demand (owner spec): going forward always works, up to the cap.
+            filterPage = Math.min(MachineFilter.MAX_PAGES - 1, filterPage + 1);
         } else {
             return false;
         }
@@ -271,8 +382,8 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
         Slot slot = slots.get(index);
-        if (!slot.hasItem()) {
-            return ItemStack.EMPTY;
+        if (isFilterSlot(index) || !slot.hasItem()) {
+            return ItemStack.EMPTY; // ghosts are not items (clicked() handles shift-click on them)
         }
         ItemStack stack = slot.getItem();
         ItemStack original = stack.copy();
@@ -299,6 +410,36 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         }
         slot.onTake(player, stack);
         return original;
+    }
+
+    /**
+     * Harvest filter ghost slot: shows an item type of the current page. Real items never go in or out (all clicks go
+     * through {@link #clicked}); active, i.e. drawn and hoverable, only while the client's filter box is open.
+     */
+    private final class FilterSlot extends Slot {
+        FilterSlot(Container container, int index, int x, int y) {
+            super(container, index, x, y);
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return false;
+        }
+
+        @Override
+        public boolean mayPickup(Player player) {
+            return false;
+        }
+
+        @Override
+        public boolean isActive() {
+            return filterVisible;
+        }
+
+        @Override
+        public int getMaxStackSize() {
+            return 1;
+        }
     }
 
     /** Output buffer slot: players can take items, never put any in (owner spec). */

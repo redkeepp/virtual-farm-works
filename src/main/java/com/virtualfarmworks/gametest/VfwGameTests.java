@@ -87,7 +87,11 @@ public final class VfwGameTests {
             // output: hidden slots and batched harvests (step 8, owner's deadlock report)
             test("machine_big_harvest_does_not_deadlock", MachineGameTests::bigHarvestDoesNotDeadlock, 20),
             test("machine_extreme_harvest_holds_the_rest", MachineGameTests::extremeHarvestHoldsTheRest, 20),
-            test("machine_hidden_slots_refill_visible", MachineGameTests::hiddenSlotsRefillTheVisibleOnes, 20));
+            test("machine_hidden_slots_refill_visible", MachineGameTests::hiddenSlotsRefillTheVisibleOnes, 20),
+            // harvest filter (step 8)
+            test("filter_roll_honors_the_filter", FilterGameTests::rollHonorsTheFilter, 20),
+            test("filter_menu_edits_the_filter", FilterGameTests::menuEditsTheFilter, 20),
+            test("mystical_filter_keeps_only_essence", VfwGameTests::mysticalFilterKeepsOnlyEssence, 20));
 
     /**
      * Load benchmark: registered as a test ONLY in the {@code benchmark} run ({@code gradlew runBenchmark}, which sets
@@ -307,6 +311,15 @@ public final class VfwGameTests {
             return;
         }
         MysticalHarvestTests.run(helper); // loads MA classes only here
+    }
+
+    /** The owner's filter example on a real MA seed (skipped with a pass when MA is absent). */
+    private static void mysticalFilterKeepsOnlyEssence(GameTestHelper helper) {
+        if (!MysticalCompat.isLoaded()) {
+            helper.succeed();
+            return;
+        }
+        MysticalHarvestTests.whitelistKeepsOnlyEssence(helper); // loads MA classes only here
     }
 
     /** VFW's switch for MA's effective-farmland rule, off and on (skipped with a pass when MA is absent). */

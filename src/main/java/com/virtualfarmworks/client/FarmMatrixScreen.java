@@ -2,7 +2,7 @@
  * FarmMatrixScreen — the Farm Matrix GUI (client only): the owner's texture, the dynamic texts (title, status,
  * hydration, seeds, growth), the green progress bar, 40% ghost placeholders in empty slots, and the side column drawn
  * by code and glued to the texture (auto-output button + face box, 5-cell upgrade block, Fertilized Essence switch,
- * power button).
+ * harvest filter button + filter box, power button).
  */
 package com.virtualfarmworks.client;
 
@@ -12,12 +12,14 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
+import com.virtualfarmworks.machine.MachineFilter;
 import com.virtualfarmworks.machine.MachineSlots;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.machine.RelativeSide;
 import com.virtualfarmworks.menu.DisplayFormats;
 import com.virtualfarmworks.menu.FarmMatrixLayout;
 import com.virtualfarmworks.menu.FarmMatrixMenu;
+import com.virtualfarmworks.network.SetFilterGhostPayload;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.MachineStatus;
 
@@ -35,6 +37,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 /**
  * Draws only; every action is sent to the server as a menu button click ({@link FarmMatrixMenu#clickMenuButton}),
@@ -53,6 +56,8 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
     private final ItemStack[] ghosts;
     /** Whether the auto-output face box is open (client-only UI state). */
     private boolean faceBoxOpen;
+    /** Whether the harvest filter box is open (client-only UI state; it takes the face box's place). */
+    private boolean filterBoxOpen;
     /** Smooths the 5-tick progress syncs into continuous movement (owner request, step 8). */
     private final SmoothProgress smoothProgress = new SmoothProgress();
     /** Progress drawn in the current frame, shared by the bar and the Growth line so both always agree. */
@@ -97,6 +102,9 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         if (faceBoxOpen) {
             extractFaceBox(graphics, x0, y0, mouseX, mouseY);
         }
+        if (filterBoxOpen) {
+            extractFilterBox(graphics, x0, y0, mouseX, mouseY); // its 9 ghost slots are drawn by vanilla on top
+        }
         extractGhosts(graphics, x0, y0);
     }
 
@@ -112,8 +120,8 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
 
     /**
      * The side column glued to the texture (see {@link FarmMatrixLayout}): the "O" box, the 5-cell upgrade block, the
-     * Fertilized Essence ON/OFF box and the machine ON/OFF box. No theme border on the right: the texture's own white
-     * border is the column's right edge.
+     * Fertilized Essence ON/OFF box, the harvest filter button and the machine ON/OFF box. No theme border on the
+     * right: the texture's own white border is the column's right edge.
      */
     private void extractSidePanel(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
         int outputTop = y0 + FarmMatrixLayout.OUTPUT_BOX_TOP;
@@ -132,6 +140,14 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
                 fertilized ? FarmMatrixLayout.COLOR_FERTILIZED_ON : FarmMatrixLayout.COLOR_FERTILIZED_OFF);
         extractCellLabel(graphics, Component.translatable(fertilized ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off"),
                 x0, FarmMatrixLayout.cellY(fertilizedTop, 0), 0xFFFFFFFF);
+
+        // Harvest filter button (owner spec): half white, half black.
+        int filterTop = y0 + FarmMatrixLayout.FILTER_BUTTON_TOP;
+        extractPanelBox(graphics, x0, filterTop, 1, FarmMatrixLayout.COLOR_BLACK);
+        int cellX = x0 + FarmMatrixLayout.PANEL_INTERIOR_X;
+        int cellY = FarmMatrixLayout.cellY(filterTop, 0);
+        graphics.fill(cellX, cellY, cellX + FarmMatrixLayout.CELL / 2, cellY + FarmMatrixLayout.CELL,
+                FarmMatrixLayout.COLOR_WHITE);
 
         int powerTop = y0 + FarmMatrixLayout.POWER_BOX_TOP;
         boolean on = menu.isEnabled();
@@ -186,6 +202,74 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
                 graphics.text(font, label, textX, cy + 4, 0xFFFFFFFF, false);
             }
         }
+    }
+
+    /**
+     * The harvest filter box (owner mockup): mode strip, 3x3 ghost-slot block drawn like the upgrade block, page row.
+     * The ghost items themselves are real menu slots, drawn by vanilla on top of this.
+     */
+    private void extractFilterBox(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
+        int boxX = x0 + FarmMatrixLayout.FILTER_BOX_X;
+        int boxY = y0 + FarmMatrixLayout.FILTER_BOX_Y;
+        int width = FarmMatrixLayout.FILTER_BOX_WIDTH;
+        int height = FarmMatrixLayout.FILTER_BOX_HEIGHT;
+        graphics.fill(boxX, boxY, boxX + width, boxY + height, themeColor);
+        graphics.fill(boxX + 1, boxY + 1, boxX + width - 1, boxY + height - 1, FarmMatrixLayout.COLOR_FRAME);
+        graphics.fill(boxX + 2, boxY + 2, boxX + width - 2, boxY + height - 2, FarmMatrixLayout.COLOR_BACKGROUND);
+
+        int contentX = x0 + FarmMatrixLayout.FILTER_CONTENT_X;
+        int grid = FarmMatrixLayout.FILTER_GRID_SIZE;
+
+        // Mode strip (owner spec): WHITELISTED = black on white, BLACKLISTED = white on black.
+        boolean whitelist = menu.isFilterWhitelist();
+        int stripY = y0 + FarmMatrixLayout.FILTER_STRIP_Y;
+        graphics.fill(contentX, stripY, contentX + grid, stripY + FarmMatrixLayout.FILTER_STRIP_HEIGHT,
+                whitelist ? FarmMatrixLayout.COLOR_WHITE : FarmMatrixLayout.COLOR_BLACK);
+        extractFittedCentered(graphics, Component.translatable(whitelist ? "gui.virtualfarmworks.filter.whitelisted"
+                        : "gui.virtualfarmworks.filter.blacklisted"), contentX + 1, stripY, grid - 2,
+                FarmMatrixLayout.FILTER_STRIP_HEIGHT,
+                whitelist ? FarmMatrixLayout.COLOR_BLACK : FarmMatrixLayout.COLOR_WHITE);
+
+        // 3x3 block: blue everywhere, then the 9 cell interiors; the blue left between them is the single line.
+        int gridY = y0 + FarmMatrixLayout.FILTER_GRID_Y;
+        graphics.fill(contentX, gridY, contentX + grid, gridY + grid, FarmMatrixLayout.COLOR_FRAME);
+        for (int i = 0; i < MachineFilter.PAGE_SIZE; i++) {
+            int cx = x0 + FarmMatrixLayout.filterSlotX(i);
+            int cy = y0 + FarmMatrixLayout.filterSlotY(i);
+            graphics.fill(cx, cy, cx + FarmMatrixLayout.CELL, cy + FarmMatrixLayout.CELL, FarmMatrixLayout.COLOR_BACKGROUND);
+        }
+
+        // Page row: "<"  page / pages  ">".
+        int rowY = y0 + FarmMatrixLayout.FILTER_PAGE_ROW_Y;
+        int arrow = FarmMatrixLayout.FILTER_ARROW_SIZE;
+        int page = menu.filterPage();
+        extractArrow(graphics, "<", contentX, rowY, page > 0, mouseX, mouseY);
+        extractArrow(graphics, ">", contentX + grid - arrow, rowY, page < MachineFilter.MAX_PAGES - 1, mouseX, mouseY);
+        extractFittedCentered(graphics, Component.translatable("gui.virtualfarmworks.filter.page", page + 1,
+                        menu.filterPageCount()), contentX + arrow + 1, rowY, grid - 2 * arrow - 2,
+                FarmMatrixLayout.FILTER_PAGE_ROW_HEIGHT, FarmMatrixLayout.COLOR_TEXT);
+    }
+
+    /** A page button of the filter box; dimmed when there is no page in that direction. */
+    private void extractArrow(GuiGraphicsExtractor graphics, String label, int x, int y, boolean enabled, int mouseX,
+                              int mouseY) {
+        int size = FarmMatrixLayout.FILTER_ARROW_SIZE;
+        boolean hovered = enabled && isInside(mouseX, mouseY, x, y, size, size);
+        graphics.fill(x, y, x + size, y + size, hovered ? FarmMatrixLayout.COLOR_BUTTON_ACTIVE : FarmMatrixLayout.COLOR_FRAME);
+        extractFittedCentered(graphics, Component.literal(label), x, y, size, size,
+                enabled ? 0xFFFFFFFF : 0x80FFFFFF);
+    }
+
+    /** Text centered in a box (absolute screen coordinates), shrunk if wider than the box. */
+    private void extractFittedCentered(GuiGraphicsExtractor graphics, Component text, int x, int y, int width, int height,
+                                       int color) {
+        int textWidth = font.width(text);
+        float scale = textWidth > width ? (float) width / textWidth : 1.0F;
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(x + (width - textWidth * scale) / 2.0F, y + (height - 8 * scale) / 2.0F);
+        graphics.pose().scale(scale, scale);
+        graphics.text(font, text, 0, 0, color, false);
+        graphics.pose().popMatrix();
     }
 
     /** 40% placeholders in empty machine input slots. */
@@ -273,6 +357,10 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
             areas.add(new Rect2i(leftPos + FarmMatrixLayout.FACE_BOX_X - 1, topPos + FarmMatrixLayout.FACE_BOX_Y - 1,
                     size, size));
         }
+        if (filterBoxOpen) {
+            areas.add(new Rect2i(leftPos + FarmMatrixLayout.FILTER_BOX_X, topPos + FarmMatrixLayout.FILTER_BOX_Y,
+                    FarmMatrixLayout.FILTER_BOX_WIDTH, FarmMatrixLayout.FILTER_BOX_HEIGHT));
+        }
         return areas;
     }
 
@@ -303,10 +391,27 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
             lines.add(Component.translatable("gui.virtualfarmworks.fertilized_essence", Component.translatable(
                     menu.isFertilizedEssenceEnabled() ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off")));
             lines.add(Component.translatable("gui.virtualfarmworks.fertilized_essence.hint"));
+        } else if (isOverBox(FarmMatrixLayout.FILTER_BUTTON_TOP, 1, mouseX, mouseY)) {
+            lines.add(Component.translatable("gui.virtualfarmworks.filter", Component.translatable(menu.isFilterWhitelist()
+                    ? "gui.virtualfarmworks.filter.whitelisted" : "gui.virtualfarmworks.filter.blacklisted")));
         } else if (faceBoxOpen && faceAt(mouseX, mouseY) != null) {
             RelativeSide side = faceAt(mouseX, mouseY);
             lines.add(Component.translatable("gui.virtualfarmworks.output_side", Component.translatable(side.translationKey()),
                     Component.translatable(menu.isOutputEnabled(side) ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off")));
+        } else if (filterBoxOpen && isInFilterStrip(mouseX, mouseY)) {
+            boolean whitelist = menu.isFilterWhitelist();
+            lines.add(Component.translatable(whitelist ? "gui.virtualfarmworks.filter.whitelist_hint"
+                    : "gui.virtualfarmworks.filter.blacklist_hint"));
+            lines.add(Component.translatable("gui.virtualfarmworks.filter.empty_hint"));
+            lines.add(Component.translatable(whitelist ? "gui.virtualfarmworks.filter.switch_to_blacklist"
+                    : "gui.virtualfarmworks.filter.switch_to_whitelist"));
+        } else if (filterBoxOpen && isOverFilterArrow(false, mouseX, mouseY)) {
+            lines.add(Component.translatable("gui.virtualfarmworks.filter.previous"));
+        } else if (filterBoxOpen && isOverFilterArrow(true, mouseX, mouseY)) {
+            lines.add(Component.translatable("gui.virtualfarmworks.filter.next"));
+        } else if (hoveredSlot != null && FarmMatrixMenu.isFilterSlot(hoveredSlot.index)) {
+            lines.add(Component.translatable("gui.virtualfarmworks.filter.slot"));
+            lines.add(Component.translatable("gui.virtualfarmworks.filter.slot_remove"));
         } else if (hoveredSlot != null && menu.getCarried().isEmpty()) {
             int index = hoveredSlot.index - FarmMatrixMenu.INPUT_START;
             if (index >= 0 && index < MachineSlots.INPUT_COUNT) {
@@ -346,8 +451,34 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
             double mouseY = event.y();
             if (isOverBox(FarmMatrixLayout.OUTPUT_BOX_TOP, 1, mouseX, mouseY)) {
                 faceBoxOpen = !faceBoxOpen;
+                if (faceBoxOpen) {
+                    setFilterBoxOpen(false); // both boxes use the same place
+                }
                 playClick();
                 return true;
+            }
+            if (isOverBox(FarmMatrixLayout.FILTER_BUTTON_TOP, 1, mouseX, mouseY)) {
+                setFilterBoxOpen(!filterBoxOpen);
+                if (filterBoxOpen) {
+                    faceBoxOpen = false;
+                }
+                playClick();
+                return true;
+            }
+            if (filterBoxOpen) {
+                if (isInFilterStrip(mouseX, mouseY)) {
+                    sendButton(FarmMatrixMenu.BUTTON_FILTER_MODE);
+                    return true;
+                }
+                if (isOverFilterArrow(false, mouseX, mouseY)) {
+                    sendButton(FarmMatrixMenu.BUTTON_FILTER_PREVIOUS);
+                    return true;
+                }
+                if (isOverFilterArrow(true, mouseX, mouseY)) {
+                    sendButton(FarmMatrixMenu.BUTTON_FILTER_NEXT);
+                    return true;
+                }
+                // Ghost slots: vanilla slot handling below (FarmMatrixMenu#clicked). The box background does nothing.
             }
             if (isOverBox(FarmMatrixLayout.POWER_BOX_TOP, 1, mouseX, mouseY)) {
                 sendButton(FarmMatrixMenu.BUTTON_POWER);
@@ -377,10 +508,17 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
      */
     @Override
     protected boolean hasClickedOutside(double mouseX, double mouseY, int left, int top) {
-        if (isInSidePanel(mouseX, mouseY) || (faceBoxOpen && isInFaceBox(mouseX, mouseY))) {
+        if (isInSidePanel(mouseX, mouseY) || (faceBoxOpen && isInFaceBox(mouseX, mouseY))
+                || (filterBoxOpen && isInFilterBox(mouseX, mouseY))) {
             return false;
         }
         return super.hasClickedOutside(mouseX, mouseY, left, top);
+    }
+
+    /** Opens/closes the filter box; its ghost slots become active (drawn, clickable) only while it is open. */
+    private void setFilterBoxOpen(boolean open) {
+        filterBoxOpen = open;
+        menu.setFilterVisible(open);
     }
 
     /** Sends an intent to the server (vanilla container button packet); the server validates and applies it. */
@@ -419,6 +557,45 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
         int size = FarmMatrixLayout.FACE_BOX_SIZE + 2;
         return isInside(mouseX, mouseY, leftPos + FarmMatrixLayout.FACE_BOX_X - 1, topPos + FarmMatrixLayout.FACE_BOX_Y - 1,
                 size, size);
+    }
+
+    private boolean isInFilterBox(double mouseX, double mouseY) {
+        return isInside(mouseX, mouseY, leftPos + FarmMatrixLayout.FILTER_BOX_X, topPos + FarmMatrixLayout.FILTER_BOX_Y,
+                FarmMatrixLayout.FILTER_BOX_WIDTH, FarmMatrixLayout.FILTER_BOX_HEIGHT);
+    }
+
+    private boolean isInFilterStrip(double mouseX, double mouseY) {
+        return isInside(mouseX, mouseY, leftPos + FarmMatrixLayout.FILTER_CONTENT_X,
+                topPos + FarmMatrixLayout.FILTER_STRIP_Y, FarmMatrixLayout.FILTER_GRID_SIZE,
+                FarmMatrixLayout.FILTER_STRIP_HEIGHT);
+    }
+
+    /** The "<" ({@code next} false) or ">" ({@code next} true) page button of the filter box. */
+    private boolean isOverFilterArrow(boolean next, double mouseX, double mouseY) {
+        int size = FarmMatrixLayout.FILTER_ARROW_SIZE;
+        int x = leftPos + FarmMatrixLayout.FILTER_CONTENT_X + (next ? FarmMatrixLayout.FILTER_GRID_SIZE - size : 0);
+        return isInside(mouseX, mouseY, x, topPos + FarmMatrixLayout.FILTER_PAGE_ROW_Y, size, size);
+    }
+
+    /**
+     * Screen areas of the filter's 9 ghost slots while the box is open, for JEI drag-and-drop
+     * ({@code client.compat.VfwJeiPlugin}). Index = ghost slot of the current page.
+     */
+    public List<Rect2i> filterSlotAreas() {
+        if (!filterBoxOpen) {
+            return List.of();
+        }
+        List<Rect2i> areas = new ArrayList<>(MachineFilter.PAGE_SIZE);
+        for (int i = 0; i < MachineFilter.PAGE_SIZE; i++) {
+            areas.add(new Rect2i(leftPos + FarmMatrixLayout.filterSlotX(i), topPos + FarmMatrixLayout.filterSlotY(i),
+                    FarmMatrixLayout.CELL, FarmMatrixLayout.CELL));
+        }
+        return areas;
+    }
+
+    /** Client: an item was dropped from JEI on ghost slot {@code slot}; the server records it (see the payload). */
+    public void setFilterGhostFromJei(int slot, ItemStack stack) {
+        ClientPacketDistributor.sendToServer(new SetFilterGhostPayload(menu.containerId, slot, stack.copyWithCount(1)));
     }
 
     private @Nullable RelativeSide faceAt(double mouseX, double mouseY) {

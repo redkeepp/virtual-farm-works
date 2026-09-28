@@ -85,9 +85,10 @@ public final class FarmMatrixLayout {
     //   x = -1         blue frame line
     //   x =  0         the texture's white border, which is also the column's right border — so the column has NO
     //                  theme border on its right side and only one white line shows where they touch.
-    // Four boxes from top to bottom, 3 px apart: the "O" button (1 cell), the upgrade block (5 cells separated by a
-    // single blue line, no white lines between them), the Fertilized Essence ON/OFF button (1 cell) and the machine
-    // ON/OFF button (1 cell). Each box: white top line, blue line, cells, blue line, white bottom line.
+    // Five boxes from top to bottom, 3 px apart: the "O" button (1 cell), the upgrade block (5 cells separated by a
+    // single blue line, no white lines between them), the Fertilized Essence ON/OFF button (1 cell), the harvest
+    // filter button (1 cell, half white half black) and the machine ON/OFF button (1 cell). Each box: white top line,
+    // blue line, cells, blue line, white bottom line.
     public static final int PANEL_BORDER_X = -19;
     public static final int PANEL_INTERIOR_X = -17;
     public static final int CELL = 16;
@@ -102,8 +103,10 @@ public final class FarmMatrixLayout {
     public static final int UPGRADE_BOX_TOP = OUTPUT_BOX_TOP + boxHeight(1) + PANEL_BOX_GAP;       // 47
     /** Fertilized Essence ON/OFF box: where the machine ON/OFF box used to be (owner spec). */
     public static final int FERTILIZED_BOX_TOP = UPGRADE_BOX_TOP + boxHeight(UPGRADE_SLOTS) + PANEL_BOX_GAP; // 138
-    public static final int POWER_BOX_TOP = FERTILIZED_BOX_TOP + boxHeight(1) + PANEL_BOX_GAP;     // 161
-    public static final int PANEL_BOTTOM = POWER_BOX_TOP + boxHeight(1);                           // 181 (exclusive)
+    /** Harvest filter button (owner spec, step 8): right below the Fertilized Essence box, 3 px above and below. */
+    public static final int FILTER_BUTTON_TOP = FERTILIZED_BOX_TOP + boxHeight(1) + PANEL_BOX_GAP; // 161
+    public static final int POWER_BOX_TOP = FILTER_BUTTON_TOP + boxHeight(1) + PANEL_BOX_GAP;      // 184
+    public static final int PANEL_BOTTOM = POWER_BOX_TOP + boxHeight(1);                           // 204 (exclusive)
 
     // Face box, opened by the "O" button, left of the column (3 px gap). 3x3 grid of 16 px cells, 2 px apart, 3 px
     // padding, inside a blue frame and a theme-color border. FACE_BOX_X/Y are the inner (blue frame) top-left corner.
@@ -113,6 +116,35 @@ public final class FarmMatrixLayout {
     public static final int FACE_BOX_SIZE = 3 * FACE_CELL + 2 * FACE_GAP + 2 * FACE_PADDING;      // 58
     public static final int FACE_BOX_X = PANEL_BORDER_X - PANEL_BOX_GAP - 1 - FACE_BOX_SIZE;      // -81
     public static final int FACE_BOX_Y = OUTPUT_BOX_TOP + 1;                                      // 25
+
+    // Harvest filter box (owner spec and mockup, step 8), opened by the filter button like the "O" opens the face box:
+    // same place and width as the face box (the two never show together), top aligned with the "O" box, the GUI does
+    // not move. From the outside in: 1 px theme border, 1 px blue frame, then 2 px padding left/right and 1 px
+    // top/bottom around a content column: the mode strip (WHITELISTED / BLACKLISTED), 1 px, a 3x3 ghost-slot block drawn
+    // like the upgrade block (16 px cells, single blue lines between them and around them), 1 px, the page row
+    // (< page >). Pixel values measured on the owner's mockup (drawn at ~1.9x) and snapped to GUI pixels.
+    public static final int FILTER_GRID_CELLS = 3;
+    /** Block of 3 cells: blue line, cell, blue line, cell, blue line, cell, blue line. */
+    public static final int FILTER_GRID_SIZE = FILTER_GRID_CELLS * CELL + FILTER_GRID_CELLS + 1;   // 52
+    public static final int FILTER_STRIP_HEIGHT = 10;
+    public static final int FILTER_PAGE_ROW_HEIGHT = 10;
+    /** Outer size, border included. */
+    public static final int FILTER_BOX_WIDTH = 1 + 1 + 2 + FILTER_GRID_SIZE + 2 + 1 + 1;            // 60
+    public static final int FILTER_BOX_HEIGHT = 1 + 1 + 1 + FILTER_STRIP_HEIGHT + 1 + FILTER_GRID_SIZE + 1
+            + FILTER_PAGE_ROW_HEIGHT + 1 + 1 + 1;                                                   // 80
+    /** Outer top-left corner (theme border): exactly where the face box's border is. */
+    public static final int FILTER_BOX_X = PANEL_BORDER_X - PANEL_BOX_GAP - FILTER_BOX_WIDTH;     // -82
+    public static final int FILTER_BOX_Y = OUTPUT_BOX_TOP;                                        // 24
+    /** Content column: strip, block and page row all start here and are FILTER_GRID_SIZE wide. */
+    public static final int FILTER_CONTENT_X = FILTER_BOX_X + 4;                                  // -78
+    public static final int FILTER_STRIP_Y = FILTER_BOX_Y + 3;                                    // 27
+    public static final int FILTER_GRID_Y = FILTER_STRIP_Y + FILTER_STRIP_HEIGHT + 1;             // 38
+    public static final int FILTER_PAGE_ROW_Y = FILTER_GRID_Y + FILTER_GRID_SIZE + 1;             // 91
+    /** Previous/next page buttons: squares at both ends of the page row. */
+    public static final int FILTER_ARROW_SIZE = FILTER_PAGE_ROW_HEIGHT;
+    /** Mode strip (owner spec): WHITELISTED = black on white, BLACKLISTED = white on black. */
+    public static final int COLOR_WHITE = 0xFFFFFFFF;
+    public static final int COLOR_BLACK = 0xFF000000;
 
     /**
      * Owner's face layout ({@code null} = empty cell):
@@ -156,5 +188,14 @@ public final class FarmMatrixLayout {
 
     public static int faceCellY(int row) {
         return FACE_BOX_Y + FACE_PADDING + row * (FACE_CELL + FACE_GAP);
+    }
+
+    /** Item position (top-left of the 16x16 cell) of filter ghost slot {@code i} (0..8, row by row). */
+    public static int filterSlotX(int i) {
+        return FILTER_CONTENT_X + 1 + (i % FILTER_GRID_CELLS) * CELL_PITCH;
+    }
+
+    public static int filterSlotY(int i) {
+        return FILTER_GRID_Y + 1 + (i / FILTER_GRID_CELLS) * CELL_PITCH;
     }
 }

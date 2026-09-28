@@ -1,10 +1,12 @@
 /*
  * DropTallyTest — JUnit tests of sim/DropTally: categories get their own multipliers, weighted samples add up,
- * rounding preserves the expected yield, zero results are dropped and order is stable. Run with `gradlew test`.
+ * rounding preserves the expected yield, zero results are dropped, order is stable and filtered keys are never
+ * counted. Run with `gradlew test`.
  */
 package com.virtualfarmworks.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -15,6 +17,20 @@ import org.junit.jupiter.api.Test;
 import com.virtualfarmworks.sim.DropTally.Category;
 
 class DropTallyTest {
+    @Test
+    void filteredKeysAreNeverCounted() {
+        // Harvest filter (owner, step 8): what the filter rejects never becomes an item, it is not produced then deleted.
+        DropTally<String> tally = new DropTally<>(key -> !key.equals("seed"));
+        tally.add("wheat", 10, Category.MAIN);
+        tally.add("seed", 5, Category.SECONDARY);
+
+        assertFalse(tally.allows("seed"));
+        assertEquals(0.0, tally.raw("seed", Category.SECONDARY));
+        List<DropTally.Entry<String>> finished = tally.finish(1.0, 1.0, () -> 0.5);
+        assertEquals(1, finished.size());
+        assertEquals("wheat", finished.get(0).key());
+    }
+
 
     @Test
     void defaultMultipliersKeepWholeAmountsExact() {

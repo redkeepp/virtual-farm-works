@@ -213,6 +213,24 @@ No GUI or Jade indicator for waiting plots or hidden items (owner: "não, esquec
   hydration and seeds up 1 px again (final y: status 57, hydration 66, seeds 76, growth 86, title 8).
 - Owner addition (step 8): right-clicking the machine (GUI closed) while holding a Water Provider, Growth Speed or
   Crux Provider Upgrade pulls in as many as fit; if none fits, the GUI opens instead.
+- Harvest filter (owner, step 8), see the section below: a half white / half black button below the Fertilized
+  Essence box (3 px above and below; the machine ON/OFF moved down) opens a small box in the face box's place, like
+  the "O" does (the GUI does not move; only one of the two boxes shows).
+
+## Harvest filter (owner design, step 8)
+
+- Per machine: WHITELIST (only the listed items are produced) or BLACKLIST (the listed items are never produced).
+  An EMPTY list lets everything through in both modes (owner rule), so the default changes nothing.
+- "Never generated", not "generated then deleted" (owner): the filter is part of the harvest roll (`DropTally` with
+  the filter; MA crops even skip computing filtered parts). Filtered items never exist, never use output space.
+- Box (owner mockup): 60 px wide like the face box, top aligned with the "O". Mode strip on top: WHITELISTED = black
+  text on white, BLACKLISTED = white text on black; click it to switch. Below: 3x3 ghost slots drawn like the upgrade
+  block, then a page row `< 1/3 >`. Pages are created on demand when going forward, up to 16 pages (144 items,
+  owner-approved cap).
+- Ghost slots: clicking with an item lists its type (the item stays on the cursor), an empty hand or shift-click
+  removes it, an item is listed once. Items can also be dragged from JEI (owner request), so the player does not need
+  them. Matching is by item type.
+- Saved with the machine; breaking the machine loses nothing real (the filter holds no items).
 - Recipes (owner): Starter Farm Matrix, Starter Water Provider, Starter Growth Speed, Crux Provider — see
   `docs/resources.md`.
 

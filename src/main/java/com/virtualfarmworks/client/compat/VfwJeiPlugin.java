@@ -1,20 +1,26 @@
 /*
  * VfwJeiPlugin — optional JEI integration (client only): tells JEI which screen areas the Farm Matrix GUI uses outside
- * its texture (side column, face box) so JEI's ingredient list and bookmarks never cover them.
+ * its texture (side column, face box, filter box) so JEI's ingredient list and bookmarks never cover them, and lets
+ * players drag items from JEI onto the harvest filter's ghost slots.
  */
 package com.virtualfarmworks.client.compat;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.client.FarmMatrixScreen;
 
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
 import mezz.jei.api.gui.handlers.IGuiContainerHandler;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * Discovered by JEI through the {@link JeiPlugin} annotation; never loaded when JEI is absent (VFW only compiles
@@ -35,5 +41,44 @@ public final class VfwJeiPlugin implements IModPlugin {
                 return screen.extraAreas();
             }
         });
+        registration.addGhostIngredientHandler(FarmMatrixScreen.class, new FilterGhostHandler());
+    }
+
+    /**
+     * Owner request: filter items the player does not have. While the filter box is open, each of its 9 ghost slots is
+     * a drop target for items; dropping sends the item type to the server (the screen sends the packet).
+     */
+    private static final class FilterGhostHandler implements IGhostIngredientHandler<FarmMatrixScreen> {
+        @Override
+        public <I> List<Target<I>> getTargetsTyped(FarmMatrixScreen screen, ITypedIngredient<I> ingredient,
+                                                   boolean doStart) {
+            Optional<ItemStack> stack = ingredient.getItemStack();
+            if (stack.isEmpty() || stack.get().isEmpty()) {
+                return List.of(); // fluids and other ingredient types cannot be filtered
+            }
+            List<Rect2i> areas = screen.filterSlotAreas();
+            List<Target<I>> targets = new ArrayList<>(areas.size());
+            for (int i = 0; i < areas.size(); i++) {
+                int slot = i;
+                Rect2i area = areas.get(i);
+                targets.add(new Target<>() {
+                    @Override
+                    public Rect2i getArea() {
+                        return area;
+                    }
+
+                    @Override
+                    public void accept(I dropped) {
+                        screen.setFilterGhostFromJei(slot, stack.get());
+                    }
+                });
+            }
+            return targets;
+        }
+
+        @Override
+        public void onComplete() {
+            // Nothing to clean up: each drop is sent when it happens.
+        }
     }
 }

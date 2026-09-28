@@ -91,7 +91,7 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  *
  * <h2>Persistence</h2>
  * Saved: inventories (inputs, visible and hidden output), held drops, progress, active/pending/harvested counters,
- * on/off switch, auto-output faces, Fertilized Essence switch. NOT saved (rebuilt by {@link #revalidate()} or
+ * on/off switch, auto-output faces, Fertilized Essence switch, harvest filter. NOT saved (rebuilt by {@link #revalidate()} or
  * relearned): analysis, speed, status, drop source, pending batch, yield sample. Slot changes and harvests mark the
  * chunk for saving immediately; plain progress at most once per {@link #PROGRESS_SAVE_INTERVAL} ticks (losing < 1 s
  * of progress on a crash is harmless, marking every tick is not free).
@@ -133,6 +133,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
      * the bar to the end before restarting it), so it is not saved.
      */
     private int completedHarvests;
+    /** Harvest filter (owner, step 8): whitelist or blacklist of what the harvest may produce. */
+    private final MachineFilter filter;
 
     // --- derived state (rebuilt by revalidate, never saved) ---------------------------------------------------------
     private boolean inputsDirty = true;
@@ -186,10 +188,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * What a rolled batch (and the yield sample) depends on: its drop source inputs and the Fertilized Essence switch
-     * (turning it off while a batch waits must drop the essence from that batch).
+     * What a rolled batch (and the yield sample) depends on: its drop source inputs, the Fertilized Essence switch
+     * (turning it off while a batch waits must drop the essence from that batch) and the harvest filter version (a
+     * filter change must apply to a batch still waiting for space).
      */
-    private record HarvestKey(@Nullable SourceKey source, boolean fertilizedEssence) {
+    private record HarvestKey(@Nullable SourceKey source, boolean fertilizedEssence, int filterVersion) {
     }
 
     public FarmMatrixBlockEntity(BlockPos pos, BlockState state) {
@@ -198,6 +201,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         this.inputs = new MachineInventory(tier, this::onInputsChanged);
         this.output = new OutputBuffer(this::onOutputChanged);
         this.internal = new InternalBuffer(this::markForSave);
+        this.filter = new MachineFilter(this::onFilterChanged);
     }
 
     // =================================================================================================================
@@ -288,7 +292,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
      */
     private boolean harvestNextBatch(ServerLevel level) {
         int plotsLeft = cycle.plotsToHarvest(0);
-        HarvestKey key = new HarvestKey(dropSourceKey, fertilizedEssence);
+        HarvestKey key = new HarvestKey(dropSourceKey, fertilizedEssence, filter.version());
         if (!key.equals(yieldSampleKey)) {
             yieldSample.reset(); // other seed/soil/config/tags/switch: the old measurements say nothing
             yieldSampleKey = key;
@@ -299,7 +303,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
                     ? List.of()
                     : Harvester.roll(dropSource, plots, tier,
                             new DropSource.Context(level, worldPosition, level.getRandom(), maxLootRolls,
-                                    fertilizedEssence));
+                                    fertilizedEssence, filter.snapshot()));
             pendingBatchPlots = plots;
             pendingBatchKey = key;
             yieldSample.record(plots, Harvester.slotsFilled(pendingBatch), pendingBatch.size());
@@ -529,6 +533,15 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         markForSave();
     }
 
+    /**
+     * A player changed the harvest filter: save it, and let a batch waiting for space be re-rolled with the new filter
+     * (its {@link HarvestKey} no longer matches).
+     */
+    private void onFilterChanged() {
+        harvestRetryRequested = true;
+        markForSave();
+    }
+
     private void onOutputChanged() {
         harvestRetryRequested = true;
         if (!refilling) {
@@ -565,6 +578,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         out.putBoolean("enabled", enabled);
         out.putInt("output_faces", outputFaces);
         out.putBoolean("fertilized_essence", fertilizedEssence);
+        filter.save(out.child("filter"));
     }
 
     @Override
@@ -582,6 +596,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         enabled = in.getBooleanOr("enabled", true);
         outputFaces = in.getIntOr("output_faces", RelativeSide.ALL) & RelativeSide.ALL;
         fertilizedEssence = in.getBooleanOr("fertilized_essence", true);
+        in.child("filter").ifPresent(filter::load);
         // Everything derived is rebuilt on the next tick; a batch that was blocked is simply rolled again.
         inputsDirty = true;
         plantedSeed = null;
@@ -731,6 +746,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     /** Completed cycles since load (see the field); the menu syncs it so the GUI can animate a cycle wrap. */
     public int completedHarvests() {
         return completedHarvests;
+    }
+
+    /** The harvest filter. Server side: the menu edits it through ghost slots and buttons. */
+    public MachineFilter filter() {
+        return filter;
     }
 
     public boolean isFertilizedEssenceEnabled() {

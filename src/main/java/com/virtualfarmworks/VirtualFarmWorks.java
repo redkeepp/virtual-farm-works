@@ -10,6 +10,7 @@ import com.mojang.logging.LogUtils;
 import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.data.ModDataMaps;
 import com.virtualfarmworks.gametest.VfwGameTests;
+import com.virtualfarmworks.network.SetFilterGhostPayload;
 import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.registry.ModBlockEntities;
 import com.virtualfarmworks.registry.ModBlocks;
@@ -41,6 +42,7 @@ public class VirtualFarmWorks {
         ModCreativeTabs.register(modEventBus);
         ModDataMaps.register(modEventBus);
         VfwConfig.register(modEventBus, modContainer);
+        SetFilterGhostPayload.register(modEventBus); // JEI drag-and-drop onto the harvest filter
         VfwGameTests.register(modEventBus); // no-op in production
 
         // Game (not mod) bus listeners.
