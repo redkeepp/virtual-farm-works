@@ -146,10 +146,12 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         }
         // Output buffer: a plain inventory for the player (owner revision, step 8: take AND put items by hand).
         // Automation still only extracts (the capability is OutputBuffer#externalView), and shift-click never fills
-        // it (see quickMoveStack). Items the harvest filter rejects are removed by the machine.
+        // it (see quickMoveStack). Items the harvest filter rejects are removed by the machine (see OutputSlot).
+        Runnable onPlayerPut = machine != null ? machine::requestFilterPurge : () -> {
+        };
         for (int i = 0; i < MachineSlots.OUTPUT_COUNT; i++) {
-            addSlot(new ResourceHandlerSlot(output, output::set, i,
-                    FarmMatrixLayout.OUTPUT_X + i * FarmMatrixLayout.SLOT_SPACING, FarmMatrixLayout.OUTPUT_Y));
+            addSlot(new OutputSlot(output, i, FarmMatrixLayout.OUTPUT_X + i * FarmMatrixLayout.SLOT_SPACING,
+                    FarmMatrixLayout.OUTPUT_Y, onPlayerPut));
         }
         addStandardInventorySlots(playerInventory, FarmMatrixLayout.PLAYER_INVENTORY_X,
                 FarmMatrixLayout.PLAYER_INVENTORY_Y);
@@ -443,6 +445,28 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         @Override
         public int getMaxStackSize() {
             return 1;
+        }
+    }
+
+    /**
+     * Output buffer slot: players take and put items (owner revision, step 8). Vanilla routes every player placement
+     * (click, drag, number keys) through {@code setByPlayer}; when an item goes in, the machine is asked to delete it
+     * next tick if the harvest filter rejects it. This keeps the filter cleanup off every other output change.
+     */
+    private static final class OutputSlot extends ResourceHandlerSlot {
+        private final Runnable onPlayerPut;
+
+        OutputSlot(OutputBuffer output, int index, int x, int y, Runnable onPlayerPut) {
+            super(output, output::set, index, x, y);
+            this.onPlayerPut = onPlayerPut;
+        }
+
+        @Override
+        public void setByPlayer(ItemStack stack, ItemStack previous) {
+            super.setByPlayer(stack, previous);
+            if (!stack.isEmpty()) {
+                onPlayerPut.run();
+            }
         }
     }
 }

@@ -36,6 +36,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.transfer.item.ItemResource;
 import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
+import net.neoforged.neoforge.transfer.transaction.Transaction;
 
 /**
  * How it measures: most scenarios create hundreds of machines as detached block entities (real
@@ -93,6 +94,10 @@ final class LoadBenchmark {
         double playWheat = normalPlayNanos(helper, Items.WHEAT_SEEDS, Items.FARMLAND);
         report.add(row("Normal play: 64 wheat plots, 4 upgrades (3x)", micros(playWheat)
                 + " us per machine per tick (average, harvests included)"));
+        double pipe = pipeNanos(helper, false);
+        double pipeFiltered = pipeNanos(helper, true);
+        report.add(row("Same + a pipe pulling 1 item per tick", micros(pipe) + " us per machine per tick"));
+        report.add(row("Same + pipe + a harvest filter set", micros(pipeFiltered) + " us per machine per tick"));
 
         double revalidate = revalidateMicros(helper);
         report.add(row("Revalidation (a player changes a slot)", format(revalidate) + " us each, only on changes"));
@@ -214,6 +219,55 @@ final class LoadBenchmark {
             }
         }
         return total;
+    }
+
+    /**
+     * The busy farm again, with a pipe pulling ONE item per tick from the visible output (not timed), so the output
+     * changes on most ticks: the worst case for work the machine does after an output change (hidden-slot refill,
+     * harvest filter cleanup). With {@code filtered}, a blacklist holding an item the farm never produces (dirt) is
+     * set: the filter is active but yields do not change, so the difference between the two rows is the filter's cost.
+     */
+    private static double pipeNanos(GameTestHelper helper, boolean filtered) {
+        ServerLevel level = helper.getLevel();
+        List<FarmMatrixBlockEntity> machines = machines(helper, PLAY_MACHINES, Items.WHEAT_SEEDS, Items.FARMLAND, 64,
+                MachineSlots.GROWTH_COUNT);
+        for (int i = 0; i < machines.size(); i++) {
+            FarmMatrixBlockEntity machine = machines.get(i);
+            if (filtered) {
+                machine.filter().set(0, Items.DIRT);
+            }
+            machine.setProgressForTesting(i / (double) machines.size());
+        }
+        pipeTicks(level, machines, 400);
+        return pipeTicks(level, machines, 1_200) / (double) (PLAY_MACHINES * 1_200L);
+    }
+
+    private static long pipeTicks(ServerLevel level, List<FarmMatrixBlockEntity> machines, int ticks) {
+        long total = 0;
+        for (int tick = 0; tick < ticks; tick++) {
+            long start = System.nanoTime();
+            for (FarmMatrixBlockEntity machine : machines) {
+                machine.serverTick(level);
+            }
+            total += System.nanoTime() - start;
+            machines.forEach(LoadBenchmark::pipePullOne);
+        }
+        return total;
+    }
+
+    /** A slow pipe: takes one item from the first filled visible slot, through the capability. */
+    private static void pipePullOne(FarmMatrixBlockEntity machine) {
+        var external = machine.externalOutput();
+        try (Transaction transaction = Transaction.openRoot()) {
+            for (int i = 0; i < external.size(); i++) {
+                ItemResource resource = external.getResource(i);
+                if (!resource.isEmpty()) {
+                    external.extract(i, resource, 1, transaction);
+                    break;
+                }
+            }
+            transaction.commit();
+        }
     }
 
     /** Full re-analysis of the slots (runs only when a slot, the config or tags change). */

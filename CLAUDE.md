@@ -307,10 +307,13 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   `network/SetFilterGhostPayload` (the only custom packet) -> `FarmMatrixMenu#setFilterGhost`. Screen: button at
   `FILTER_BUTTON_TOP`, box next to it (bottom aligned with the button, same column as the face box, both can be
   open), slots active only while it is open.
-  Owner revision: the visible output is a player inventory (plain `ResourceHandlerSlot`, players put items by hand;
+  Owner revision: the visible output is a player inventory (menu `OutputSlot`, players put items by hand;
   automation still extract-only; shift-click never fills it), and `FarmMatrixBlockEntity#purgeFilteredOutput`
-  DELETES what the filter rejects from visible/hidden output and held drops, on the tick after a filter or output
-  change (and after load). 25 game tests (24 VFW + 1 vanilla), 73 JUnit.
+  DELETES what the filter rejects from visible/hidden output and held drops. Triggered ONLY by a filter change, a
+  hand placement (`OutputSlot#setByPlayer` -> `requestFilterPurge`) or load — never by ordinary output changes:
+  running it after every change cost +35% per tick in the benchmark (pipe pulling from a filtered machine: 0.405 ->
+  0.544 us); now pipe with and without filter are equal (0.329 / 0.328 us). 25 game tests (24 VFW + 1 vanilla),
+  73 JUnit.
   Owner verified by hand: editing the config with the game open affects machines at once, and the dedicated server
   works (no automated reload test needed). Deferred by the owner: EMI, publishing metadata.
   Output deadlock FIXED (owner's overclock report): a whole harvest was stored all-or-nothing, so one bigger than the
@@ -325,7 +328,9 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   Load benchmark: `gametest/LoadBenchmark` (`gradlew runBenchmark`, registered alone via -Dvirtualfarmworks.benchmark).
   Detached machines ticked directly (ticker work only, vanilla BE-ticking overhead excluded), warm-up + best of 3;
   scenarios: growing 1 vs 64 plots, OUTPUT FULL waiting, harvest tick (wheat x64/x1, MA x64), busy farm average,
-  revalidation, auto-export into a real chest. Never fails on numbers (machine-dependent).
+  busy farm + a pipe pulling 1 item per tick (with and without a harvest filter: compare the two rows of ONE run,
+  run-to-run noise is ~10-20%), revalidation, auto-export into a real chest (the noisiest row). Never fails on
+  numbers (machine-dependent).
   Results 2026-09-26, owner's PC with the game closed (16 threads, Java 25), average of the owner's last 3 runs
   (owner's choice; a run of mine with the game open was ~20% slower): growing 0.009-0.015 us per machine-tick (1
   and 64 plots alike), OUTPUT FULL waiting 0.013 us, harvest tick 78 us (64 wheat plots, 64 loot rolls), 5.3 us
