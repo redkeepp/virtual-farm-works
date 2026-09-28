@@ -331,7 +331,12 @@ plots (Entropic ≈ 6,000 plots as a design target). Tier effects/numbers: pendi
   busy farm + a pipe pulling 1 item per tick (with and without a harvest filter: compare the two rows of ONE run,
   run-to-run noise is ~10-20%), revalidation, auto-export into a real chest (the noisiest row). Never fails on
   numbers (machine-dependent).
-  Results 2026-09-26, owner's PC with the game closed (16 threads, Java 25), average of the owner's last 3 runs
+  Latest results 2026-09-28, after the hidden output, smooth bar and harvest filter (owner's PC, game closed, average
+  of the owner's 4 runs): growing 0.009-0.015 us, OUTPUT FULL 0.012 us, harvest tick 64 us (64 wheat) / 4.5 us (1
+  wheat) / 4.5 us (64 MA), busy farm 0.28 us (~3,500 busy machines per ms, 1,000 = 0.56% of a tick), busy farm + pipe
+  0.30 us with AND without a filter (the filter costs nothing), revalidation 1.3 us, export of 9 stacks 82 us. No
+  regression versus the first results below. 25 game tests pass.
+  First results 2026-09-26, owner's PC with the game closed (16 threads, Java 25), average of the owner's last 3 runs
   (owner's choice; a run of mine with the game open was ~20% slower): growing 0.009-0.015 us per machine-tick (1
   and 64 plots alike), OUTPUT FULL waiting 0.013 us, harvest tick 78 us (64 wheat plots, 64 loot rolls), 5.3 us
   (1 wheat plot), 5.2 us (64 MA Inferium plots, formula), busy farm (64 wheat, 3x, harvests included) 0.30 us
