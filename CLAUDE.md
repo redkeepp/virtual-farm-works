@@ -71,29 +71,29 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
   unobfuscated, so production jars load in dev). `run/` and `run-gametest/` are git-ignored. CI (GitHub Actions)
   runs `gradlew build` only (JUnit, no game tests).
 
-## Current state (2026-09-28)
+## Current state (2026-09-29)
 
 **Starter Farm Matrix: DONE** (declared by the owner on 2026-09-29, after the plantables and the benchmark), tested in
 game by the owner (single player; dedicated server before the JEI packet was added). Features: one global growth
 cycle with ACTIVE/PENDING plots; every plantable (crops, trees, flowers, grass, aquatic and hanging plants — "More
-plantables", 2026-09-28);
-plant/soil rules from the game's own logic; loot-table, grown-tree, fixed-yield and Mystical Agriculture harvests;
-transactional batched harvest into a 9-slot visible output (players can also put items in by hand) plus 27 hidden
-slots; auto-export per face; Water Provider, 4 Growth Speed upgrades, Crux Provider; hoe slot with optional
-time-based wear; Fertilized Essence switch; per-machine harvest filter (whitelist/blacklist, JEI drag-and-drop);
-smooth progress bar; Jade tooltip; JEI exclusion areas; recipes.
-Tests: 31 game tests (30 VFW + 1 vanilla), 73 JUnit, load benchmark.
+plantables", 2026-09-28); plant/soil rules from the game's own logic; loot-table, grown-tree, fixed-yield and Mystical
+Agriculture harvests; transactional batched harvest into a 9-slot visible output (players can also put items in by
+hand) plus 27 hidden slots; auto-export per face; Water Provider, 4 Growth Speed upgrades, Crux Provider; hoe slot
+with optional time-based wear; Fertilized Essence switch; per-machine harvest filter (whitelist/blacklist, JEI
+drag-and-drop); smooth progress bar; Jade tooltip; JEI exclusion areas; recipes. Git tag `starter-complete`.
 
 **In progress: Entropic Farm Matrix** (owner, 2026-09-29: the strongest tier before the middle ones, to balance the
 midgame). Spec and every decision: `docs/specs/entropic-farm-matrix.md`. Done: stage 1 (multi-group machine, FE, face
-modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `EntropicLayout`, `EntropicFarmMatrixScreen`,
-shared `AbstractFarmMatrixMenu`), stage 3 (replant); next: 4 autocrafter + JEI "+", 5 tests/benchmark/docs. Not yet seen in
-game by the owner. Voltaic, Ionic and Resonant come after (they will reuse `MachineLayout`).
+modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `EntropicLayout`,
+`EntropicFarmMatrixScreen`, shared `AbstractFarmMatrixMenu`), stage 3 (replant), stage 4 (autocrafter
+`machine/MachineCrafter`, its panel, JEI "+"); next: stage 5 (benchmark, docs, report). Not yet seen in game by the
+owner. Voltaic, Ionic and Resonant come after (they will reuse `MachineLayout`).
+Tests: 40 game tests (39 VFW + 1 vanilla), 77 JUnit, load benchmark.
 
-Open on the owner's side: multiplayer re-test (a custom packet was added since the last one; the owner planned to do
-it at the end), git tag "starter complete" (Claude may create it locally when asked; the owner pushes). Deferred by
-the owner: EMI (no 26.1.2 release), publishing metadata (README still says "scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists
-"Inferium Essence" twice) — test in survival or with JEI.
+Open on the owner's side: multiplayer re-test (custom packets were added since the last one; the owner planned to do
+it at the end). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
+"scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or
+with JEI.
 
 ## Core design (owner's spec, source of truth)
 
@@ -111,8 +111,8 @@ the owner: EMI (no 26.1.2 release), publishing metadata (README still says "scaf
 - **Server authoritative**: the client only sends intents (slot clicks, button ids, the JEI ghost packet); the server
   validates and applies them to the real block entity. Harvests are transactional: no dupes, no voids. Removing
   seeds or soils returns exactly those items and updates active/pending atomically.
-- Planned for later tiers (owner's original spec): FE energy (no energy = `MISSING FE`, no progress) and
-  autocrafting (persist its leftovers and rules); the owner said future tiers MAY also accept automated inputs.
+- From the owner's original spec for later tiers, now on the Entropic: FE energy (no energy = `MISSING FE`, no
+  progress), autocrafting (its leftovers and recipes persist) and automated input.
 - Content: Starter, Voltaic, Ionic, Resonant, Entropic **Farm Matrix**; Water Provider Upgrade and Growth Speed
   Upgrade in those 5 tiers (an upgrade fits machines of its tier or lower: `MachineTier#accepts`); one Crux Provider
   Upgrade. Progression: from a Botany-Pot-like Starter to thousands of plots (Entropic ≈ 6,000 as a design target).
@@ -176,6 +176,21 @@ Breaking drops contents in `preRemoveSideEffects`.
 - Extreme case (owner-approved): a batch bigger than EMPTY buffers stores what fits and keeps the rest in
   `heldDrops` (saved, stored first). Never call `tryStore`/`storeWhatFits` inside another transaction (they refuse):
   a rolled-back outer transaction would void a batch whose plots were already counted.
+- Entropic batch order (owner): replant -> autocrafter (CRAFT ON) -> harvest filter -> output. With either of the
+  first two the roll is unfiltered and the filter runs after them (`HarvestKey#unfiltered`); the filter and its purge
+  never remove crafted items (`FarmMatrixBlockEntity#isCrafted` = result of a crafter recipe). Replant and crafting
+  are planned per store attempt and applied only after the commit (`MachineCrafter#plan` / `#commit`).
+
+### Autocrafter (`machine/MachineCrafter`, Entropic)
+- Recipes = 3x3 grids + the recipe id they made (a hint). Crafting-table recipes only; special ones (`isSpecial`,
+  NOT_PLACEABLE) refused. A cell accepts any item the recipe accepts there (tested once per item by substituting it
+  into the grid and calling `matches`, cached): sticks set with oak planks take birch planks.
+- Per batch: ingredients join a hidden buffer, recipes craft in chain order (Tarjan SCCs over "B uses A's result");
+  a result stays in the buffer only for a recipe of ANOTHER SCC, so circles (ingots <-> block) end in the output.
+  Leftovers wait up to `crafterBufferLimit` per item (the rest goes out). Remainders go out. No FE, no time.
+- CRAFT OFF (and recipe edits) release the buffer into `heldDrops` (filtered like the harvest). Recipes, switch and
+  buffer are saved; the buffer is deleted when the machine breaks. Re-resolved after edits and datapack reloads
+  (`SoilRules#cacheGeneration`).
 
 ### Output
 - Visible `OutputBuffer` (9 slots): players take and put items by hand (menu `OutputSlot`); automation only extracts
@@ -201,7 +216,13 @@ Breaking drops contents in `preRemoveSideEffects`.
 - `FarmMatrixScreen`: side column (O / upgrades / Fertilized Essence / filter / power, 3 px apart), face box and
   filter box (both can be open), `SmoothProgress` animates the 5-tick syncs (bar and Growth % share one value per
   frame; a harvest-counter change runs the bar through 100%).
-- JEI ghost drop -> `network/SetFilterGhostPayload` (the only custom packet) -> `FarmMatrixMenu#setFilterGhost`.
+- JEI ghost drop -> `network/SetFilterGhostPayload` -> `AbstractFarmMatrixMenu#setFilterGhost`.
+- Entropic (`EntropicFarmMatrixMenu`, `EntropicLayout`, `EntropicFarmMatrixScreen`; shared logic in
+  `AbstractFarmMatrixMenu`): slots `[0,127)` inputs, `[127,151)` output, `[151,187)` player, `[187,196)` filter,
+  `[196,205)` crafter grid (ghosts), 205 its result, `[206,270)` recipe results (inactive display slots: data only).
+  Buttons 17+ are the crafter's (SET, toggle, deselect, select i, delete i). The crafter panel is a client-side
+  modal (`setCrafterVisible`): while open, the 120 grid slots are inactive and dimmed. JEI "+" (crafting recipes) ->
+  `network/SetCrafterGridPayload` -> `EntropicFarmMatrixMenu#setCraftGrid`; the grid is per viewer, not saved.
 
 ### Plants and soils (`plant/`)
 - Seed slot (`PlantRules#isPlantable`): the item places a NATIVE plant (`isSupportedPlantBlock`: CropBlock, StemBlock,
@@ -260,8 +281,9 @@ Breaking drops contents in `preRemoveSideEffects`.
   `mysticalagradditions:insanium_farmland`. Soil bonuses in the `soil_properties` data map (+15% .. +40%).
 
 ### JEI, Jade, EMI
-- JEI (compile-only API, maven.blamejared.com): `client/compat/VfwJeiPlugin` — exclusion areas
-  (`FarmMatrixScreen#extraAreas`) and the filter ghost-ingredient handler.
+- JEI (compile-only API, maven.blamejared.com): `client/compat/VfwJeiPlugin` — exclusion areas and ghost targets
+  (screens describe them through `client/FarmMatrixJeiTargets`: filter slots, the crafter's 9 cells) and the Entropic
+  crafter's recipe transfer ("+" on `RecipeTypes.CRAFTING`; sends the 9 displayed stacks, opens the panel).
 - Jade (compile-only, Modrinth maven): `compat/jade/` — `@WailaPlugin`, server data provider and client tooltip in
   separate classes (a dedicated server must never load the client one); same lines as the GUI (`menu/DisplayFormats`).
 - EMI: no 26.1.2 release yet; add an exclusion-area plugin when it exists.
@@ -317,7 +339,11 @@ Breaking drops contents in `preRemoveSideEffects`.
   origin), `extractTooltip`, `text(...)`, `fakeItem`, `fill`, `blit(RenderPipelines...)`. Colors are ARGB: always
   include the alpha byte.
 - An element overlapping an earlier item goes to a higher layer: draw an item, then a translucent `fill` to fade it.
-- Input: `mouseClicked(MouseButtonEvent event, boolean doubleClick)`.
+  Layers follow drawing order by overlap (`GuiRenderState`), so a panel drawn in `extractBackground` is covered by
+  the ACTIVE slots drawn after it: make the slots under a modal inactive (they are then not drawn at all).
+- Input: `mouseClicked(MouseButtonEvent event, boolean doubleClick)`; `doubleClick` only means "same screen and
+  button within 250 ms": check yourself that both clicks hit the same thing.
+- `SimpleContainer` has no listeners in 26.1: override `setChanged()` to react to changes.
 - Anything drawn outside the texture must be excluded in `hasClickedOutside`, or clicks there drop the carried item.
 - `ContainerData` values travel as 16-bit shorts: scale and clamp.
 - To check pixel geometry without the game, paint the same fills with a script and READ THE PIXELS; image viewers
@@ -353,8 +379,9 @@ Breaking drops contents in `preRemoveSideEffects`.
   slot indices, visible output size, features; groups = 1 reproduces the Starter's persisted slot order),
   `MachineInventory`, `OutputBuffer` (visible output), `InternalBuffer` (hidden output), `MachineEnergy` (FE buffer),
   `FaceMode` (NONE/OUTPUT/OUTPUT CRAFTED/OUTPUT ALL/INPUT, ordinal persisted), `GridInput` (pipe input routing),
-  `MachineFilter` (harvest filter), `MachineSlots` (Starter indices — persisted, never reorder), `MachineTier` (order =
-  progression, `accepts()`), `RelativeSide` (faces relative to the front; order persisted).
+  `MachineCrafter` (autocrafter), `MachineFilter` (harvest filter), `MachineSlots` (Starter indices — persisted, never
+  reorder), `MachineTier` (order = progression, `accepts()`), `RelativeSide` (faces relative to the front; order
+  persisted).
 - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
 - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`; items carry no behavior.
 - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
@@ -367,14 +394,17 @@ Breaking drops contents in `preRemoveSideEffects`.
   `HarvestMath`, `DropTally`, `HarvestBatching`, `YieldSample`.
 - `harvest/` — `DropSource`, `LootDropSource`, `TreeDropSource` + `TreeGrowth`, `FixedDropSource`, `HarvestPlans`,
   `Harvester`, `HarvestFilter`.
-- `menu/` — `FarmMatrixMenu` (both sides), `FarmMatrixLayout`, `FilterPageView`, `DisplayFormats`.
-- `network/` — `SetFilterGhostPayload`.
+- `menu/` — `AbstractFarmMatrixMenu` (shared: sync, ghost/display slots, common buttons), `FarmMatrixMenu` +
+  `FarmMatrixLayout` (Starter), `EntropicFarmMatrixMenu` + `EntropicLayout` (Entropic), `FilterPageView`,
+  `DisplayFormats`.
+- `network/` — `SetFilterGhostPayload`, `SetCrafterGridPayload`.
 - `client/` — CLIENT ONLY: `VirtualFarmWorksClient` (second `@Mod`, dist CLIENT), `FarmMatrixScreen`,
-  `SmoothProgress`, `compat/VfwJeiPlugin`. Never reference `client/` from common code (a dedicated server crashes).
+  `EntropicFarmMatrixScreen`, `FarmMatrixJeiTargets`, `SmoothProgress`, `compat/VfwJeiPlugin`. Never reference
+  `client/` from common code (a dedicated server crashes).
 - `compat/jade/`, `compat/mysticalagriculture/` — see Integrations.
 - `gametest/` (dev only) — `VfwGameTests` (registration: add a `test(...)` line with a max tick count),
-  `MachineGameTests`, `FilterGameTests`, `PlantablesGameTests`, `EntropicGameTests`, `MysticalHarvestTests`,
-  `MysticalFarmlandTests`, `LoadBenchmark`.
+  `MachineGameTests`, `FilterGameTests`, `PlantablesGameTests`, `EntropicGameTests`, `CrafterGameTests`,
+  `MysticalHarvestTests`, `MysticalFarmlandTests`, `LoadBenchmark`.
   `FarmMatrixBlockEntity#setProgressForTesting` exists only for tests.
 - `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`).
 - `src/main/resources/data/virtualfarmworks/` — tags, data maps, recipes, loot tables (see `docs/resources.md`).

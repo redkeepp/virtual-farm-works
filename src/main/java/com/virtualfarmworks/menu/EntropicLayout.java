@@ -119,6 +119,27 @@ public final class EntropicLayout {
     public static final int CRAFTER_LIST_Y = CRAFTER_Y + 7;
     public static final int CRAFTER_LIST_WIDTH = 105;
     public static final int CRAFTER_LIST_HEIGHT = 87;
+    /** List rows: 16 px icon + 1 px, five visible (85 of the 87 px, 1 px margin above and below); more scroll. */
+    public static final int CRAFTER_ROW_HEIGHT = 17;
+    public static final int CRAFTER_ROWS = 5;
+    public static final int CRAFTER_ROWS_Y = CRAFTER_LIST_Y + 1;
+    /** Scrollbar at the list's right edge, shown when there are more recipes than rows. */
+    public static final int CRAFTER_SCROLLBAR_WIDTH = 3;
+    /** While the panel is open the two grids behind it are dimmed and inactive: (13,19)-(282,165), frames included. */
+    public static final int GRIDS_X0 = GRID_X - 1;
+    public static final int GRIDS_Y0 = SEED_GRID_Y - 1;
+    public static final int GRIDS_X1 = GRID_X + MachineLayout.GRID_COLUMNS * SLOT_PITCH - 1;
+    public static final int GRIDS_Y1 = SOIL_GRID_Y + MachineLayout.GRID_ROWS * SLOT_PITCH - 1;
+    // Panel colors: the texture's frame (0x34586B) and background (0x0F1A26), and shades of them.
+    public static final int COLOR_CRAFTER_BACKDROP = 0xB0000000;
+    public static final int COLOR_CRAFTER_HOVER_TOP = 0xFF4E829C;
+    public static final int COLOR_CRAFTER_HOVER_BOTTOM = 0xFF1B3242;
+    public static final int COLOR_CRAFTER_SELECTED = 0xFF34586B;
+    public static final int COLOR_CRAFTER_ROW_HOVER = 0x30FFFFFF;
+    public static final int COLOR_CRAFTER_TEXT = 0xFFE0E6EA;
+    public static final int COLOR_CRAFTER_TEXT_DISABLED = 0xFF6F7F8A;
+    public static final int COLOR_CRAFTER_ON = 0xFF55E36B;
+    public static final int COLOR_CRAFTER_OFF = 0xFFFF5C5C;
 
     private EntropicLayout() {
     }

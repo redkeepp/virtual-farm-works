@@ -106,7 +106,11 @@ public final class VfwGameTests {
             test("entropic_faces_and_pipe_input", EntropicGameTests::facesAndPipeInput, 20),
             test("entropic_groups_harvest_together", EntropicGameTests::groupsHarvestTogether, 40),
             test("entropic_menu_works", EntropicGameTests::menuWorks, 20),
-            test("entropic_replants_extra_seeds", EntropicGameTests::replantsExtraSeeds, 20));
+            test("entropic_replants_extra_seeds", EntropicGameTests::replantsExtraSeeds, 20),
+            // Entropic autocrafter (owner spec 2026-09-29)
+            test("crafter_plans", CrafterGameTests::crafterPlans, 20),
+            test("crafter_crafts_the_harvest", CrafterGameTests::crafterCraftsTheHarvest, 20),
+            test("crafter_menu_works", CrafterGameTests::crafterMenuWorks, 20));
 
     /**
      * Load benchmark: registered as a test ONLY in the {@code benchmark} run ({@code gradlew runBenchmark}, which sets

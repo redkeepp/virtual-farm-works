@@ -105,6 +105,35 @@ button and the ON/OFF button (owner, 2026-09-29):
 - "Crafted" items for OUTPUT / OUTPUT CRAFTED (Claude): an output item counts as crafted when it is the result of one
   of the machine's crafter recipes.
 
+### Autocrafter details (Claude, 2026-09-29, while building stage 4; not yet seen by the owner)
+
+- CRAFT is ON by default: a recipe set with SET CRAFT works at once (the switch sits right under SET CRAFT).
+- The grid decides WHICH recipe; each cell then accepts any item that recipe accepts there, like a real crafting table
+  (sticks set with oak planks also take birch planks). So the item JEI happens to show in a cycling slot does not
+  matter.
+- Chains are automatic: the machine orders the recipes so that a recipe comes after the ones whose results it uses,
+  whatever the list order. A result stays inside only for a recipe further down the chain; recipes that feed each
+  other in a circle (ingots -> block -> ingots) never chain into each other, their results go to the output, so
+  nothing can go round forever.
+- The waiting limit (`crafterBufferLimit`, 1,024 per item) applies to what is left waiting after crafting; 0 = nothing
+  waits. Anything beyond it goes to the output.
+- Special recipes are refused (map and book cloning, fireworks, dyed armor...): their result depends on the exact
+  items put in, which a stored recipe cannot follow. JEI's "+" shows an error on them.
+- Recipe remainders (empty buckets, glass bottles) go to the output and count as produced, not crafted, for the face
+  modes.
+- The crafting grid belongs to each player viewing the machine and is not saved ("purely visual", owner). SET CRAFT
+  saves the grid as a recipe (replacing the selected one), then clears the grid and the selection. A click on empty
+  list space clears the selection. A double click deletes only when both clicks hit the same recipe.
+- The panel is a modal: while it is open, the two grids behind it are dimmed and cannot be clicked. JEI's "+" opens it
+  when it is closed; items can also be dragged from JEI onto the grid's cells.
+- A recipe that disappears after a datapack reload stays in the list as "Recipe no longer exists" (crafts nothing; a
+  double click deletes it). A config limit lowered below the recipes a machine holds keeps them working; SET CRAFT can
+  then only replace.
+- Items leaving the crafter (CRAFT OFF, a recipe edited or deleted) go to the output before anything else; harvested
+  items the harvest filter rejects are deleted, as they would have been without the crafter (crafted items never
+  are).
+- The list shows five recipes at a time; the mouse wheel (or a click on the scrollbar) scrolls it.
+
 ## Implementation status
 
 - Stage 1 (done): multi-group machine (`machine/MachineLayout`), energy (`machine/MachineEnergy`), face modes
@@ -114,4 +143,8 @@ button and the ON/OFF button (owner, 2026-09-29):
   show no 40% placeholders (a grid of faded seeds would hide what is planted; the other slots have them).
 - Stage 3 (done): replant (`FarmMatrixBlockEntity#planReplant`), before the harvest filter; replanted seeds are
   added while the harvest is still due, so they grow from the next cycle.
-- Stage 4: autocrafter and JEI "+". Stage 5: tests, benchmark, docs.
+- Stage 4 (done): autocrafter (`machine/MachineCrafter`, harvest order replant -> crafter -> filter -> output in
+  `FarmMatrixBlockEntity#harvestNextBatch`), its panel in the GUI (modal over the grids, `EntropicFarmMatrixMenu` crafter
+  slots and buttons), JEI "+" and drag-and-drop (`client/compat/VfwJeiPlugin`, `network/SetCrafterGridPayload`), game
+  tests `CrafterGameTests`.
+- Stage 5: benchmark, docs.

@@ -45,7 +45,8 @@ import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
  * <h2>Ghost slots</h2>
  * {@link GhostSlot}s show item TYPES (harvest filter, autocrafter grid). Every click on them goes through
  * {@link #clicked}: with an item on the cursor the slot records its type and the cursor stack is untouched; with an
- * empty cursor, or shift-click, it is cleared. Real items never move in or out.
+ * empty cursor, or shift-click, it is cleared. Real items never move in or out. {@link DisplaySlot}s only show an item
+ * the server computed (the autocrafter's result and recipe list): every click on them is ignored.
  */
 public abstract class AbstractFarmMatrixMenu extends AbstractContainerMenu {
     /** Button ids sent by the client (vanilla ServerboundContainerButtonClickPacket). */
@@ -292,6 +293,9 @@ public abstract class AbstractFarmMatrixMenu extends AbstractContainerMenu {
      */
     @Override
     public void clicked(int slotIndex, int buttonNum, ContainerInput input, Player player) {
+        if (slotIndex >= 0 && slotIndex < slots.size() && slots.get(slotIndex) instanceof DisplaySlot) {
+            return; // shows a computed item: nothing to take, place or clone
+        }
         if (slotIndex < 0 || slotIndex >= slots.size() || !(slots.get(slotIndex) instanceof GhostSlot slot)) {
             super.clicked(slotIndex, buttonNum, input, player);
             return;
@@ -317,16 +321,17 @@ public abstract class AbstractFarmMatrixMenu extends AbstractContainerMenu {
         return true;
     }
 
-    /** A drag over several slots never includes ghost slots. */
+    /** A drag over several slots never includes ghost or display slots. */
     @Override
     public boolean canDragTo(Slot slot) {
-        return !(slot instanceof GhostSlot) && super.canDragTo(slot);
+        return !(slot instanceof GhostSlot) && !(slot instanceof DisplaySlot) && super.canDragTo(slot);
     }
 
-    /** Double-click collecting never takes ghosts. */
+    /** Double-click collecting never takes ghosts or displayed items. */
     @Override
     public boolean canTakeItemForPickAll(ItemStack carried, Slot target) {
-        return !(target instanceof GhostSlot) && super.canTakeItemForPickAll(carried, target);
+        return !(target instanceof GhostSlot) && !(target instanceof DisplaySlot)
+                && super.canTakeItemForPickAll(carried, target);
     }
 
     // --- player intents ---------------------------------------------------------------------------------------------
@@ -392,6 +397,23 @@ public abstract class AbstractFarmMatrixMenu extends AbstractContainerMenu {
         @Override
         public int getMaxStackSize() {
             return 1;
+        }
+    }
+
+    /** A slot showing an item the server computed; never takes, gives or changes anything (see {@link #clicked}). */
+    public abstract static class DisplaySlot extends Slot {
+        protected DisplaySlot(Container container, int index, int x, int y) {
+            super(container, index, x, y);
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return false;
+        }
+
+        @Override
+        public boolean mayPickup(Player player) {
+            return false;
         }
     }
 

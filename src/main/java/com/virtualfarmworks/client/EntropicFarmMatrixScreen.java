@@ -1,8 +1,8 @@
 /*
  * EntropicFarmMatrixScreen — the Entropic Farm Matrix GUI (client only): the owner's texture with its two 4x15 grids,
  * the dynamic texts (title, status, hydration, active and waiting plots, growth), the green progress bar, the striped
- * FE bar, the red tint of plot groups with a problem, and the side column drawn by code (face modes, upgrades and hoe,
- * Fertilized Essence, harvest filter, autocrafter, power).
+ * FE bar, the red tint of plot groups with a problem, the side column drawn by code (face modes, upgrades and hoe,
+ * Fertilized Essence, harvest filter, autocrafter, power) and the autocrafter panel opened over the grids.
  */
 package com.virtualfarmworks.client;
 
@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.machine.FaceMode;
+import com.virtualfarmworks.machine.MachineCrafter;
 import com.virtualfarmworks.machine.MachineFilter;
 import com.virtualfarmworks.machine.MachineLayout;
 import com.virtualfarmworks.machine.MachineTier;
@@ -22,6 +23,7 @@ import com.virtualfarmworks.menu.DisplayFormats;
 import com.virtualfarmworks.menu.EntropicFarmMatrixMenu;
 import com.virtualfarmworks.menu.EntropicLayout;
 import com.virtualfarmworks.menu.FarmMatrixLayout;
+import com.virtualfarmworks.network.SetCrafterGridPayload;
 import com.virtualfarmworks.network.SetFilterGhostPayload;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.MachineStatus;
@@ -32,9 +34,12 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
@@ -49,6 +54,14 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
  * <p>Same drawing techniques as the Starter's screen ({@code FarmMatrixScreen}): side-panel boxes as nested fills so
  * every line is one pixel, 40% ghost items covered by a translucent fill, texts shrunk to fit. Positions:
  * {@link EntropicLayout}.
+ *
+ * <h2>Autocrafter panel (owner: a modal over the machine GUI)</h2>
+ * Opened and closed by the crafting-table button of the side column (or by JEI's "+"). It is drawn at the end of the
+ * background layer, after dimming the two grids, whose slots are inactive meanwhile: the GUI layers elements by
+ * overlap in drawing order, so the recipe grid and result (menu slots, drawn later) come on top of the panel and the
+ * grid items under it are simply not drawn. Buttons show a gradient under the mouse (owner spec). The recipe list:
+ * one click loads a recipe into the grid, a double click on the same recipe deletes it, a click on empty list space
+ * clears the selection; the mouse wheel scrolls it.
  */
 public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFarmMatrixMenu>
         implements FarmMatrixJeiTargets {
@@ -72,6 +85,10 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     /** Drawn FE fraction (0..1), eased toward the synced one; negative until the first synced value. */
     private double shownEnergy = -1.0;
     private long lastFrameMillis;
+    /** First recipe row shown in the autocrafter's list. */
+    private int recipeScroll;
+    /** Recipe clicked last: a double click deletes only when both clicks hit the same recipe. */
+    private int lastClickedRecipe = -1;
 
     public EntropicFarmMatrixScreen(EntropicFarmMatrixMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title, EntropicLayout.GUI_WIDTH, EntropicLayout.GUI_HEIGHT);
@@ -114,6 +131,9 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         }
         extractGhosts(graphics, x0, y0);
         extractGroupProblems(graphics, x0, y0);
+        if (menu.isCrafterVisible()) {
+            extractCrafter(graphics, x0, y0, mouseX, mouseY); // last: over everything drawn so far (see class doc)
+        }
     }
 
     private void extractProgressBar(GuiGraphicsExtractor graphics, int x0, int y0) {
@@ -181,7 +201,7 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
                 FarmMatrixLayout.COLOR_WHITE);
 
         int crafterTop = y0 + EntropicLayout.CRAFTER_BUTTON_TOP;
-        boolean crafterActive = isOverBox(EntropicLayout.CRAFTER_BUTTON_TOP, mouseX, mouseY);
+        boolean crafterActive = menu.isCrafterVisible() || isOverBox(EntropicLayout.CRAFTER_BUTTON_TOP, mouseX, mouseY);
         extractPanelBox(graphics, x0, crafterTop, 1,
                 crafterActive ? FarmMatrixLayout.COLOR_BUTTON_ACTIVE : FarmMatrixLayout.COLOR_BACKGROUND);
         graphics.fakeItem(crafterIcon, cellX, FarmMatrixLayout.cellY(crafterTop, 0));
@@ -286,12 +306,135 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     private void extractFittedCentered(GuiGraphicsExtractor graphics, Component text, int x, int y, int width, int height,
                                        int color) {
         int textWidth = font.width(text);
-        float scale = textWidth > width ? (float) width / textWidth : 1.0F;
+        extractScaledCentered(graphics, text, x, y, width, height, textWidth > width ? (float) width / textWidth : 1.0F,
+                color);
+    }
+
+    /** Text centered in a box (absolute screen coordinates) at a given scale. */
+    private void extractScaledCentered(GuiGraphicsExtractor graphics, Component text, int x, int y, int width, int height,
+                                       float scale, int color) {
+        int textWidth = font.width(text);
         graphics.pose().pushMatrix();
         graphics.pose().translate(x + (width - textWidth * scale) / 2.0F, y + (height - 8 * scale) / 2.0F);
         graphics.pose().scale(scale, scale);
         graphics.text(font, text, 0, 0, color, false);
         graphics.pose().popMatrix();
+    }
+
+    // =================================================================================================================
+    // Autocrafter panel
+    // =================================================================================================================
+
+    /**
+     * The panel over the dimmed grids (see the class doc): owner texture, SET CRAFT and CRAFT: ON/OFF, recipe list.
+     * The recipe grid and its result are menu slots, drawn by vanilla on top.
+     */
+    private void extractCrafter(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
+        graphics.fill(x0 + EntropicLayout.GRIDS_X0, y0 + EntropicLayout.GRIDS_Y0, x0 + EntropicLayout.GRIDS_X1,
+                y0 + EntropicLayout.GRIDS_Y1, EntropicLayout.COLOR_CRAFTER_BACKDROP);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, crafterTexture, x0 + EntropicLayout.CRAFTER_X,
+                y0 + EntropicLayout.CRAFTER_Y, 0.0F, 0.0F, EntropicLayout.CRAFTER_WIDTH, EntropicLayout.CRAFTER_HEIGHT,
+                EntropicLayout.CRAFTER_TEXTURE_WIDTH, EntropicLayout.CRAFTER_TEXTURE_HEIGHT);
+
+        Component set = Component.translatable("gui.virtualfarmworks.crafter.set");
+        boolean on = menu.isCrafterEnabled();
+        Component toggle = Component.translatable("gui.virtualfarmworks.crafter.toggle", onOff(on));
+        // One text scale for both buttons, from the widest label they can show, so they always look alike.
+        int widest = Math.max(font.width(set), Math.max(font.width(Component.translatable(
+                "gui.virtualfarmworks.crafter.toggle", onOff(true))), font.width(Component.translatable(
+                "gui.virtualfarmworks.crafter.toggle", onOff(false)))));
+        float scale = Math.min(1.0F, (EntropicLayout.CRAFTER_BUTTON_WIDTH - 2.0F) / widest);
+        extractCrafterButton(graphics, x0, y0 + EntropicLayout.CRAFTER_SET_Y, set, canSetCraft()
+                ? EntropicLayout.COLOR_CRAFTER_TEXT : EntropicLayout.COLOR_CRAFTER_TEXT_DISABLED, scale, mouseX, mouseY);
+        extractCrafterButton(graphics, x0, y0 + EntropicLayout.CRAFTER_TOGGLE_Y, toggle, on
+                ? EntropicLayout.COLOR_CRAFTER_ON : EntropicLayout.COLOR_CRAFTER_OFF, scale, mouseX, mouseY);
+        extractRecipeList(graphics, x0, y0, mouseX, mouseY);
+    }
+
+    /** A panel button: its label, and a vertical gradient under the mouse (owner spec). */
+    private void extractCrafterButton(GuiGraphicsExtractor graphics, int x0, int y, Component label, int color,
+                                      float scale, int mouseX, int mouseY) {
+        int x = x0 + EntropicLayout.CRAFTER_BUTTON_X;
+        int width = EntropicLayout.CRAFTER_BUTTON_WIDTH;
+        int height = EntropicLayout.CRAFTER_BUTTON_HEIGHT;
+        if (isInside(mouseX, mouseY, x, y, width, height)) {
+            graphics.fillGradient(x, y, x + width, y + height, EntropicLayout.COLOR_CRAFTER_HOVER_TOP,
+                    EntropicLayout.COLOR_CRAFTER_HOVER_BOTTOM);
+        }
+        extractScaledCentered(graphics, label, x, y, width, height, scale, color);
+    }
+
+    /**
+     * The recipe list: per row the result's icon (with its count) and name; the selected recipe highlighted; a
+     * scrollbar when there are more recipes than rows.
+     */
+    private void extractRecipeList(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
+        int count = menu.crafterRecipeCount();
+        recipeScroll = Math.clamp(recipeScroll, 0, Math.max(0, count - EntropicLayout.CRAFTER_ROWS));
+        int listX = x0 + EntropicLayout.CRAFTER_LIST_X;
+        int listY = y0 + EntropicLayout.CRAFTER_LIST_Y;
+        if (count == 0) {
+            extractFittedCentered(graphics, Component.translatable("gui.virtualfarmworks.crafter.empty"), listX, listY,
+                    EntropicLayout.CRAFTER_LIST_WIDTH, EntropicLayout.CRAFTER_LIST_HEIGHT,
+                    EntropicLayout.COLOR_CRAFTER_TEXT_DISABLED);
+            return;
+        }
+        int rowWidth = recipeRowWidth(count);
+        int selected = menu.selectedRecipe();
+        int hovered = recipeAt(mouseX, mouseY);
+        for (int row = 0; row < EntropicLayout.CRAFTER_ROWS && recipeScroll + row < count; row++) {
+            int entry = recipeScroll + row;
+            int rowY = y0 + EntropicLayout.CRAFTER_ROWS_Y + row * EntropicLayout.CRAFTER_ROW_HEIGHT;
+            if (entry == selected || entry == hovered) {
+                graphics.fill(listX, rowY, listX + rowWidth, rowY + EntropicLayout.CRAFTER_ROW_HEIGHT,
+                        entry == selected ? EntropicLayout.COLOR_CRAFTER_SELECTED : EntropicLayout.COLOR_CRAFTER_ROW_HOVER);
+            }
+            ItemStack result = menu.crafterResult(entry);
+            Component name;
+            int color;
+            if (result.isEmpty()) {
+                name = Component.translatable("gui.virtualfarmworks.crafter.entry.invalid");
+                color = EntropicLayout.COLOR_CRAFTER_OFF;
+            } else {
+                graphics.fakeItem(result, listX + 1, rowY);
+                graphics.itemDecorations(font, result, listX + 1, rowY);
+                name = result.getHoverName();
+                color = EntropicLayout.COLOR_CRAFTER_TEXT;
+            }
+            graphics.text(font, ellipsize(name, rowWidth - 21), listX + 19, rowY + 4, color, false);
+        }
+        if (count > EntropicLayout.CRAFTER_ROWS) {
+            int trackX = listX + EntropicLayout.CRAFTER_LIST_WIDTH - EntropicLayout.CRAFTER_SCROLLBAR_WIDTH;
+            int trackHeight = EntropicLayout.CRAFTER_LIST_HEIGHT;
+            int thumbHeight = Math.max(8, trackHeight * EntropicLayout.CRAFTER_ROWS / count);
+            int maxScroll = count - EntropicLayout.CRAFTER_ROWS;
+            int thumbY = listY + (trackHeight - thumbHeight) * recipeScroll / maxScroll;
+            graphics.fill(trackX, listY, trackX + EntropicLayout.CRAFTER_SCROLLBAR_WIDTH, listY + trackHeight,
+                    EntropicLayout.COLOR_CRAFTER_ROW_HOVER);
+            graphics.fill(trackX, thumbY, trackX + EntropicLayout.CRAFTER_SCROLLBAR_WIDTH, thumbY + thumbHeight,
+                    EntropicLayout.COLOR_CRAFTER_SELECTED);
+        }
+    }
+
+    /** A text cut to {@code width} pixels, ending in "..." when it was longer. */
+    private FormattedCharSequence ellipsize(Component text, int width) {
+        if (font.width(text) <= width) {
+            return text.getVisualOrderText();
+        }
+        FormattedText cut = font.substrByWidth(text, Math.max(0, width - font.width("...")));
+        return Language.getInstance().getVisualOrder(FormattedText.composite(cut, FormattedText.of("...")));
+    }
+
+    /** Width of a list row: the whole list, minus the scrollbar when there is one. */
+    private static int recipeRowWidth(int count) {
+        return EntropicLayout.CRAFTER_LIST_WIDTH
+                - (count > EntropicLayout.CRAFTER_ROWS ? EntropicLayout.CRAFTER_SCROLLBAR_WIDTH + 1 : 0);
+    }
+
+    /** SET CRAFT would do something: the grid makes a recipe, and a recipe is selected or the list has room. */
+    private boolean canSetCraft() {
+        return !menu.craftPreview().isEmpty()
+                && (menu.selectedRecipe() >= 0 || menu.crafterRecipeCount() < menu.crafterRecipeLimit());
     }
 
     /** Text centered in a side-panel cell, shrunk if wider than the cell. */
@@ -420,6 +563,28 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         ClientPacketDistributor.sendToServer(new SetFilterGhostPayload(menu.containerId, slot, stack.copyWithCount(1)));
     }
 
+    /** Screen areas of the autocrafter's recipe cells while its panel is open (JEI drag-and-drop). */
+    @Override
+    public List<Rect2i> crafterCellAreas() {
+        if (!menu.isCrafterVisible()) {
+            return List.of();
+        }
+        List<Rect2i> areas = new ArrayList<>(MachineCrafter.GRID_SIZE);
+        for (int i = 0; i < MachineCrafter.GRID_SIZE; i++) {
+            areas.add(new Rect2i(leftPos + EntropicLayout.crafterGridX(i), topPos + EntropicLayout.crafterGridY(i),
+                    FarmMatrixLayout.CELL, FarmMatrixLayout.CELL));
+        }
+        return areas;
+    }
+
+    /** Client: an item was dropped from JEI on recipe cell {@code cell}; the server receives the whole new grid. */
+    @Override
+    public void setCrafterCellFromJei(int cell, ItemStack stack) {
+        List<ItemStack> grid = menu.gridStacks();
+        grid.set(cell, stack.copyWithCount(1));
+        ClientPacketDistributor.sendToServer(new SetCrafterGridPayload(menu.containerId, grid));
+    }
+
     // =================================================================================================================
     // Tooltips
     // =================================================================================================================
@@ -436,10 +601,18 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         }
     }
 
-    /** A seed in a plot group with a problem: the item tooltip ends with that problem. */
+    /**
+     * A seed in a plot group with a problem: the item tooltip ends with that problem. An item in the recipe grid: how
+     * to change it.
+     */
     @Override
     protected List<Component> getTooltipFromContainerItem(ItemStack itemStack) {
         List<Component> lines = super.getTooltipFromContainerItem(itemStack);
+        if (hoveredSlot != null && isCraftGridSlot(hoveredSlot.index)) {
+            lines = new ArrayList<>(lines);
+            lines.add(Component.translatable("gui.virtualfarmworks.crafter.grid").withColor(0xFFAAAAAA));
+            return lines;
+        }
         if (hoveredSlot != null && LAYOUT.isSeedSlot(hoveredSlot.index)) {
             MachineStatus groupStatus = menu.groupStatus(hoveredSlot.index);
             if (hasProblem(groupStatus)) {
@@ -454,7 +627,9 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
 
     private List<Component> tooltipAt(int mouseX, int mouseY) {
         List<Component> lines = new ArrayList<>();
-        if (isOverBox(EntropicLayout.OUTPUT_BOX_TOP, mouseX, mouseY)) {
+        if (menu.isCrafterVisible() && isInCrafter(mouseX, mouseY)) {
+            crafterTooltip(mouseX, mouseY, lines);
+        } else if (isOverBox(EntropicLayout.OUTPUT_BOX_TOP, mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.output_sides"));
         } else if (isOverBox(EntropicLayout.POWER_BOX_TOP, mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.power", onOff(menu.isEnabled())));
@@ -467,6 +642,8 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
                     ? "gui.virtualfarmworks.filter.whitelisted" : "gui.virtualfarmworks.filter.blacklisted")));
         } else if (isOverBox(EntropicLayout.CRAFTER_BUTTON_TOP, mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.crafter"));
+            lines.add(Component.translatable("gui.virtualfarmworks.crafter.button_hint", menu.crafterRecipeCount(),
+                    menu.crafterRecipeLimit(), onOff(menu.isCrafterEnabled())));
         } else if (faceBoxOpen && faceAt(mouseX, mouseY) != null) {
             RelativeSide side = faceAt(mouseX, mouseY);
             lines.add(Component.translatable("gui.virtualfarmworks.face_mode", Component.translatable(side.translationKey()),
@@ -493,6 +670,39 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
             lines.addAll(slotDescription(hoveredSlot.index));
         }
         return lines;
+    }
+
+    /** Tooltips inside the autocrafter panel: buttons, recipe list, empty recipe cells. */
+    private void crafterTooltip(int mouseX, int mouseY, List<Component> lines) {
+        if (isOverCrafterButton(EntropicLayout.CRAFTER_SET_Y, mouseX, mouseY)) {
+            String key = menu.craftPreview().isEmpty() ? "gui.virtualfarmworks.crafter.set.invalid"
+                    : menu.selectedRecipe() >= 0 ? "gui.virtualfarmworks.crafter.set.replace"
+                    : menu.crafterRecipeCount() >= menu.crafterRecipeLimit() ? "gui.virtualfarmworks.crafter.set.full"
+                    : "gui.virtualfarmworks.crafter.set.add";
+            lines.add(Component.translatable(key, menu.crafterRecipeCount(), menu.crafterRecipeLimit()));
+        } else if (isOverCrafterButton(EntropicLayout.CRAFTER_TOGGLE_Y, mouseX, mouseY)) {
+            lines.add(Component.translatable("gui.virtualfarmworks.crafter.toggle", onOff(menu.isCrafterEnabled())));
+            lines.add(Component.translatable("gui.virtualfarmworks.crafter.toggle.hint"));
+            if (menu.isCrafterEnabled()) {
+                lines.add(Component.translatable("gui.virtualfarmworks.crafter.toggle.off_hint"));
+            }
+        } else if (recipeAt(mouseX, mouseY) >= 0) {
+            ItemStack result = menu.crafterResult(recipeAt(mouseX, mouseY));
+            if (result.isEmpty()) {
+                lines.add(Component.translatable("gui.virtualfarmworks.crafter.entry.invalid"));
+            } else {
+                lines.addAll(getTooltipFromItem(minecraft, result));
+                lines.add(Component.translatable("gui.virtualfarmworks.crafter.entry.edit").withColor(0xFFAAAAAA));
+            }
+            lines.add(Component.translatable("gui.virtualfarmworks.crafter.entry.delete").withColor(0xFFAAAAAA));
+        } else if (hoveredSlot != null && isCraftGridSlot(hoveredSlot.index) && menu.getCarried().isEmpty()) {
+            lines.add(Component.translatable("gui.virtualfarmworks.crafter.grid"));
+            lines.add(Component.translatable("gui.virtualfarmworks.crafter.grid.jei"));
+        }
+    }
+
+    private static boolean isCraftGridSlot(int index) {
+        return index >= EntropicFarmMatrixMenu.CRAFT_GRID_START && index < EntropicFarmMatrixMenu.CRAFT_RESULT;
     }
 
     private List<Component> slotDescription(int index) {
@@ -537,6 +747,14 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
             }
         }
         if (event.button() == 0) {
+            if (isOverBox(EntropicLayout.CRAFTER_BUTTON_TOP, mouseX, mouseY)) {
+                menu.setCrafterVisible(!menu.isCrafterVisible());
+                playClick();
+                return true;
+            }
+            if (menu.isCrafterVisible() && clickCrafter(mouseX, mouseY, doubleClick)) {
+                return true;
+            }
             if (isOverBox(EntropicLayout.OUTPUT_BOX_TOP, mouseX, mouseY)) {
                 faceBoxOpen = !faceBoxOpen;
                 playClick();
@@ -582,6 +800,60 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
             }
         }
         return super.mouseClicked(event, doubleClick);
+    }
+
+    /**
+     * A left click inside the autocrafter panel: its buttons and recipe list (the recipe grid is menu slots, handled by
+     * vanilla). Returns false for clicks the panel does not use.
+     */
+    private boolean clickCrafter(double mouseX, double mouseY, boolean doubleClick) {
+        if (isOverCrafterButton(EntropicLayout.CRAFTER_SET_Y, mouseX, mouseY)) {
+            if (canSetCraft()) {
+                sendButton(EntropicFarmMatrixMenu.BUTTON_CRAFT_SET);
+            }
+            return true;
+        }
+        if (isOverCrafterButton(EntropicLayout.CRAFTER_TOGGLE_Y, mouseX, mouseY)) {
+            sendButton(EntropicFarmMatrixMenu.BUTTON_CRAFT_TOGGLE);
+            return true;
+        }
+        if (!isInRecipeList(mouseX, mouseY)) {
+            return false;
+        }
+        int count = menu.crafterRecipeCount();
+        int trackX = leftPos + EntropicLayout.CRAFTER_LIST_X + EntropicLayout.CRAFTER_LIST_WIDTH
+                - EntropicLayout.CRAFTER_SCROLLBAR_WIDTH;
+        if (count > EntropicLayout.CRAFTER_ROWS && mouseX >= trackX) {
+            // Scrollbar track: a page toward the click.
+            int listMiddle = topPos + EntropicLayout.CRAFTER_LIST_Y + EntropicLayout.CRAFTER_LIST_HEIGHT / 2;
+            recipeScroll += mouseY < listMiddle ? -EntropicLayout.CRAFTER_ROWS : EntropicLayout.CRAFTER_ROWS;
+            recipeScroll = Math.clamp(recipeScroll, 0, count - EntropicLayout.CRAFTER_ROWS);
+            return true;
+        }
+        int entry = recipeAt(mouseX, mouseY);
+        if (entry < 0) {
+            if (menu.selectedRecipe() >= 0) {
+                sendButton(EntropicFarmMatrixMenu.BUTTON_CRAFT_DESELECT); // empty list space: nothing selected
+            }
+        } else if (doubleClick && entry == lastClickedRecipe) {
+            sendButton(EntropicFarmMatrixMenu.BUTTON_CRAFT_DELETE_FIRST + entry);
+            lastClickedRecipe = -1;
+        } else {
+            sendButton(EntropicFarmMatrixMenu.BUTTON_CRAFT_SELECT_FIRST + entry);
+            lastClickedRecipe = entry;
+        }
+        return true;
+    }
+
+    /** The mouse wheel scrolls the recipe list while the panel is open. */
+    @Override
+    public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+        if (menu.isCrafterVisible() && isInRecipeList(x, y) && scrollY != 0.0) {
+            int maxScroll = Math.max(0, menu.crafterRecipeCount() - EntropicLayout.CRAFTER_ROWS);
+            recipeScroll = Math.clamp(recipeScroll - (long) Math.signum(scrollY), 0, maxScroll);
+            return true;
+        }
+        return super.mouseScrolled(x, y, scrollX, scrollY);
     }
 
     /** Clicks on the side column and open boxes are inside the GUI (not a throw of the carried item). */
@@ -643,6 +915,37 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         int size = FarmMatrixLayout.FILTER_ARROW_SIZE;
         int x = leftPos + EntropicLayout.FILTER_CONTENT_X + (next ? FarmMatrixLayout.FILTER_GRID_SIZE - size : 0);
         return isInside(mouseX, mouseY, x, topPos + EntropicLayout.FILTER_PAGE_ROW_Y, size, size);
+    }
+
+    private boolean isInCrafter(double mouseX, double mouseY) {
+        return isInside(mouseX, mouseY, leftPos + EntropicLayout.CRAFTER_X, topPos + EntropicLayout.CRAFTER_Y,
+                EntropicLayout.CRAFTER_WIDTH, EntropicLayout.CRAFTER_HEIGHT);
+    }
+
+    private boolean isOverCrafterButton(int y, double mouseX, double mouseY) {
+        return isInside(mouseX, mouseY, leftPos + EntropicLayout.CRAFTER_BUTTON_X, topPos + y,
+                EntropicLayout.CRAFTER_BUTTON_WIDTH, EntropicLayout.CRAFTER_BUTTON_HEIGHT);
+    }
+
+    private boolean isInRecipeList(double mouseX, double mouseY) {
+        return isInside(mouseX, mouseY, leftPos + EntropicLayout.CRAFTER_LIST_X, topPos + EntropicLayout.CRAFTER_LIST_Y,
+                EntropicLayout.CRAFTER_LIST_WIDTH, EntropicLayout.CRAFTER_LIST_HEIGHT);
+    }
+
+    /** The recipe under the mouse in the list, or -1 (outside the rows, empty space, scrollbar, panel closed). */
+    private int recipeAt(double mouseX, double mouseY) {
+        int count = menu.crafterRecipeCount();
+        if (!menu.isCrafterVisible() || count == 0) {
+            return -1;
+        }
+        int x = leftPos + EntropicLayout.CRAFTER_LIST_X;
+        int rowsY = topPos + EntropicLayout.CRAFTER_ROWS_Y;
+        if (mouseX < x || mouseX >= x + recipeRowWidth(count) || mouseY < rowsY) {
+            return -1;
+        }
+        int row = (int) ((mouseY - rowsY) / EntropicLayout.CRAFTER_ROW_HEIGHT);
+        int entry = recipeScroll + row;
+        return row < EntropicLayout.CRAFTER_ROWS && entry < count ? entry : -1;
     }
 
     private boolean isOverEnergyBar(double mouseX, double mouseY) {

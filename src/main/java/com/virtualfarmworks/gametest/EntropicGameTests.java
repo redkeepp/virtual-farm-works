@@ -185,7 +185,7 @@ final class EntropicGameTests {
         FarmMatrixBlockEntity machine = placeMachine(helper);
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         EntropicFarmMatrixMenu menu = new EntropicFarmMatrixMenu(1, player.getInventory(), machine);
-        check(helper, menu.slots.size() == 196, "127 inputs + 24 outputs + 36 player + 9 filter = 196, got "
+        check(helper, menu.slots.size() == 270, "127 inputs + 24 outputs + 36 player + 9 filter + 74 crafter = 270, got "
                 + menu.slots.size());
 
         // Shift-click from the player: seeds to the seed grid, soils to the soil grid.

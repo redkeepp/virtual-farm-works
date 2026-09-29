@@ -1,7 +1,8 @@
 /*
  * FarmMatrixBlockEntity — the running Farm Matrix of any tier: owns the inventories (inputs, visible output, hidden
- * output), the energy buffer, the global growth cycle over its plot groups, the cached analysis of its slots, the
- * transactional batched harvest, face modes, auto-export and persistence. One per machine block, server-ticked only.
+ * output), the energy buffer, the autocrafter, the global growth cycle over its plot groups, the cached analysis of its
+ * slots, the transactional batched harvest, face modes, auto-export and persistence. One per machine block,
+ * server-ticked only.
  */
 package com.virtualfarmworks.machine;
 
@@ -39,6 +40,7 @@ import com.virtualfarmworks.sim.YieldSample;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.MenuProvider;
@@ -47,6 +49,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -116,6 +119,12 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  * <p>Extreme case (owner-approved): a batch too big even for EMPTY buffers is stored as far as it fits and the rest is
  * kept in {@link #heldDrops}, which is saved, stored before anything else, and blocks the cycle until empty.
  *
+ * <h2>Replant and autocrafter (tiers that have them)</h2>
+ * Owner's order for every batch: replant (produced plantables planted into free soil), then the autocrafter
+ * ({@link MachineCrafter}, CRAFT ON: what its recipes use is crafted), then the harvest filter (never on crafted items),
+ * then the output. Both are planned on every store attempt and applied only after the store commits, like the plots.
+ * Items leaving the crafter's buffer (CRAFT turned OFF, recipes edited) join the held drops.
+ *
  * <h2>Energy (tiers that use it)</h2>
  * Each planted plot costs {@code machines.<tier>.energyPerPlot} FE per tick while the bar advances (owner spec: 90);
  * not while the bar waits. Without enough stored FE for a tick: MISSING FE, the bar does not move. The buffer is sized
@@ -123,14 +132,14 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  *
  * <h2>Persistence</h2>
  * Saved: inventories (inputs, visible and hidden output), held drops, energy, progress, active/pending/harvested
- * counters per group, on/off switch, face modes, Fertilized Essence switch, harvest filter. NOT saved (rebuilt by
- * {@link #revalidate()} or relearned): analyses, speed, status, drop sources, pending batch, yield samples. Slot changes
- * and harvests mark the chunk for saving immediately; plain progress and energy at most once per
- * {@link #SAVE_INTERVAL} ticks.
+ * counters per group, on/off switch, face modes, Fertilized Essence switch, harvest filter, autocrafter (recipes,
+ * switch, waiting ingredients). NOT saved (rebuilt by {@link #revalidate()} or relearned): analyses, speed, status, drop
+ * sources, pending batch, yield samples, resolved recipes. Slot changes and harvests mark the chunk for saving
+ * immediately; plain progress and energy at most once per {@link #SAVE_INTERVAL} ticks.
  *
  * <h2>Breaking the machine</h2>
- * Inputs and the visible output slots drop; the hidden buffer, held drops, stored energy and ripe plots are deleted
- * (owner rule).
+ * Inputs and the visible output slots drop; the hidden buffer, held drops, the autocrafter's waiting ingredients,
+ * stored energy and ripe plots are deleted (owner rule).
  *
  * <h2>Chunk unload</h2>
  * No ticking while unloaded, no catch-up when reloaded, no chunk loading (owner rules).
@@ -159,6 +168,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private final InternalBuffer internal;
     /** FE buffer; null on tiers without energy. */
     private final @Nullable MachineEnergy energy;
+    /** Autocrafter; null on tiers without one. */
+    private final @Nullable MachineCrafter crafter;
     /** Extreme case only (see class doc): produced items that did not fit even into empty buffers. Stored first. */
     private List<DropTally.Entry<ItemResource>> heldDrops = List.of();
     private final GrowthCycle cycle;
@@ -211,6 +222,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private int hoeWearInterval;
     /** Config {@code machines.<tier>.replant} (tiers that have it). */
     private boolean replantEnabled;
+    /** Config {@code machines.<tier>.crafterBufferLimit} (tiers with an autocrafter). */
+    private long crafterBufferLimit;
     /** Ticks of RUNNING-with-a-needed-hoe since the hoe last lost durability (not saved: at most one interval lost). */
     private int hoeWearTicks;
 
@@ -252,10 +265,12 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     /**
      * What a rolled batch (and the yield sample) depends on: its drop source inputs, the Fertilized Essence switch
-     * (turning it off while a batch waits must drop the essence from that batch) and the harvest filter version (a
-     * filter change must apply to a batch still waiting for space).
+     * (turning it off while a batch waits must drop the essence from that batch), the harvest filter version (a
+     * filter change must apply to a batch still waiting for space) and whether the roll ignored the filter (replant or
+     * autocrafter first, see {@link #harvestNextBatch}).
      */
-    private record HarvestKey(@Nullable SourceKey source, boolean fertilizedEssence, int filterVersion) {
+    private record HarvestKey(@Nullable SourceKey source, boolean fertilizedEssence, int filterVersion,
+                              boolean unfiltered) {
     }
 
     /** Groups with the same seed and soil, harvested with one drop source. */
@@ -275,6 +290,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         this.internal = new InternalBuffer(this::markForSave);
         this.filter = new MachineFilter(this::onFilterChanged);
         this.energy = layout.usesEnergy() ? new MachineEnergy(this::onEnergyChanged) : null;
+        this.crafter = layout.hasCrafter() ? new MachineCrafter(this::markForSave) : null;
         this.cycle = new GrowthCycle(layout.groups());
         int groups = layout.groups();
         this.plantedSeeds = new Item[groups];
@@ -302,6 +318,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         if (inputsDirty || validatedConfigGeneration != VfwConfig.generation()
                 || validatedTagGeneration != SoilRules.cacheGeneration()) {
             revalidate();
+        }
+        if (crafter != null && crafter.needsResolve()) {
+            resolveCrafter(level);
         }
         if (purgeRequested) {
             purgeFilteredOutput(); // before the refill, so rejected hidden items never move up
@@ -445,13 +464,16 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
      */
     private boolean harvestNextBatch(ServerLevel level, HarvestUnit unit) {
         int plotsLeft = plotsToHarvest(unit);
-        HarvestKey key = new HarvestKey(unit.key(), fertilizedEssence, filter.version());
+        MachineCrafter activeCrafter = crafter != null && crafter.isActive() ? crafter : null;
+        // With replanting or the autocrafter the roll ignores the harvest filter: produced plantables are planted
+        // first ("instead of being output or blacklisted", owner) and the crafter takes its ingredients before the
+        // filter (owner order); the filter then applies to what is left (see below).
+        boolean unfiltered = replantEnabled || activeCrafter != null;
+        HarvestKey key = new HarvestKey(unit.key(), fertilizedEssence, filter.version(), unfiltered);
         YieldSample sample = sampleFor(key);
         if (pendingBatch == null || !key.equals(pendingBatchKey) || pendingBatchPlots > plotsLeft) {
             int plots = HarvestBatching.batchSize(plotsLeft, freeOutputSlots(), sample);
-            // With replanting the roll ignores the harvest filter: produced plantables are planted first ("instead of
-            // being output or blacklisted", owner), and the filter then applies to what is left (see below).
-            HarvestFilter rollFilter = replantEnabled ? HarvestFilter.NONE : filter.snapshot();
+            HarvestFilter rollFilter = unfiltered ? HarvestFilter.NONE : filter.snapshot();
             pendingBatch = unit.source() == null
                     ? List.of()
                     : Harvester.roll(unit.source(), plots, tier,
@@ -462,12 +484,20 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             sample.record(plots, Harvester.slotsFilled(pendingBatch), pendingBatch.size());
         }
 
-        // Owner's harvest order: replant, then the filter, then the output. Planned on every attempt (free soil may
-        // change while the batch waits) and applied only after the store commits, so nothing is planted twice.
+        // Owner's harvest order: replant, then the autocrafter, then the filter, then the output. Planned on every
+        // attempt (free soil and the crafter may change while the batch waits) and applied only after the store
+        // commits, so nothing is planted or crafted twice.
         List<Replanting> replanting = replantEnabled ? planReplant(pendingBatch) : List.of();
-        List<DropTally.Entry<ItemResource>> toStore = replantEnabled
-                ? withoutFiltered(withoutReplanted(pendingBatch, replanting))
-                : pendingBatch;
+        List<DropTally.Entry<ItemResource>> toStore = withoutReplanted(pendingBatch, replanting);
+        MachineCrafter.Plan crafting = activeCrafter != null
+                ? activeCrafter.plan(toStore, level, crafterBufferLimit)
+                : null;
+        if (crafting != null) {
+            toStore = crafting.output();
+        }
+        if (unfiltered) {
+            toStore = withoutFiltered(toStore);
+        }
 
         List<ResourceHandler<ItemResource>> targets = fillTargets();
         if (!Harvester.tryStore(toStore, targets)) {
@@ -477,6 +507,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             // Extreme case (owner: hold it): not even empty buffers could take this batch. Store what fits now and
             // hold the rest; it is stored before anything else and blocks the cycle until then.
             heldDrops = Harvester.storeWhatFits(toStore, targets);
+        }
+        if (crafting != null) {
+            activeCrafter.commit(crafting); // same tick as the plan: its version always matches
         }
         // Only after a committed store: a plot is harvested exactly once. The batch's plots are spread over the unit's
         // groups in slot order.
@@ -554,13 +587,41 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         return left;
     }
 
-    /** The drops the harvest filter lets through (used when the roll itself was not filtered). */
+    /**
+     * The drops the harvest filter lets through (used when the roll itself was not filtered). Crafted items always
+     * pass: the filter is for what the plants produce (owner order: crafter before filter).
+     */
     private List<DropTally.Entry<ItemResource>> withoutFiltered(List<DropTally.Entry<ItemResource>> drops) {
         HarvestFilter current = filter.snapshot();
         if (current.items().isEmpty()) {
             return drops;
         }
-        return drops.stream().filter(drop -> current.allows(drop.key())).toList();
+        return drops.stream().filter(drop -> keeps(current, drop.key())).toList();
+    }
+
+    /**
+     * Items leaving the autocrafter's buffer (CRAFT turned OFF, recipes edited) go to the output like held drops:
+     * stored before anything else. Harvested items the filter rejects are deleted, as they would have been without the
+     * crafter.
+     */
+    private void holdReleased(List<DropTally.Entry<ItemResource>> released) {
+        List<DropTally.Entry<ItemResource>> kept = withoutFiltered(released);
+        if (kept.isEmpty()) {
+            return;
+        }
+        List<DropTally.Entry<ItemResource>> merged = new ArrayList<>(heldDrops);
+        merged.addAll(kept);
+        heldDrops = List.copyOf(merged);
+        harvestRetryRequested = true;
+        markForSave();
+    }
+
+    /** Matches the autocrafter's recipes to the loaded data; what no recipe uses any more goes to the output. */
+    private void resolveCrafter(ServerLevel level) {
+        if (crafter != null) {
+            holdReleased(crafter.resolve(level));
+            harvestRetryRequested = true; // a batch waiting for space is planned again with the recipes as they are
+        }
     }
 
     /** The yield sample of a unit for exactly this key; a key change (switch, filter, config) starts a fresh one. */
@@ -704,6 +765,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         hoeWears = VfwServerConfig.HOE_CONSUMES_DURABILITY.get();
         hoeWearInterval = VfwServerConfig.HOE_WEAR_INTERVAL_TICKS.get();
         replantEnabled = settings.replant != null && settings.replant.get();
+        crafterBufferLimit = settings.crafterBufferLimit != null ? settings.crafterBufferLimit.get() : 0;
         internalSlots = settings.internalBufferSlots.get();
         internal.setUsableSlots(internalSlots); // a lowered value never deletes items, see InternalBuffer
         refillRequested = true;                 // a raised or lowered size may change what can move
@@ -884,11 +946,12 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * Whether an output item was made by the autocrafter (faces set to OUTPUT CRAFTED export these, OUTPUT exports the
-     * rest). Tiers without an autocrafter craft nothing.
+     * Whether an output item counts as made by the autocrafter: it is the result of one of its recipes (faces set to
+     * OUTPUT CRAFTED export these, OUTPUT exports the rest; the harvest filter never removes them). Tiers without an
+     * autocrafter craft nothing. Called by pipes through the face views, so it is one set lookup.
      */
     public boolean isCrafted(ItemResource resource) {
-        return false;
+        return crafter != null && crafter.isResult(resource);
     }
 
     /**
@@ -963,9 +1026,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     /**
      * Owner rule (step 8): the output never keeps what the harvest filter rejects. The harvest never produces such
      * items, but the output may already hold them when the filter changes, and players may put them in by hand; both
-     * are DELETED here, from the visible and the hidden output and from held drops. Runs on the tick after a filter
-     * change, a hand-placed item ({@link #requestFilterPurge}) or loading; returns at once while the filter is empty
-     * (it then rejects nothing).
+     * are DELETED here, from the visible and the hidden output and from held drops. Crafted items are never removed
+     * (the filter is for what the plants produce). Runs on the tick after a filter change, a hand-placed item
+     * ({@link #requestFilterPurge}) or loading; returns at once while the filter is empty (it then rejects nothing).
      */
     private void purgeFilteredOutput() {
         purgeRequested = false;
@@ -975,19 +1038,24 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
         removeRejected(output, current);
         removeRejected(internal, current);
-        if (heldDrops.stream().anyMatch(drop -> !current.allows(drop.key()))) {
-            heldDrops = heldDrops.stream().filter(drop -> current.allows(drop.key())).toList();
+        if (heldDrops.stream().anyMatch(drop -> !keeps(current, drop.key()))) {
+            heldDrops = heldDrops.stream().filter(drop -> keeps(current, drop.key())).toList();
             markForSave();
         }
     }
 
-    private static void removeRejected(ItemStacksResourceHandler handler, HarvestFilter filter) {
+    private void removeRejected(ItemStacksResourceHandler handler, HarvestFilter filter) {
         for (int i = 0; i < handler.size(); i++) {
             ItemResource resource = handler.getResource(i);
-            if (!resource.isEmpty() && !filter.allows(resource)) {
+            if (!resource.isEmpty() && !keeps(filter, resource)) {
                 handler.set(i, ItemResource.EMPTY, 0);
             }
         }
+    }
+
+    /** Whether the output may keep an item under a filter: the filter lets it through, or the autocrafter made it. */
+    private boolean keeps(HarvestFilter filter, ItemResource resource) {
+        return filter.allows(resource) || isCrafted(resource);
     }
 
     /**
@@ -1023,6 +1091,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         out.putIntArray("face_modes", Arrays.stream(faceModes).mapToInt(FaceMode::ordinal).toArray());
         out.putBoolean("fertilized_essence", fertilizedEssence);
         filter.save(out.child("filter"));
+        if (crafter != null) {
+            crafter.save(out.child("crafter"));
+        }
     }
 
     @Override
@@ -1044,6 +1115,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         loadFaceModes(in);
         fertilizedEssence = in.getBooleanOr("fertilized_essence", true);
         in.child("filter").ifPresent(filter::load);
+        if (crafter != null) {
+            in.child("crafter").ifPresent(crafter::load); // its recipes are matched again on the next tick
+        }
         // Everything derived is rebuilt on the next tick; a batch that was blocked is simply rolled again.
         inputsDirty = true;
         Arrays.fill(plantedSeeds, null);
@@ -1294,6 +1368,65 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         fertilizedEssence = !fertilizedEssence;
         harvestRetryRequested = true;
         markForSave();
+    }
+
+    /** The autocrafter (read it; change it through the methods below), or null on tiers without one. */
+    public @Nullable MachineCrafter crafter() {
+        return crafter;
+    }
+
+    /** Recipes the autocrafter may hold (config {@code machines.<tier>.crafterRecipes}); 0 without an autocrafter. */
+    public int crafterRecipeLimit() {
+        VfwServerConfig.MachineSettings settings = VfwServerConfig.machine(tier);
+        return crafter == null || settings.crafterRecipes == null ? 0
+                : Math.min(settings.crafterRecipes.get(), MachineCrafter.MAX_RECIPES);
+    }
+
+    /** SET CRAFT without a selected recipe: adds one. Server side only. */
+    public void addCrafterRecipe(List<ItemStack> grid, @Nullable ResourceKey<Recipe<?>> recipeId) {
+        if (crafter != null) {
+            crafter.add(grid, recipeId);
+            crafterEdited();
+        }
+    }
+
+    /** SET CRAFT with a selected recipe: replaces it. Server side only. */
+    public void replaceCrafterRecipe(int index, List<ItemStack> grid, @Nullable ResourceKey<Recipe<?>> recipeId) {
+        if (crafter != null) {
+            crafter.replace(index, grid, recipeId);
+            crafterEdited();
+        }
+    }
+
+    /** Double click on a recipe: deletes it. Server side only. */
+    public void removeCrafterRecipe(int index) {
+        if (crafter != null) {
+            crafter.remove(index);
+            crafterEdited();
+        }
+    }
+
+    /** CRAFT: ON/OFF. Turning it OFF sends the waiting ingredients to the output. Server side only. */
+    public void setCrafterEnabled(boolean on) {
+        if (crafter != null) {
+            holdReleased(crafter.setEnabled(on));
+            harvestRetryRequested = true;
+        }
+    }
+
+    /** Matches the recipes now (not on the next tick), so the menu shows the edit at once. */
+    private void crafterEdited() {
+        if (level instanceof ServerLevel serverLevel) {
+            resolveCrafter(serverLevel);
+        }
+        harvestRetryRequested = true;
+    }
+
+    /** Menu refresh: makes sure the recipes are matched (after loading, before the first tick). Server side only. */
+    public void ensureCrafterResolved() {
+        if (crafter != null && crafter.needsResolve() && level instanceof ServerLevel serverLevel) {
+            resolveCrafter(serverLevel);
+        }
     }
 
     /**
