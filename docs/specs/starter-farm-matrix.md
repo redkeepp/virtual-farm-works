@@ -354,3 +354,4 @@ list of vanilla items.
   1.5 sticks, 0.3 apples; dark oak ~41 logs; cherry ~21 logs, 17 saplings; mangrove ~15 logs, 25 roots; crimson
   fungus ~63 nether wart blocks, 8 stems, 2 shroomlights.
 - Fungi grow on their own nylium in memory whatever the machine's soil is (the nylium condition is dropped).
+- GUI unchanged for plants without soil: the empty soil slot keeps its farmland placeholder (owner, 2026-09-29).

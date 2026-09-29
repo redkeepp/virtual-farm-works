@@ -115,3 +115,10 @@ and in-game tests. Scope: Starter tier only, to validate the architecture before
   growing 0.009-0.015 us, OUTPUT FULL 0.012 us, harvest tick 64 / 4.5 / 4.5 us, busy farm 0.28 us (~3,500 busy
   machines per ms), busy farm + pipe 0.30 us with and without a filter, revalidation 1.3 us, export 82 us. No
   regression.
+- 2026-09-29, after "every plantable" (owner's PC, every game closed, average of 3 runs by Claude): growing
+  0.010-0.016 us, OUTPUT FULL 0.012 us, harvest tick 71 us (64 wheat) / 4.6 us (1 wheat) / 4.8 us (64 MA), busy
+  wheat farm 0.28 us, pipe 0.31 us with and without a filter, revalidation 1.4 us, export 82 us: no regression. New:
+  harvest of 64 poppies 7.2 us, of 32 oak saplings 245 us (4 trees grown), of 8 crimson fungi 89 us; busy oak farm
+  (64 saplings, 3x) 1.2 us per machine per tick (~4x wheat; 1,000 = 1.2 ms, 2.4% of a tick). Split of an oak harvest
+  (one extra diagnostic run): ~44 us per tree grown, ~0.7 us per loot roll, so growth is ~80% of it. (A run on
+  2026-09-28 with three Minecraft instances open, ATM10 included, was ~2.5x slower on every row.)

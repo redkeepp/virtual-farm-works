@@ -38,7 +38,8 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
 5. **Do not read the parent folder** (`..\`, the owner's "Virtual Farm Works" folder): it holds an older, flawed
    prototype the owner does not want to influence this code. The repository is the `virtualfarmworks` subfolder.
 6. **Chat**: the owner writes in Portuguese — answer in Portuguese (repo stays English). When the owner asks a
-   question or says "discuss" (DISCUTIR), answer and WAIT for an explicit go-ahead before changing code. Report
+   question or says "discuss" (DISCUTIR), answer and WAIT for an explicit go-ahead before changing code. Once a
+   feature is authorized, implement it directly: no plan or file list for approval first (owner, 2026-09-29). Report
    honestly: measured vs estimated, what was not tested.
 7. **Art assets** under `src/main/resources/assets/virtualfarmworks/` are the owner's and complete. Do NOT rename,
    reorganize or "fix" them; keep the Portuguese texture names (`azul.png`, `corpo.png`, ...). Ignore
@@ -271,10 +272,12 @@ Breaking drops contents in `preRemoveSideEffects`.
   oak saplings x32, crimson fungus x8), busy farm (64 wheat / 64 oak saplings, 3x), busy farm + a pipe pulling 1
   item/tick with and without a filter, revalidation, auto-export into a real chest. Never fails on numbers, but every
   timed harvest must fit one batch (hence few tree plots). Run-to-run noise is ~10-20%: compare rows within one run.
-- Reference (2026-09-28, owner's PC, game closed): busy farm 0.28 us per machine per tick (~3,500 busy machines per
-  ms; 1,000 = 0.56% of a 50 ms tick); growing ~0.01 us; harvest tick 64 us (64 wheat) / 4.5 us (64 MA). Trees
-  (Claude's noisy run, same day, relative to wheat in that run): a tree harvest ~2x a 64-wheat harvest, a busy oak
-  farm ~3x a busy wheat farm; a poppy harvest ~0.1x. History of results in `docs/history.md`.
+- Reference (2026-09-29, owner's PC, every game closed, 3 runs): busy wheat farm 0.28 us per machine per tick
+  (~3,500 busy machines per ms; 1,000 = 0.56% of a 50 ms tick); growing ~0.01 us; harvest tick 71 us (64 wheat) /
+  4.8 us (64 MA) / 7.2 us (64 poppies) / 245 us (32 oak saplings, 4 trees grown); busy oak farm 1.2 us (~4x wheat).
+  A tree harvest is ~80% growth (~44 us per tree grown). History of results in `docs/history.md`.
+- Close every Minecraft instance before benchmarking (dev clients AND the owner's modpack, e.g. ATM10): with them
+  open every row came out ~2.5x slower.
 - The priciest routine work is auto-export into a full neighbour (NeoForge transfer + the neighbour's inventory):
   tunable with `output.autoExportIntervalTicks`.
 - Lessons: never run work after EVERY output change (the filter cleanup cost +35% that way); cache what the tick
