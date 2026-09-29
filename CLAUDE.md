@@ -81,8 +81,8 @@ upgrades, Crux Provider; hoe slot with optional time-based wear; Fertilized Esse
 Tests: 25 game tests (24 VFW + 1 vanilla), 73 JUnit, load benchmark.
 
 **Next (owner decisions recorded, not implemented yet): accept more plantables** — spec section "More plantables
-(next)" in `docs/specs/starter-farm-matrix.md`. The owner asked for a CLAUDE.md cleanup first (done 2026-09-28) and
-will give the go-ahead.
+(next)" in `docs/specs/starter-farm-matrix.md`. Waiting for the owner's go-ahead and one open point (crops' seed
+cost).
 
 **After that: Voltaic tier** — needs the owner's spec (the GUI texture `voltaic_farm_matrix_gui.png` exists: 296 px
 wide, two 15x4 slot blocks, info panel, 3x3 grid). Several classes are Starter-shaped today (GUI layout, menu slot
@@ -148,7 +148,9 @@ Breaking drops contents in `preRemoveSideEffects`.
   hoe never changes yields, at most `performance.maxLootRollsPerHarvest` evaluations scaled to the plot count) and
   `MysticalDropSource` (MA's formula with the soil slot's farmland).
 - Replanting cost: crops, nether wart, cocoa and MA pay 1 planting item per plot (the plot keeps its seed). Stems,
-  berries, sugar cane, cactus, bamboo, mushrooms and chorus stay in place: no cost.
+  berries, sugar cane, cactus, bamboo, mushrooms and chorus stay in place: no cost. Owner (2026-09-28): the Starter
+  has no replanting and "replanting" (replantio) is a concept the owner will define later; new plant types pay
+  nothing; whether crops keep this cost is OPEN (spec, "More plantables").
 - MAIN vs SECONDARY: extra planting items are SECONDARY when in `#c:seeds`; `#virtualfarmworks:harvest_byproducts` is
   SECONDARY; the rest MAIN. MAIN x global x tier production multiplier, SECONDARY x `secondaryDropMultiplier`;
   `DropTally.finish` rounds stochastically (expected value exact).

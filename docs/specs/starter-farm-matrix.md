@@ -312,10 +312,15 @@ through a list of vanilla items.
 **Yields** (per plot and cycle; same machine cycle for every plant, 30 s at 1.0x on the Starter):
 - Trees (saplings, the propagule, azaleas, the Nether fungi, and any modded sapling): what the whole tree would drop
   if the player broke it in the normal world (owner: "the same drops a real tree would give"; no datapack table).
-  Plan: grow the tree with its own grower in a virtual level and roll the loot of each of its blocks.
+  One sapling is enough for a whole tree, Dark Oak and Pale Oak included (2x2 in the real world). The tree stays
+  planted and keeps producing: it never takes its own saplings (owner). Plan: grow the tree with its own grower in a
+  virtual level and roll the loot of each of its blocks.
 - Every other new plant: 10 of itself per harvest (owner); a config value, default 10. The plant stays in the plot
-  (like sugar cane today): no replanting cost.
-- PROPOSED (Claude, consistent with crops): a tree pays its replanting with 1 sapling from its own drops.
-- OPEN: Dark Oak and Pale Oak only grow from 2x2 saplings in the real world (4 saplings + 4 soils = 1 tree?).
-- OPEN: Torchflower Seeds and Pitcher Pod turn into their flower in the real world and the seed is spent; proposal:
-  10 flowers per harvest (the "other plant" rule, with the flower as the product), the seed stays.
+  (like sugar cane today).
+- Torchflower Seeds and Pitcher Pod (in the real world the seed turns into the flower and is spent): 10 flowers per
+  harvest (Torchflower, Pitcher Plant); the seed stays in the plot (owner).
+- No replanting on the Starter (owner): new plants never give anything back from their drops. "Replanting" is a
+  concept the owner will define later.
+- OPEN: crops (wheat, carrot, potato, beetroot, nether wart, cocoa, Mystical Agriculture and modded crops) give back
+  1 seed per harvest today (section "Harvest"). Does "no replanting on the Starter" remove that too? Claude
+  recommends keeping it: without it every Mystical Agriculture plot creates 1 new seed per cycle.
