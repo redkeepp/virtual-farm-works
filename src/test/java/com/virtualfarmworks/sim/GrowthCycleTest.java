@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Behavior of the global growth cycle and the ACTIVE/PENDING rules. Scenario names follow the owner's spec
- * (CLAUDE.md, "ACTIVE / PENDING eligibility").
+ * (CLAUDE.md, "Core design", ACTIVE / PENDING).
  */
 class GrowthCycleTest {
     private static final double EPS = 1e-12;

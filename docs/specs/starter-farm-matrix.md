@@ -46,6 +46,8 @@ DECIDED — vanilla plantables:
   bush, dripleaf, leaf litter, moss); all flowers.
 - Modded crops (Mystical Agriculture, Mystical Agradditions, others) are accepted generically when the compatibility
   check passes; pack makers restrict them with blacklists.
+- CHANGED by the owner on 2026-09-28 (not implemented yet): every plantable will be accepted, see "More plantables
+  (next)" at the end of this file.
 
 **Soil slot (3).** Only soils a plant can grow on (any vanilla/modded farmland/soil that actually grows crops; a grass
 block that grows nothing is not accepted). Also soul sand, jungle log (cocoa), sand (sugar cane), etc. Up to 64, all
@@ -269,3 +271,51 @@ No GUI or Jade indicator for waiting plots or hidden items (owner: "não, esquec
   Inferium Seeds, and blocks in `#mysticalagriculture:always_effective_farmland` (Awakened Supremium Farmland by
   default) count for every tier. Otherwise the status is `INVALID SOIL`. Tested on the block the plant stands on:
   the soil, or vanilla farmland when a hoe tills it.
+
+## More plantables (next; owner decisions 2026-09-28, NOT implemented yet)
+
+The owner changed the "NOT ALLOWED" list above: the machine must accept every plantable. The mod targets big modpacks,
+so it must handle ANY seed, ANY sapling, ANY plant generically (block class, tags, the game's own rules), never
+through a list of vanilla items.
+
+**The 66 vanilla 26.1.2 items not accepted today** (inventoried from the 26.1.2 code):
+- Trees (11): Oak, Spruce, Birch, Jungle, Acacia, Dark Oak, Cherry and Pale Oak Sapling; Mangrove Propagule;
+  Azalea; Flowering Azalea.
+- Nether trees (2): Crimson Fungus, Warped Fungus.
+- Small flowers (17): Dandelion, Golden Dandelion, Poppy, Blue Orchid, Allium, Azure Bluet, Red / Orange / White /
+  Pink Tulip, Oxeye Daisy, Cornflower, Lily of the Valley, Wither Rose, Torchflower, Open Eyeblossom, Closed
+  Eyeblossom.
+- Tall flowers (5): Sunflower, Lilac, Rose Bush, Peony, Pitcher Plant.
+- Ground cover (4): Pink Petals, Wildflowers, Cactus Flower, Leaf Litter.
+- Excluded until now by `#virtualfarmworks:unplantable` (2): Torchflower Seeds, Pitcher Pod. They leave that tag.
+- Grass and bushes (9): Short Grass, Tall Grass, Fern, Large Fern, Dead Bush, Bush, Firefly Bush, Short Dry Grass,
+  Tall Dry Grass.
+- Aquatic (4): Kelp, Seagrass, Sea Pickle, Lily Pad.
+- Nether (5): Crimson Roots, Warped Roots, Nether Sprouts, Weeping Vines, Twisting Vines.
+- Caves and climbers (7): Vines, Glow Lichen, Spore Blossom, Hanging Roots, Big Dripleaf, Small Dripleaf, Pale
+  Hanging Moss.
+- Left out on purpose (they do not grow): corals and coral fans, moss, pale moss carpet.
+
+**Soils** (owner: "the recommended set"):
+- 53 of the 66 already grow on dirt, grass and farmland in vanilla. 6 grow there only under an extra condition — Kelp
+  and Seagrass (underwater), Sea Pickle (multiplies on coral underwater), Crimson and Warped Fungus (become huge
+  fungi only on their own nylium), Glow Lichen (spreads over surfaces). Owner: drop the condition, a soil is enough.
+- These 59 grow on: dirt, coarse dirt, rooted dirt, grass block, podzol, mycelium, moss block, mud, and any farmland
+  (vanilla, Mystical Agriculture, Agradditions, other mods). They keep their natural soils too (sand and terracotta
+  for dead bush and dry grass, clay for azalea and mangrove, nylium for fungi, netherrack, soul sand and soul soil for
+  the wither rose, cactus for the cactus flower, ...), so nothing that works in vanilla or in a mod stops working.
+- The other 7 do not grow on a soil at all: Lily Pad (on water), Small Dripleaf (clay or moss, or underwater), Vines
+  (on walls), Weeping Vines, Spore Blossom, Hanging Roots and Pale Hanging Moss (hanging from a ceiling). Owner: they
+  need no soil; the soil slot is ignored (an item there changes nothing: no speed bonus). Plots = seed count (max 64).
+- Flowers and saplings on dirt need no hoe; only crops need tilled soil (as today).
+
+**Yields** (per plot and cycle; same machine cycle for every plant, 30 s at 1.0x on the Starter):
+- Trees (saplings, the propagule, azaleas, the Nether fungi, and any modded sapling): what the whole tree would drop
+  if the player broke it in the normal world (owner: "the same drops a real tree would give"; no datapack table).
+  Plan: grow the tree with its own grower in a virtual level and roll the loot of each of its blocks.
+- Every other new plant: 10 of itself per harvest (owner); a config value, default 10. The plant stays in the plot
+  (like sugar cane today): no replanting cost.
+- PROPOSED (Claude, consistent with crops): a tree pays its replanting with 1 sapling from its own drops.
+- OPEN: Dark Oak and Pale Oak only grow from 2x2 saplings in the real world (4 saplings + 4 soils = 1 tree?).
+- OPEN: Torchflower Seeds and Pitcher Pod turn into their flower in the real world and the seed is spent; proposal:
+  10 flowers per harvest (the "other plant" rule, with the flower as the product), the seed stays.
