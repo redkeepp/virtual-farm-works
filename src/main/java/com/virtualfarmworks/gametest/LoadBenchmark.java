@@ -1,7 +1,7 @@
 /*
- * LoadBenchmark — dev-only load test (`gradlew runBenchmark`): measures how much server time a Starter Farm Matrix
- * costs per tick while growing, waiting, harvesting and exporting, and writes a table to the log and to
- * run-gametest/vfw-benchmark.txt. Never fails on numbers: timings depend on the computer running it.
+ * LoadBenchmark — dev-only load test (`gradlew runBenchmark`): measures how much server time a Starter and an Entropic
+ * Farm Matrix cost per tick while growing, waiting, harvesting, crafting and exporting, and writes a table to the log
+ * and to run-gametest/vfw-benchmark.txt. Never fails on numbers: timings depend on the computer running it.
  */
 package com.virtualfarmworks.gametest;
 
@@ -9,12 +9,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.IntFunction;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
+import com.virtualfarmworks.machine.FaceMode;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
+import com.virtualfarmworks.machine.MachineEnergy;
+import com.virtualfarmworks.machine.MachineLayout;
 import com.virtualfarmworks.machine.MachineSlots;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.machine.RelativeSide;
@@ -29,6 +34,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
@@ -59,14 +65,23 @@ final class LoadBenchmark {
     private static final int HARVEST_MACHINES = 200;
     private static final int TIMED_HARVESTS = 20;
     private static final int PLAY_MACHINES = 500;
+    private static final int ENTROPIC_MACHINES = 100;
+    private static final MachineLayout ENTROPIC = MachineLayout.ENTROPIC;
     private static final double TICK_BUDGET_MS = 50.0;
+    /** Mixed Entropic farm: 4 crops on farmland, then flowers x soils, 60 different plant/soil pairs in all. */
+    private static final Item[] MIXED_CROPS = {Items.WHEAT_SEEDS, Items.CARROT, Items.POTATO, Items.BEETROOT_SEEDS};
+    private static final Item[] MIXED_FLOWERS = {Items.DANDELION, Items.POPPY, Items.BLUE_ORCHID, Items.ALLIUM,
+            Items.AZURE_BLUET, Items.RED_TULIP, Items.ORANGE_TULIP, Items.WHITE_TULIP, Items.PINK_TULIP,
+            Items.OXEYE_DAISY, Items.CORNFLOWER, Items.LILY_OF_THE_VALLEY};
+    private static final Item[] MIXED_SOILS = {Items.DIRT, Items.GRASS_BLOCK, Items.PODZOL, Items.COARSE_DIRT,
+            Items.ROOTED_DIRT};
 
     private LoadBenchmark() {
     }
 
     static void run(GameTestHelper helper) {
         List<String> report = new ArrayList<>();
-        report.add("Virtual Farm Works load benchmark (Starter Farm Matrix)");
+        report.add("Virtual Farm Works load benchmark (Starter and Entropic Farm Matrix)");
         report.add(String.format(Locale.ROOT, "Java %s, %d CPU threads. Server ticks run on ONE thread; a tick has "
                 + "%.0f ms.", Runtime.version(), Runtime.getRuntime().availableProcessors(), TICK_BUDGET_MS));
         report.add("");
@@ -117,6 +132,27 @@ final class LoadBenchmark {
         double exportWindow = exportWindowMicros(helper);
         report.add(row("Auto-export of 9 stacks into a chest", format(exportWindow)
                 + " us per 20-tick window (one export)"));
+
+        report.add("");
+        report.add("Entropic Farm Matrix: 60 plot groups, " + MACHINES + " machines growing, " + ENTROPIC_MACHINES
+                + " in the other rows; energy refilled and "
+                + "outputs emptied between ticks (not timed), faces off.");
+        double entropicGrowing = entropicGrowingNanos(helper);
+        report.add(row("Entropic growing, 3,840 wheat plots", micros(entropicGrowing) + " us per machine per tick"));
+        double entropicWheat = entropicPlayNanos(helper, false);
+        report.add(row("Entropic busy: 3,840 wheat plots (3x)", micros(entropicWheat)
+                + " us per machine per tick (average, harvests included)"));
+        double entropicCrafting = entropicPlayNanos(helper, true);
+        report.add(row("Same + autocrafter (9 wheat -> hay bale)", micros(entropicCrafting)
+                + " us per machine per tick (average)"));
+        double entropicMixed = entropicMixedNanos(helper);
+        report.add(row("Entropic busy: 60 different plants x 8 (3x)", micros(entropicMixed)
+                + " us per machine per tick (average, harvests included)"));
+        double entropicRevalidate = entropicRevalidateMicros(helper);
+        report.add(row("Entropic revalidation (60 groups)", format(entropicRevalidate) + " us each, only on changes"));
+        double entropicInput = entropicInputNanos(helper);
+        report.add(row("Entropic growing + an input change every tick", micros(entropicInput)
+                + " us per machine per tick (e.g. a pipe filling the grids)"));
 
         report.add("");
         double perMachine = playWheat / 1_000.0; // microseconds per machine per tick, busy machines
@@ -326,6 +362,186 @@ final class LoadBenchmark {
             }
         }
         return total / 1_000.0 / windows;
+    }
+
+    // --- Entropic scenarios -----------------------------------------------------------------------------------------
+
+    /**
+     * Entropic machines full of wheat (3,840 plots), growing: the cost must stay that of a 1-plot machine. As many
+     * machines and ticks as the Starter's growing rows, so both are measured alike.
+     */
+    private static double entropicGrowingNanos(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<FarmMatrixBlockEntity> machines = entropicMachines(helper, MACHINES, group -> Items.WHEAT_SEEDS,
+                group -> Items.FARMLAND, 64, 0);
+        expect(helper, machines.getFirst().status() == MachineStatus.RUNNING, "growing Entropics must be RUNNING, got "
+                + machines.getFirst().status());
+        // 100 + 3 x 150 ticks stay below the 600-tick cycle: no harvest happens in this scenario.
+        entropicTicks(level, machines, 100);
+        long best = Long.MAX_VALUE;
+        for (int run = 0; run < 3; run++) {
+            best = Math.min(best, entropicTicks(level, machines, 150));
+        }
+        return best / (double) (MACHINES * 150L);
+    }
+
+    /**
+     * A busy Entropic: 3,840 wheat plots at 3x speed (a harvest every 200 ticks), bars spread, outputs emptied every
+     * 20 ticks. A harvest (3,840 wheat and ~6,500 extra seeds) is bigger than the 96 output slots, so it is stored in
+     * batches over several drains, like a real machine limited by its export. With {@code crafting}, a hay bale
+     * recipe turns the wheat into bales first.
+     */
+    private static double entropicPlayNanos(GameTestHelper helper, boolean crafting) {
+        ServerLevel level = helper.getLevel();
+        List<FarmMatrixBlockEntity> machines = entropicMachines(helper, ENTROPIC_MACHINES, group -> Items.WHEAT_SEEDS,
+                group -> Items.FARMLAND, 64, MachineSlots.GROWTH_COUNT);
+        for (int i = 0; i < machines.size(); i++) {
+            FarmMatrixBlockEntity machine = machines.get(i);
+            if (crafting) {
+                machine.addCrafterRecipe(Collections.nCopies(9, new ItemStack(Items.WHEAT)), null);
+            }
+            machine.setProgressForTesting(i / (double) machines.size());
+        }
+        expect(helper, !crafting || machines.getFirst().crafter().isActive(), "the hay bale recipe must be active");
+        entropicTicks(level, machines, 400); // two cycles: every machine has harvested at least once
+        return entropicTicks(level, machines, 1_200) / (double) (ENTROPIC_MACHINES * 1_200L);
+    }
+
+    /**
+     * The worst case for harvest units: 60 different plant/soil pairs (4 crops, 56 flower and soil pairs), 8 plots
+     * each, so a harvest is 60 rolls spread over ticks (at most 4 batches per tick).
+     */
+    private static double entropicMixedNanos(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<FarmMatrixBlockEntity> machines = entropicMachines(helper, ENTROPIC_MACHINES, LoadBenchmark::mixedSeed,
+                LoadBenchmark::mixedSoil, 8, MachineSlots.GROWTH_COUNT);
+        FarmMatrixBlockEntity first = machines.getFirst();
+        for (int group = 0; group < ENTROPIC.groups(); group++) {
+            expect(helper, first.groupStatus(group) == MachineStatus.RUNNING, "mixed group " + group + " ("
+                    + mixedSeed(group) + " on " + mixedSoil(group) + ") must grow, got " + first.groupStatus(group));
+        }
+        for (int i = 0; i < machines.size(); i++) {
+            machines.get(i).setProgressForTesting(i / (double) machines.size());
+        }
+        entropicTicks(level, machines, 400);
+        return entropicTicks(level, machines, 1_200) / (double) (ENTROPIC_MACHINES * 1_200L);
+    }
+
+    private static Item mixedSeed(int group) {
+        return group < MIXED_CROPS.length ? MIXED_CROPS[group]
+                : MIXED_FLOWERS[(group - MIXED_CROPS.length) % MIXED_FLOWERS.length];
+    }
+
+    private static Item mixedSoil(int group) {
+        return group < MIXED_CROPS.length ? Items.FARMLAND
+                : MIXED_SOILS[(group - MIXED_CROPS.length) / MIXED_FLOWERS.length];
+    }
+
+    /** Full re-analysis of the 60 plot groups (runs only when a slot, the config or tags change). */
+    private static double entropicRevalidateMicros(GameTestHelper helper) {
+        List<FarmMatrixBlockEntity> machines = entropicMachines(helper, ENTROPIC_MACHINES, group -> Items.WHEAT_SEEDS,
+                group -> Items.FARMLAND, 64, 0);
+        for (FarmMatrixBlockEntity machine : machines) {
+            machine.revalidate(); // warm-up
+        }
+        long start = System.nanoTime();
+        for (int rep = 0; rep < 20; rep++) {
+            for (FarmMatrixBlockEntity machine : machines) {
+                machine.revalidate();
+            }
+        }
+        return (System.nanoTime() - start) / 1_000.0 / (ENTROPIC_MACHINES * 20L);
+    }
+
+    /**
+     * Growing Entropics whose inputs change every tick (one seed more or less in group 0, not timed), so every timed
+     * tick revalidates: the cost of a pipe that keeps feeding the grids.
+     */
+    private static double entropicInputNanos(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<FarmMatrixBlockEntity> machines = entropicMachines(helper, ENTROPIC_MACHINES, group -> Items.WHEAT_SEEDS,
+                group -> Items.FARMLAND, 64, 0);
+        long best = Long.MAX_VALUE;
+        for (int run = 0; run < 4; run++) { // the first run is warm-up
+            long total = 0;
+            for (int tick = 0; tick < 130; tick++) {
+                for (FarmMatrixBlockEntity machine : machines) {
+                    machine.inputs().set(ENTROPIC.seedSlot(0), ItemResource.of(Items.WHEAT_SEEDS), 63 + tick % 2);
+                }
+                long start = System.nanoTime();
+                for (FarmMatrixBlockEntity machine : machines) {
+                    machine.serverTick(level);
+                }
+                total += System.nanoTime() - start;
+                machines.forEach(LoadBenchmark::refillEnergy);
+            }
+            if (run > 0) {
+                best = Math.min(best, total);
+            }
+        }
+        expect(helper, machines.getFirst().progress() < 0.999, "no harvest may happen while measuring input changes");
+        return best / (double) (ENTROPIC_MACHINES * 130L);
+    }
+
+    /** Ticks every Entropic {@code ticks} times; energy refilled and outputs emptied every 20 ticks, both not timed. */
+    private static long entropicTicks(ServerLevel level, List<FarmMatrixBlockEntity> machines, int ticks) {
+        long total = 0;
+        for (int tick = 0; tick < ticks; tick++) {
+            long start = System.nanoTime();
+            for (FarmMatrixBlockEntity machine : machines) {
+                machine.serverTick(level);
+            }
+            total += System.nanoTime() - start;
+            machines.forEach(LoadBenchmark::refillEnergy);
+            if (tick % 20 == 0) {
+                machines.forEach(LoadBenchmark::clearOutputs);
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Detached Entropic machines bound to the test level: every plot group holds {@code plotsPerGroup} of its seed and
+     * soil; a Water Provider, {@code growthUpgrades} Growth Speed Upgrades, full energy, every face NONE.
+     */
+    private static List<FarmMatrixBlockEntity> entropicMachines(GameTestHelper helper, int count,
+                                                                IntFunction<Item> seedOf,
+                                                                IntFunction<Item> soilOf,
+                                                                int plotsPerGroup, int growthUpgrades) {
+        BlockState state = ModBlocks.ENTROPIC_FARM_MATRIX.get().defaultBlockState();
+        Item water = ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.ENTROPIC).get();
+        Item growth = ModItems.GROWTH_SPEED_UPGRADES.get(MachineTier.ENTROPIC).get();
+        List<FarmMatrixBlockEntity> machines = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            FarmMatrixBlockEntity machine = new FarmMatrixBlockEntity(helper.absolutePos(new BlockPos(i % 32, 5,
+                    i / 32)), state);
+            machine.setLevel(helper.getLevel());
+            for (int group = 0; group < ENTROPIC.groups(); group++) {
+                machine.inputs().set(ENTROPIC.seedSlot(group), ItemResource.of(seedOf.apply(group)), plotsPerGroup);
+                machine.inputs().set(ENTROPIC.soilSlot(group), ItemResource.of(soilOf.apply(group)), plotsPerGroup);
+            }
+            machine.inputs().set(ENTROPIC.waterSlot(), ItemResource.of(water), 1);
+            for (int g = 0; g < growthUpgrades; g++) {
+                machine.inputs().set(ENTROPIC.growthSlot(g), ItemResource.of(growth), 1);
+            }
+            for (RelativeSide side : RelativeSide.all()) {
+                while (machine.faceMode(side) != FaceMode.NONE) {
+                    machine.cycleFaceMode(side, true);
+                }
+            }
+            machine.revalidate();
+            refillEnergy(machine);
+            machine.revalidate(); // with energy: RUNNING
+            machines.add(machine);
+        }
+        return machines;
+    }
+
+    private static void refillEnergy(FarmMatrixBlockEntity machine) {
+        MachineEnergy energy = machine.energy();
+        if (energy != null) {
+            energy.set((int) Math.min(Integer.MAX_VALUE, energy.getCapacityAsLong()));
+        }
     }
 
     // --- helpers ----------------------------------------------------------------------------------------------------

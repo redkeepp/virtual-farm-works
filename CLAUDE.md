@@ -86,8 +86,9 @@ drag-and-drop); smooth progress bar; Jade tooltip; JEI exclusion areas; recipes.
 midgame). Spec and every decision: `docs/specs/entropic-farm-matrix.md`. Done: stage 1 (multi-group machine, FE, face
 modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `EntropicLayout`,
 `EntropicFarmMatrixScreen`, shared `AbstractFarmMatrixMenu`), stage 3 (replant), stage 4 (autocrafter
-`machine/MachineCrafter`, its panel, JEI "+"); next: stage 5 (benchmark, docs, report). Not yet seen in game by the
-owner. Voltaic, Ionic and Resonant come after (they will reuse `MachineLayout`).
+`machine/MachineCrafter`, its panel, JEI "+"), stage 5 (benchmark rows, docs). Waiting for the owner: in-game test
+(not yet seen in game) and a clean benchmark run (the first was measured with games open). No machine recipe until
+the owner defines one. Voltaic, Ionic and Resonant come after (they will reuse `MachineLayout`).
 Tests: 40 game tests (39 VFW + 1 vanilla), 77 JUnit, load benchmark.
 
 Open on the owner's side: multiplayer re-test (custom packets were added since the last one; the owner planned to do
@@ -295,6 +296,14 @@ Breaking drops contents in `preRemoveSideEffects`.
   oak saplings x32, crimson fungus x8), busy farm (64 wheat / 64 oak saplings, 3x), busy farm + a pipe pulling 1
   item/tick with and without a filter, revalidation, auto-export into a real chest. Never fails on numbers, but every
   timed harvest must fit one batch (hence few tree plots). Run-to-run noise is ~10-20%: compare rows within one run.
+  Entropic rows (energy refilled and outputs emptied between ticks, untimed): growing (1,000 machines, like the
+  Starter's rows: fewer machines left the JIT cold and read 5x too high), busy 3,840 wheat plots with and without the
+  autocrafter, busy mixed farm (60 different plant/soil pairs), 60-group revalidation, an input change every tick.
+- Entropic, provisional (2026-09-29, two games of the owner open): growing 0.029 us per machine per tick with 3,840
+  plots (Starter 0.011: the FE check and payment); busy 3,840 wheat plots 5.1 us (4.8 with the autocrafter), i.e.
+  ~a quarter of 60 equivalent Starters; mixed 60 plants 2.3 us; revalidation 13 us (60 groups), so a pipe feeding the
+  grids every tick costs ~12 us per tick while it feeds (grids full = no change = no cost). Rerun with every game
+  closed for the reference.
 - Reference (2026-09-29, owner's PC, every game closed, 3 runs): busy wheat farm 0.28 us per machine per tick
   (~3,500 busy machines per ms; 1,000 = 0.56% of a 50 ms tick); growing ~0.01 us; harvest tick 71 us (64 wheat) /
   4.8 us (64 MA) / 7.2 us (64 poppies) / 245 us (32 oak saplings, 4 trees grown); busy oak farm 1.2 us (~4x wheat).

@@ -104,6 +104,30 @@ and in-game tests. Scope: Starter tier only, to validate the architecture before
   - **Starter declared done by the owner** (2026-09-29), after three clean benchmark runs. Trees kept as they are (a
     busy oak farm costs ~4x a wheat farm); the tree-pool optimization is recorded in CLAUDE.md for later.
 
+## Milestone 2 — Entropic Farm Matrix (2026-09-29)
+
+The owner's spec (two 4x15 grids of plot groups, 3,840 plots, FE, face modes, automated input, replant, autocrafter
+with JEI) and every decision are in `docs/specs/entropic-farm-matrix.md`. Built in stages, each committed after the
+game tests passed:
+
+- **Stage 1 — multi-group machine.** `machine/MachineLayout` describes a tier (plot groups, slot indices, features);
+  `FarmMatrixBlockEntity` generalized from one seed/soil pair to N plot groups on ONE growth bar (groups with a
+  problem hold no plots; groups with the same seed and soil are harvested together; soil bonus = plot-weighted
+  average). The Starter keeps its exact behavior and save format (layout with 1 group). New: `MachineEnergy` (90 FE
+  per plot per tick, buffer = capacity x 90 x 3), `FaceMode` (5 modes per face), `GridInput` (pipes fill slots
+  already holding the item, then pairs, then empty slots).
+- **Stage 2 — GUI.** `EntropicFarmMatrixMenu`, `EntropicLayout` (owner's texture coordinates, checked on the
+  pixels), `EntropicFarmMatrixScreen` (striped FE bar that falls gradually, red tint and tooltip on groups with a
+  problem, side column with face box, filter box and the crafting-table button); shared menu logic moved to
+  `AbstractFarmMatrixMenu`.
+- **Stage 3 — replant.** Produced plantables are planted into free soil of groups already holding them, before the
+  harvest filter; they grow from the next cycle.
+- **Stage 4 — autocrafter.** `MachineCrafter` (recipes, CRAFT switch, hidden buffer, chain order by strongly
+  connected components so circles cannot loop, substitute items like a crafting table, transactional plan/commit);
+  the owner's crafter panel as a modal over the dimmed grids; JEI "+" and drag-and-drop (`SetCrafterGridPayload`);
+  crafted items are what OUTPUT CRAFTED exports and what the harvest filter never removes. 3 game tests.
+- **Stage 5 — benchmark and docs.** Six Entropic rows in `LoadBenchmark` (see the log below).
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game
@@ -124,3 +148,13 @@ and in-game tests. Scope: Starter tier only, to validate the architecture before
   (64 saplings, 3x) 1.2 us per machine per tick (~4x wheat; 1,000 = 1.2 ms, 2.4% of a tick). Split of an oak harvest
   (one extra diagnostic run): ~44 us per tree grown, ~0.7 us per loot roll, so growth is ~80% of it. (A run on
   2026-09-28 with three Minecraft instances open, ATM10 included, was ~2.5x slower on every row.)
+- 2026-09-29, Entropic stage 5 (Claude's run, two Minecraft instances of the owner still OPEN, so provisional; the
+  Starter rows of the same run were within ~0-20% of the clean reference): Entropic growing with 3,840 wheat plots
+  0.029 us per machine per tick (Starter 0.011; the difference is the FE check and payment), busy Entropic (3,840
+  wheat plots, 3x, harvests included, output emptied every 20 ticks) 5.1 us, same with the autocrafter (hay bales)
+  4.8 us, busy mixed Entropic (60 different plant/soil pairs, 8 plots each) 2.3 us, revalidation of 60 groups 13 us,
+  growing with an input change every tick (a pipe feeding the grids) 12.4 us. Per plot, a busy Entropic costs about
+  a quarter of the equivalent 60 Starters (60 x 0.33 us). Starter revalidation now 3.9 us (1.4 before stage 1: the
+  multi-group generalization; it runs only on changes). A first run measured the growing Entropic with 100 machines
+  and 100 warm-up ticks and got 0.144 us: not enough JIT warm-up (the energy branch was new to the compiled code), so
+  the row now uses the Starter's 1,000 machines.
