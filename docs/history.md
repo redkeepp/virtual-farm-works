@@ -101,6 +101,8 @@ and in-game tests. Scope: Starter tier only, to validate the architecture before
     the `fixed_yield` data map, `#virtualfarmworks:universal_soils`. Claude's safety choices: no block-entity plants,
     no block-entity blocks from trees, "any surface" rules do not create soils. 6 new game tests
     (`PlantablesGameTests`), benchmark rows for poppies, oaks and fungi.
+  - **Starter declared done by the owner** (2026-09-29), after three clean benchmark runs. Trees kept as they are (a
+    busy oak farm costs ~4x a wheat farm); the tree-pool optimization is recorded in CLAUDE.md for later.
 
 ## Benchmark results log
 

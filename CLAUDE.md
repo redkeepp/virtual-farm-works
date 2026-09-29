@@ -73,9 +73,10 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
 
 ## Current state (2026-09-28)
 
-**Starter Farm Matrix: complete**, tested in game by the owner (single player; dedicated server before the JEI
-packet was added). Features: one global growth cycle with ACTIVE/PENDING plots; every plantable (crops, trees,
-flowers, grass, aquatic and hanging plants — "More plantables", 2026-09-28, not yet tested in game by the owner);
+**Starter Farm Matrix: DONE** (declared by the owner on 2026-09-29, after the plantables and the benchmark), tested in
+game by the owner (single player; dedicated server before the JEI packet was added). Features: one global growth
+cycle with ACTIVE/PENDING plots; every plantable (crops, trees, flowers, grass, aquatic and hanging plants — "More
+plantables", 2026-09-28);
 plant/soil rules from the game's own logic; loot-table, grown-tree, fixed-yield and Mystical Agriculture harvests;
 transactional batched harvest into a 9-slot visible output (players can also put items in by hand) plus 27 hidden
 slots; auto-export per face; Water Provider, 4 Growth Speed upgrades, Crux Provider; hoe slot with optional
@@ -89,9 +90,9 @@ soils (bottom); "replanting" (replantio) = seeds produced by the harvest are pla
 soils, instead of going to the output or being filtered, until no free soil is left. Several classes are
 Starter-shaped today (GUI layout, menu slot constants, one plot group) and will need per-tier variants.
 
-Open on the owner's side: in-game test of the new plantables, multiplayer re-test (a custom packet was added since
-the last one), git tag "starter complete" (owner: not yet). Deferred by the owner: EMI (no 26.1.2 release),
-publishing metadata (README still says "scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists
+Open on the owner's side: multiplayer re-test (a custom packet was added since the last one; the owner planned to do
+it at the end), git tag "starter complete" (Claude may create it locally when asked; the owner pushes). Deferred by
+the owner: EMI (no 26.1.2 release), publishing metadata (README still says "scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists
 "Inferium Essence" twice) — test in survival or with JEI.
 
 ## Core design (owner's spec, source of truth)
@@ -278,6 +279,10 @@ Breaking drops contents in `preRemoveSideEffects`.
   A tree harvest is ~80% growth (~44 us per tree grown). History of results in `docs/history.md`.
 - Close every Minecraft instance before benchmarking (dev clients AND the owner's modpack, e.g. ATM10): with them
   open every row came out ~2.5x slower.
+- Trees were accepted as they are (owner closed the Starter on 2026-09-29 without choosing an optimization). If tree
+  farms ever weigh on servers, the recorded option is a pool of grown trees per machine: grow 1 new tree per harvest
+  and reuse the last ~8, about 2x cheaper with the same smooth yields (a plain `maxTreesGrownPerHarvest = 1` is as
+  cheap but makes single harvests swing a lot).
 - The priciest routine work is auto-export into a full neighbour (NeoForge transfer + the neighbour's inventory):
   tunable with `output.autoExportIntervalTicks`.
 - Lessons: never run work after EVERY output change (the filter cleanup cost +35% that way); cache what the tick
