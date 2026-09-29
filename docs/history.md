@@ -89,6 +89,18 @@ and in-game tests. Scope: Starter tier only, to validate the architecture before
   - **Performance fix**: the filter cleanup first ran after every output change (+35% per tick with a pipe on a
     filtered machine); now only on filter change, hand placement or load. Measured before/after with a new benchmark
     scenario.
+  - CLAUDE.md reorganized by topic (this log moved here), 2026-09-28.
+  - **Every plantable** (2026-09-28). The owner asked which plantables were refused (66 vanilla items), then decided:
+    accept them all; the 59 that stand on soil grow on dirt/grass/any farmland (the vanilla vegetation soils) plus
+    their natural soils, conditions (water, coral, nylium) dropped; the 7 that stand on nothing need no soil (slot
+    ignored); trees yield a real tree's drops by hand, one sapling per tree (dark/pale oak included), no replanting;
+    other plants yield 10 of themselves; Torchflower Seeds / Pitcher Pod yield 10 flowers; crops keep their 1-seed
+    cost. The owner also previewed the future "replanting" (Voltaic: seeds planted into free soils automatically).
+    Built: generic plant detection by class, soil needs read from each plant's `canSurvive` in a new in-memory
+    `VirtualLevel`, trees grown there with their own feature (`TreeGrowth`, `TreeDropSource`), `FixedDropSource`,
+    the `fixed_yield` data map, `#virtualfarmworks:universal_soils`. Claude's safety choices: no block-entity plants,
+    no block-entity blocks from trees, "any surface" rules do not create soils. 6 new game tests
+    (`PlantablesGameTests`), benchmark rows for poppies, oaks and fungi.
 
 ## Benchmark results log
 

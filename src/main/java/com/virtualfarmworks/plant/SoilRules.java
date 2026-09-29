@@ -60,6 +60,7 @@ public final class SoilRules {
     public static void clearCaches() {
         SOIL_CACHE.clear();
         probes = null;
+        PlantRules.clearCaches();
         cacheGeneration++;
     }
 
@@ -97,8 +98,8 @@ public final class SoilRules {
     }
 
     private static boolean computeAcceptableSoil(ItemStack soil, BlockState state) {
-        // A plant is never a soil, even when vanilla would allow it (sugar cane on sugar cane, cactus on cactus).
-        if (PlantRules.isSupportedPlantBlock(state.getBlock())) {
+        // A plant is never a soil, even when vanilla would allow it (sugar cane on sugar cane, cactus flower on cactus).
+        if (PlantRules.isPlantBlock(state.getBlock())) {
             return false;
         }
         if (isTillable(soil)) {
@@ -116,7 +117,9 @@ public final class SoilRules {
      * Representative plants used to decide whether a block is a soil at all: the default state of every plantable
      * item's block, de-duplicated by block CLASS. Plants of the same class share the same soil logic (e.g. the ~150
      * Mystical Agriculture crops are one class), so this keeps the list to a few dozen entries even in huge packs.
-     * Built lazily on first use after each tag reload.
+     * Plants that need no soil, or accept any solid surface (seagrass, leaf litter...), are left out
+     * ({@code PlantRules#definesSoils}): they would make ice, stone or glass soils. Built lazily on first use after each
+     * tag reload.
      */
     private static List<BlockState> probes() {
         List<BlockState> current = probes;
@@ -128,7 +131,7 @@ public final class SoilRules {
             ItemStack stack = item.getDefaultInstance();
             if (PlantRules.isPlantable(stack)) {
                 Block block = PlantRules.plantBlock(stack);
-                if (block != null) {
+                if (block != null && PlantRules.definesSoils(block)) {
                     byClass.putIfAbsent(block.getClass(), block.defaultBlockState());
                 }
             }

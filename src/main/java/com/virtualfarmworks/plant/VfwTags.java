@@ -1,6 +1,7 @@
 /*
- * VfwTags — TagKeys of VFW's datapack-editable tags (tillable soils, unplantable seeds, extra plantables, mushroom
- * soils, glow berry supports, harvest by-products). Default contents: src/main/resources/data/virtualfarmworks/tags/.
+ * VfwTags — TagKeys of VFW's datapack-editable tags (tillable soils, unplantable seeds, extra plantables, universal
+ * soils, mushroom soils, glow berry supports, harvest by-products). Default contents:
+ * src/main/resources/data/virtualfarmworks/tags/.
  */
 package com.virtualfarmworks.plant;
 
@@ -24,17 +25,26 @@ public final class VfwTags {
     public static final TagKey<Item> TILLABLE_SOILS = item("tillable_soils");
 
     /**
-     * Seed items that are never plantable in VFW even though their block would qualify (default: torchflower seeds and
-     * pitcher pod, which grow flowers — owner decision). Separate from the config blacklist so the config lists can
-     * stay empty by default ("everything allowed").
+     * Seed items that are never plantable in VFW even though their block would qualify. Empty by default (owner,
+     * 2026-09-28: every plantable is accepted; torchflower seeds and pitcher pod used to be here). Separate from the
+     * config blacklist so pack makers have a datapack way too.
      */
     public static final TagKey<Item> UNPLANTABLE = item("unplantable");
 
     /**
-     * Extra seed items to accept even though VFW does not recognize their block type (e.g. a modded plant that is not
-     * a {@code CropBlock}). Their soil rule is the plant's own {@code mayPlaceOn}. Empty by default.
+     * Extra items to accept in the seed slot even though VFW does not recognize their block as a plant (a modded plant
+     * built on a plain {@code Block}). They are harvested like crops (their block's loot, one planting item replanted)
+     * and grow only on soils whose NeoForge {@code canSustainPlant} hook accepts them. Empty by default.
      */
     public static final TagKey<Item> EXTRA_PLANTABLES = item("extra_plantables");
+
+    /**
+     * Soils every generic plant that stands on dirt grows on (owner, 2026-09-28: "dirt, grass, any farmland"), on top of
+     * its natural soils. Default: {@code #minecraft:supports_vegetation} (dirt, coarse and rooted dirt, grass block,
+     * podzol, mycelium, moss, mud, farmland). Every {@code FarmlandBlock} counts as well, even without being listed, so
+     * modded farmlands work out of the box.
+     */
+    public static final TagKey<Block> UNIVERSAL_SOILS = block("universal_soils");
 
     /**
      * Harvest drops that count as SECONDARY (by-products), scaled by {@code drops.secondaryDropMultiplier} instead of

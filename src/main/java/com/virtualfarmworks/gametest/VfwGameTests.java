@@ -92,7 +92,14 @@ public final class VfwGameTests {
             test("filter_roll_honors_the_filter", FilterGameTests::rollHonorsTheFilter, 20),
             test("filter_menu_edits_the_filter", FilterGameTests::menuEditsTheFilter, 20),
             test("filter_purges_the_output", FilterGameTests::filterPurgesTheOutput, 20),
-            test("mystical_filter_keeps_only_essence", VfwGameTests::mysticalFilterKeepsOnlyEssence, 20));
+            test("mystical_filter_keeps_only_essence", VfwGameTests::mysticalFilterKeepsOnlyEssence, 20),
+            // every plantable (owner decisions 2026-09-28)
+            test("plantables_rules", PlantablesGameTests::rules, 20),
+            test("plantables_slots", PlantablesGameTests::slots, 20),
+            test("plantables_fixed_yields", PlantablesGameTests::fixedYields, 20),
+            test("plantables_trees_grow", PlantablesGameTests::treesGrow, 20),
+            test("plantables_machine_without_soil", PlantablesGameTests::machineWithoutSoil, 40),
+            test("plantables_machine_grows_trees", PlantablesGameTests::machineGrowsTrees, 40));
 
     /**
      * Load benchmark: registered as a test ONLY in the {@code benchmark} run ({@code gradlew runBenchmark}, which sets
@@ -161,11 +168,11 @@ public final class VfwGameTests {
         expect(helper, Items.BROWN_MUSHROOM, Items.FARMLAND, Status.INVALID_SOIL, false);
         expect(helper, Items.BROWN_MUSHROOM, Items.COBBLESTONE, Status.MISSING_SOIL, false);
         expect(helper, Items.CHORUS_FLOWER, Items.END_STONE, Status.VALID, false);
-        // Missing / not plantable.
+        // Missing / not plantable (saplings, flowers and torchflower seeds are plantable since 2026-09-28, see
+        // PlantablesGameTests).
         expect(helper, Items.AIR, Items.FARMLAND, Status.MISSING_SEED, false);
-        expect(helper, Items.OAK_SAPLING, Items.DIRT, Status.MISSING_SEED, false);
-        expect(helper, Items.DANDELION, Items.DIRT, Status.MISSING_SEED, false);
-        expect(helper, Items.TORCHFLOWER_SEEDS, Items.FARMLAND, Status.MISSING_SEED, false);
+        expect(helper, Items.WHEAT, Items.FARMLAND, Status.MISSING_SEED, false);
+        expect(helper, Items.MOSS_CARPET, Items.DIRT, Status.MISSING_SEED, false);
         expect(helper, Items.WHEAT_SEEDS, Items.AIR, Status.MISSING_SOIL, false);
         expect(helper, Items.WHEAT_SEEDS, Items.GLASS, Status.MISSING_SOIL, false);
         helper.succeed();
@@ -175,10 +182,13 @@ public final class VfwGameTests {
     private static void slotRules(GameTestHelper helper) {
         check(helper, PlantRules.isPlantable(stack(Items.WHEAT_SEEDS)), "wheat seeds must be plantable");
         check(helper, PlantRules.isPlantable(stack(Items.COCOA_BEANS)), "cocoa beans must be plantable");
-        check(helper, !PlantRules.isPlantable(stack(Items.KELP)), "kelp must not be plantable (owner: later)");
-        check(helper, !PlantRules.isPlantable(stack(Items.CRIMSON_FUNGUS)), "crimson fungus must not be plantable");
-        check(helper, !PlantRules.isPlantable(stack(Items.VINE)), "vines must not be plantable");
-        check(helper, !PlantRules.isPlantable(stack(Items.PITCHER_POD)), "pitcher pod must not be plantable");
+        // Owner, 2026-09-28: every plantable is accepted (more in PlantablesGameTests).
+        check(helper, PlantRules.isPlantable(stack(Items.KELP)), "kelp must be plantable");
+        check(helper, PlantRules.isPlantable(stack(Items.CRIMSON_FUNGUS)), "crimson fungus must be plantable");
+        check(helper, PlantRules.isPlantable(stack(Items.VINE)), "vines must be plantable");
+        check(helper, PlantRules.isPlantable(stack(Items.PITCHER_POD)), "pitcher pod must be plantable");
+        check(helper, !PlantRules.isPlantable(stack(Items.WHEAT)), "an item that places no block must not be plantable");
+        check(helper, !PlantRules.isPlantable(stack(Items.MOSS_CARPET)), "a moss carpet is not a plant");
 
         check(helper, SoilRules.isAcceptableSoil(stack(Items.DIRT)), "dirt must be a soil");
         check(helper, SoilRules.isAcceptableSoil(stack(Items.FARMLAND)), "farmland must be a soil");

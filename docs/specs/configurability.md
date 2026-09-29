@@ -3,9 +3,10 @@
 Goal: large modpacks (e.g. ATM 11) must be able to rebalance VFW EASILY, without touching Java. **Nothing below may be
 hard-coded.** Source: owner's spec, translated.
 
-Implemented in milestone 1 step 2. Server config file: `config/virtualfarmworks-server.toml` (code:
-`config/VfwServerConfig.java`). Soil bonuses: datapack data map `data/virtualfarmworks/data_maps/item/soil_properties.json`
-(code: `data/SoilProperties.java`, `data/ModDataMaps.java`).
+Implemented in milestone 1 step 2 (plantables settings added 2026-09-28). Server config file:
+`config/virtualfarmworks-server.toml` (code: `config/VfwServerConfig.java`). Soil bonuses and fixed harvests: datapack
+data maps in `data/virtualfarmworks/data_maps/item/` (code: `data/SoilProperties.java`, `data/FixedYield.java`,
+`data/ModDataMaps.java`). Tags: `data/virtualfarmworks/tags/` (see `docs/resources.md`).
 
 | Requirement | Mechanism | Key |
 |---|---|---|
@@ -19,8 +20,14 @@ Implemented in milestone 1 step 2. Server config file: `config/virtualfarmworks-
 | Global AND per-tier blacklists | Per-tier lists add to the global ones | `machines.<tier>.seedBlacklist` / `soilBlacklist` |
 | Extra-seed chance on Mystical Agriculture farmlands (0% allowed) | Multiplier over MA's native chance (extra SEED only; MA's extra-essence chance is production) | `drops.mysticalagriculture.secondarySeedChanceMultiplier` |
 | MA seeds only on their own tier's farmland (MA's `requiresEffectiveFarmland` rule, Inferium exempt, `#mysticalagriculture:always_effective_farmland` counts for every tier) | VFW's own switch, default false (owner): machines do not follow MA's option unless this is on too | `mysticalagriculture.requiresEffectiveFarmland` |
-| Which drops are "secondary" | Item tag (planting items in `#c:seeds` are extra seeds automatically) | `#virtualfarmworks:harvest_byproducts` |
+| Which drops are "secondary" | Item tag (planting items in `#c:seeds` are extra seeds automatically, saplings from trees too) | `#virtualfarmworks:harvest_byproducts` |
 | Harvest cost on huge machines | Max loot-table evaluations per harvest (sampled and scaled, expected yield exact) | `performance.maxLootRollsPerHarvest` |
+| Harvest cost of trees | Trees grown in memory per harvest (each stands for several plots, expected yield exact; default 4) | `performance.maxTreesGrownPerHarvest` |
+| Yield of plants without a harvest of their own (flowers, grass, vines, aquatic plants...) | Server config, items of itself per plot and harvest (owner: default 10) | `drops.otherPlantYield` |
+| A fixed harvest for any plantable (item and count per plot; defaults: Torchflower Seeds -> 10 Torchflowers, Pitcher Pod -> 10 Pitcher Plants) | Datapack data map | `fixed_yield.json` |
+| Soils every plant grows on (owner: dirt, grass, any farmland; natural soils kept) | Block tag (default `#minecraft:supports_vegetation`; every farmland block counts too) | `#virtualfarmworks:universal_soils` |
+| Refuse a plantable by datapack (empty by default) | Item tag, on top of the config blacklists | `#virtualfarmworks:unplantable` |
+| Accept an item whose block VFW does not recognize as a plant | Item tag (harvested like a crop) | `#virtualfarmworks:extra_plantables` |
 | Multiplier without Water Provider, per tier | Server config per tier (default 0.25) | `machines.<tier>.noWaterSpeedMultiplier` |
 | Auto-output interval or disable | Server config (default 20, 0 = off) | `output.autoExportIntervalTicks` |
 | Hidden output slots behind the 9 visible ones, per tier (Starter 27; deleted when the machine breaks) | Server config per tier (0..256, 0 = none) | `machines.<tier>.internalBufferSlots` |

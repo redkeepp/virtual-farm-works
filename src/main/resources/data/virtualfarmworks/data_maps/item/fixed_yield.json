@@ -1,0 +1,6 @@
+{
+  "values": {
+    "minecraft:torchflower_seeds": { "item": "minecraft:torchflower" },
+    "minecraft:pitcher_pod": { "item": "minecraft:pitcher_plant" }
+  }
+}

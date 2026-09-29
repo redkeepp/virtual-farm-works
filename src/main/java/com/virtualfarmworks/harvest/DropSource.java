@@ -1,6 +1,7 @@
 /*
- * DropSource — contract for "what does harvesting N plots of this plant produce": the generic loot-table source
- * (LootDropSource) and the Mystical Agriculture source (compat) both implement it.
+ * DropSource — contract for "what does harvesting N plots of this plant produce": the loot-table source
+ * (LootDropSource), grown trees (TreeDropSource), fixed yields (FixedDropSource) and the Mystical Agriculture source
+ * (compat) all implement it.
  */
 package com.virtualfarmworks.harvest;
 
@@ -20,6 +21,7 @@ import com.virtualfarmworks.sim.DropTally;
  * <ul>
  *   <li>Add drops for exactly {@code plots} harvested plots, with the replanting cost already paid (a physical farm
  *       replants with one seed of each harvested crop; in VFW the plot keeps its seed, so that seed must not be output).
+ *       Plants that stay planted (stems, berries, trees, fixed yields) pay nothing.</li>
  *   <li>Classify each drop as MAIN (the product) or SECONDARY (extra seeds, by-products).</li>
  *   <li>Never touch the world, never spawn entities, never use a player (performance and safety rules).</li>
  * </ul>

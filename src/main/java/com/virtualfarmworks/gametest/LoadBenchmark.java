@@ -90,9 +90,21 @@ final class LoadBenchmark {
         } else {
             report.add(row("Harvest, 64 Inferium plots (MA formula)", "skipped: Mystical Agriculture not installed"));
         }
+        // Plantables expansion (2026-09-28): fixed yields cost nothing; trees are grown in memory, a few per harvest
+        // (config performance.maxTreesGrownPerHarvest, 4), so their cost barely depends on the plot count. Few plots
+        // here so every timed harvest fits the output in one batch (a huge fungus is ~70 blocks).
+        double poppies = harvestMicros(helper, Items.POPPY, Items.DIRT, 64);
+        double oaks = harvestMicros(helper, Items.OAK_SAPLING, Items.DIRT, 32);
+        double fungi = harvestMicros(helper, Items.CRIMSON_FUNGUS, Items.DIRT, 8);
+        report.add(row("Harvest, 64 poppy plots (10 of itself each)", format(poppies) + " us per harvest"));
+        report.add(row("Harvest, 32 oak sapling plots (4 trees grown)", format(oaks) + " us per harvest"));
+        report.add(row("Harvest, 8 crimson fungus plots (4 grown)", format(fungi) + " us per harvest"));
 
         double playWheat = normalPlayNanos(helper, Items.WHEAT_SEEDS, Items.FARMLAND);
         report.add(row("Normal play: 64 wheat plots, 4 upgrades (3x)", micros(playWheat)
+                + " us per machine per tick (average, harvests included)"));
+        double playOak = normalPlayNanos(helper, Items.OAK_SAPLING, Items.DIRT);
+        report.add(row("Normal play: 64 oak saplings, 4 upgrades (3x)", micros(playOak)
                 + " us per machine per tick (average, harvests included)"));
         double pipe = pipeNanos(helper, false);
         double pipeFiltered = pipeNanos(helper, true);

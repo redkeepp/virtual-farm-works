@@ -1,8 +1,10 @@
 /*
- * ModDataMaps — registers VFW's data map types (currently soil_properties) and offers lookups such as the speed
+ * ModDataMaps — registers VFW's data map types (soil_properties, fixed_yield) and offers lookups such as the speed
  * multiplier of a soil item.
  */
 package com.virtualfarmworks.data;
+
+import org.jspecify.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 
@@ -26,11 +28,20 @@ public final class ModDataMaps {
             .synced(SoilProperties.CODEC, false)
             .build();
 
+    /** Fixed harvests of plantable items, see {@link FixedYield}. Server-only: harvests happen on the server. */
+    public static final DataMapType<Item, FixedYield> FIXED_YIELD = DataMapType
+            .builder(Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID, "fixed_yield"), Registries.ITEM,
+                    FixedYield.CODEC)
+            .build();
+
     private ModDataMaps() {
     }
 
     public static void register(IEventBus modEventBus) {
-        modEventBus.addListener(RegisterDataMapTypesEvent.class, event -> event.register(SOIL_PROPERTIES));
+        modEventBus.addListener(RegisterDataMapTypesEvent.class, event -> {
+            event.register(SOIL_PROPERTIES);
+            event.register(FIXED_YIELD);
+        });
     }
 
     /**
@@ -40,5 +51,10 @@ public final class ModDataMaps {
     public static double soilSpeedMultiplier(ItemStack soil) {
         SoilProperties properties = soil.typeHolder().getData(SOIL_PROPERTIES);
         return properties == null ? 1.0 : properties.speedMultiplier();
+    }
+
+    /** The fixed harvest of a plantable stack, or null when it has none (read on revalidation, like the soil bonus). */
+    public static @Nullable FixedYield fixedYield(ItemStack seed) {
+        return seed.isEmpty() ? null : seed.typeHolder().getData(FIXED_YIELD);
     }
 }

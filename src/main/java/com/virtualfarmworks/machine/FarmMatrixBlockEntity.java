@@ -412,12 +412,15 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         ItemStack soil = inputs.stackInSlot(MachineSlots.SOIL);
         analysis = PlantAnalysis.analyze(seed, soil, tier);
 
-        // Plots = min(seeds, soils) (owner rule). Plots exist whenever both slots hold usable items, even if the pair
-        // is currently blocked (INVALID SOIL, missing hoe...): the bar just freezes. A missing or unusable seed/soil
-        // means no plots, which resets the bar (GrowthCycle: an empty machine never keeps progress).
+        // Plots = min(seeds, soils) (owner rule), or just the seeds for plants that need no soil (lily pad, vines...:
+        // owner, 2026-09-28). Plots exist whenever the slots hold usable items, even if the pair is currently blocked
+        // (INVALID SOIL, missing hoe...): the bar just freezes. A missing or unusable seed/soil means no plots, which
+        // resets the bar (GrowthCycle: an empty machine never keeps progress).
         boolean plotsPossible = analysis.status() != PlantAnalysis.Status.MISSING_SEED
                 && analysis.status() != PlantAnalysis.Status.MISSING_SOIL;
-        int plots = plotsPossible ? Math.min(seed.getCount(), soil.getCount()) : 0;
+        int plots = !plotsPossible ? 0
+                : analysis.needsSoil() ? Math.min(seed.getCount(), soil.getCount())
+                : seed.getCount();
         Item seedItem = seed.isEmpty() ? null : seed.getItem();
         boolean plantChanged = plantedSeed != null && seedItem != plantedSeed;
         cycle.setPlots(0, plots, plantChanged);

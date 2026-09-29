@@ -1,6 +1,7 @@
 /*
- * HarvestPlans — decides, once per revalidation, how a seed/soil pair is harvested: which drop source to use (Mystical
- * Agriculture or loot table), which block state represents one harvested plot, and whether replanting costs a seed.
+ * HarvestPlans — decides, once per revalidation, how a seed/soil pair is harvested: which drop source to use (fixed
+ * yield, Mystical Agriculture, grown tree or loot table), which block state represents one harvested plot, and whether
+ * replanting costs a seed.
  */
 package com.virtualfarmworks.harvest;
 
@@ -10,7 +11,11 @@ import org.jspecify.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
+import com.virtualfarmworks.config.VfwServerConfig;
+import com.virtualfarmworks.data.FixedYield;
+import com.virtualfarmworks.data.ModDataMaps;
 import com.virtualfarmworks.plant.PlantRules;
+import com.virtualfarmworks.plant.SoilRules;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
@@ -54,7 +59,18 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  *       <td>One grown segment/spread per cycle; the base stays.</td></tr>
  *   <tr><td>Chorus flower</td><td>a chorus plant block (0-1 chorus fruit)</td><td>no</td>
  *       <td>One grown stem segment per cycle; the flower stays.</td></tr>
+ *   <tr><td>Saplings, azaleas, nether fungi</td><td>a whole tree grown in memory ({@link TreeDropSource})</td>
+ *       <td>no</td><td>Owner: the drops of a real tree broken by hand; the tree stays planted.</td></tr>
+ *   <tr><td>Other generic plants planted from {@code #c:seeds}</td><td>the mature state</td><td>yes</td>
+ *       <td>Modded crops that are not CropBlocks.</td></tr>
+ *   <tr><td>Every other generic plant (flowers, grass, vines...)</td><td>{@code drops.otherPlantYield} of itself
+ *       ({@link FixedDropSource})</td><td>no</td><td>Owner: "each yields 10 of itself per harvest".</td></tr>
+ *   <tr><td>Items in the {@code fixed_yield} data map</td><td>the fixed item and count</td><td>no</td>
+ *       <td>Owner: Torchflower Seeds / Pitcher Pod yield 10 flowers; pack makers can add any plant.</td></tr>
  * </table>
+ * "Replant cost" is VFW's model of a real farm replanting each broken crop with one of its seeds (the plot keeps its
+ * seed). It is not the owner's future "replanting" feature (seeds planted automatically into free soils, planned for
+ * the next tiers).
  */
 public final class HarvestPlans {
     /** {@code StemBlock#fruit} (private in 26.1): the block a stem grows. Null if it could not be accessed. */
@@ -72,6 +88,17 @@ public final class HarvestPlans {
         if (plant == null) {
             return null;
         }
+        // Plain item (no components) so it matches the seed items that loot tables drop.
+        ItemResource plantingItem = ItemResource.of(seed.getItem());
+        int otherPlantYield = VfwServerConfig.OTHER_PLANT_YIELD.get();
+
+        // A fixed harvest from the data map wins over everything (Torchflower Seeds / Pitcher Pod -> 10 flowers).
+        FixedYield fixed = ModDataMaps.fixedYield(seed);
+        if (fixed != null) {
+            ItemResource product = fixed.item().map(ItemResource::of).orElse(plantingItem);
+            return new FixedDropSource(product, fixed.count().orElse(otherPlantYield));
+        }
+
         if (MysticalCompat.isMysticalSeed(seed)) {
             DropSource mystical = MysticalCompat.createDropSource(seed, soil);
             if (mystical != null) {
@@ -79,9 +106,11 @@ public final class HarvestPlans {
             }
         }
 
-        // Plain item (no components) so it matches the seed items that loot tables drop.
-        ItemResource plantingItem = ItemResource.of(seed.getItem());
         boolean isSeed = seed.is(Tags.Items.SEEDS);
+
+        if (PlantRules.isGenericPlantBlock(plant)) {
+            return createGeneric(plant, soil, plantingItem, isSeed, otherPlantYield);
+        }
 
         if (plant instanceof StemBlock stem) {
             return new LootDropSource(fruitOf(stem), plantingItem, false, isSeed);
@@ -108,6 +137,28 @@ public final class HarvestPlans {
         }
         // Nether wart, cocoa and any unknown plant accepted through #virtualfarmworks:extra_plantables.
         return new LootDropSource(matureState(plant), plantingItem, true, isSeed);
+    }
+
+    /**
+     * Generic plants (owner decisions, 2026-09-28): trees yield a whole grown tree; a modded plant planted from a seed
+     * ({@code #c:seeds}) is a crop in all but class, so it yields its mature drops minus the replanted seed; every other
+     * plant yields {@code otherPlantYield} of itself and stays planted.
+     */
+    private static DropSource createGeneric(Block plant, ItemStack soil, ItemResource plantingItem, boolean isSeed,
+                                            int otherPlantYield) {
+        if (TreeGrowth.isTree(plant)) {
+            TreeGrowth growth = TreeGrowth.of(plant);
+            if (growth != null) {
+                BlockState soilState = SoilRules.soilState(soil);
+                BlockState ground = growth.groundFor(soilState != null ? soilState : Blocks.DIRT.defaultBlockState());
+                return new TreeDropSource(growth, ground, VfwServerConfig.MAX_TREES_GROWN_PER_HARVEST.get());
+            }
+            // The tree could not be read (logged by TreeGrowth): harvested as a plain plant below.
+        }
+        if (isSeed) {
+            return new LootDropSource(matureState(plant), plantingItem, true, true);
+        }
+        return new FixedDropSource(plantingItem, otherPlantYield);
     }
 
     /**

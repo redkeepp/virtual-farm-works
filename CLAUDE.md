@@ -73,24 +73,25 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
 ## Current state (2026-09-28)
 
 **Starter Farm Matrix: complete**, tested in game by the owner (single player; dedicated server before the JEI
-packet was added). Features: one global growth cycle with ACTIVE/PENDING plots; plant/soil rules from the game's own
-logic; loot-table and Mystical Agriculture harvests; transactional batched harvest into a 9-slot visible output
-(players can also put items in by hand) plus 27 hidden slots; auto-export per face; Water Provider, 4 Growth Speed
-upgrades, Crux Provider; hoe slot with optional time-based wear; Fertilized Essence switch; per-machine harvest filter
-(whitelist/blacklist, JEI drag-and-drop); smooth progress bar; Jade tooltip; JEI exclusion areas; recipes.
-Tests: 25 game tests (24 VFW + 1 vanilla), 73 JUnit, load benchmark.
+packet was added). Features: one global growth cycle with ACTIVE/PENDING plots; every plantable (crops, trees,
+flowers, grass, aquatic and hanging plants — "More plantables", 2026-09-28, not yet tested in game by the owner);
+plant/soil rules from the game's own logic; loot-table, grown-tree, fixed-yield and Mystical Agriculture harvests;
+transactional batched harvest into a 9-slot visible output (players can also put items in by hand) plus 27 hidden
+slots; auto-export per face; Water Provider, 4 Growth Speed upgrades, Crux Provider; hoe slot with optional
+time-based wear; Fertilized Essence switch; per-machine harvest filter (whitelist/blacklist, JEI drag-and-drop);
+smooth progress bar; Jade tooltip; JEI exclusion areas; recipes.
+Tests: 31 game tests (30 VFW + 1 vanilla), 73 JUnit, load benchmark.
 
-**Next (owner decisions recorded, not implemented yet): accept more plantables** — spec section "More plantables
-(next)" in `docs/specs/starter-farm-matrix.md`. Waiting for the owner's go-ahead and one open point (crops' seed
-cost).
+**Next: Voltaic tier** — needs the owner's spec (the GUI texture `voltaic_farm_matrix_gui.png` exists: 296 px wide,
+two 15x4 slot blocks, info panel, 3x3 grid). Owner's preview (2026-09-28): the two grids are plantables (top) and
+soils (bottom); "replanting" (replantio) = seeds produced by the harvest are planted automatically into the free
+soils, instead of going to the output or being filtered, until no free soil is left. Several classes are
+Starter-shaped today (GUI layout, menu slot constants, one plot group) and will need per-tier variants.
 
-**After that: Voltaic tier** — needs the owner's spec (the GUI texture `voltaic_farm_matrix_gui.png` exists: 296 px
-wide, two 15x4 slot blocks, info panel, 3x3 grid). Several classes are Starter-shaped today (GUI layout, menu slot
-constants, one plot group) and will need per-tier variants.
-
-Open on the owner's side: multiplayer re-test (a custom packet was added since the last one), git tag "starter
-complete" (owner: not yet). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata. Outside VFW: MA
-9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or with JEI.
+Open on the owner's side: in-game test of the new plantables, multiplayer re-test (a custom packet was added since
+the last one), git tag "starter complete" (owner: not yet). Deferred by the owner: EMI (no 26.1.2 release),
+publishing metadata (README still says "scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists
+"Inferium Essence" twice) — test in survival or with JEI.
 
 ## Core design (owner's spec, source of truth)
 
@@ -144,13 +145,21 @@ Breaking drops contents in `preRemoveSideEffects`.
   MISSING CRUX > MISSING FE > OUTPUT FULL > RUNNING.
 
 ### Harvest (`harvest/`)
-- Drop sources, built on revalidation by `HarvestPlans`: `LootDropSource` (the plant's loot table, TOOL = EMPTY so the
-  hoe never changes yields, at most `performance.maxLootRollsPerHarvest` evaluations scaled to the plot count) and
-  `MysticalDropSource` (MA's formula with the soil slot's farmland).
-- Replanting cost: crops, nether wart, cocoa and MA pay 1 planting item per plot (the plot keeps its seed). Stems,
-  berries, sugar cane, cactus, bamboo, mushrooms and chorus stay in place: no cost. Owner (2026-09-28): the Starter
-  has no replanting and "replanting" (replantio) is a concept the owner will define later; new plant types pay
-  nothing; whether crops keep this cost is OPEN (spec, "More plantables").
+- Drop sources, built on revalidation by `HarvestPlans` (first match wins):
+  - `FixedDropSource` from the `fixed_yield` data map (Torchflower Seeds -> Torchflower, Pitcher Pod -> Pitcher
+    Plant, x `drops.otherPlantYield`);
+  - `MysticalDropSource` (MA's formula with the soil slot's farmland);
+  - native plants: `LootDropSource` (the plant's loot table, TOOL = EMPTY so the hoe never changes yields, at most
+    `performance.maxLootRollsPerHarvest` evaluations scaled to the plot count);
+  - trees (sapling, azalea, nether fungus): `TreeDropSource` — `TreeGrowth` grows at most
+    `performance.maxTreesGrownPerHarvest` (4) trees in a `plant/VirtualLevel` with the tree's own feature, then every
+    grown block's loot is rolled by hand (shared loot budget, scaled). Blocks with a block entity are skipped (hives,
+    modded magic-tree cores); saplings (`#minecraft:saplings`) are SECONDARY;
+  - other generic plants: `LootDropSource` crop model if planted from `#c:seeds`, else `FixedDropSource` (10 of
+    itself, `drops.otherPlantYield`).
+- Replanting cost: crops, nether wart, cocoa and MA pay 1 planting item per plot (the plot keeps its seed); owner
+  (2026-09-28): keep it. Stems, berries, sugar cane, cactus, bamboo, mushrooms, chorus, trees and fixed yields stay
+  in place: no cost. Do not confuse it with the owner's future "replanting" (Voltaic preview in Current state).
 - MAIN vs SECONDARY: extra planting items are SECONDARY when in `#c:seeds`; `#virtualfarmworks:harvest_byproducts` is
   SECONDARY; the rest MAIN. MAIN x global x tier production multiplier, SECONDARY x `secondaryDropMultiplier`;
   `DropTally.finish` rounds stochastically (expected value exact).
@@ -193,17 +202,30 @@ Breaking drops contents in `preRemoveSideEffects`.
 - JEI ghost drop -> `network/SetFilterGhostPayload` (the only custom packet) -> `FarmMatrixMenu#setFilterGhost`.
 
 ### Plants and soils (`plant/`)
-- Seed slot: the item places a supported plant block (`PlantRules#isSupportedPlantBlock`: CropBlock, StemBlock,
-  NetherWart, SweetBerryBush, Mushroom, SugarCane, Cactus, Bamboo, Cocoa, CaveVines, ChorusFlower) or is in
-  `#virtualfarmworks:extra_plantables`; never in `#virtualfarmworks:unplantable` (torchflower seeds, pitcher pod —
-  to be removed by the "more plantables" work). Config blacklists apply per tier on top.
+- Seed slot (`PlantRules#isPlantable`): the item places a NATIVE plant (`isSupportedPlantBlock`: CropBlock, StemBlock,
+  NetherWart, SweetBerryBush, Mushroom, SugarCane, Cactus, Bamboo, Cocoa, CaveVines, ChorusFlower) or a GENERIC plant
+  (`isGenericPlantBlock`, owner 2026-09-28: every other VegetationBlock, GrowingPlantHeadBlock, VineBlock,
+  GlowLichen, SporeBlossom, HangingRoots, HangingMoss, BigDripleaf — never a block with a block entity: crafted modded
+  "plants" would be duplicated), or is in `#virtualfarmworks:extra_plantables`; never in
+  `#virtualfarmworks:unplantable` (empty by default). Config blacklists apply per tier on top.
+- Generic plants' soil need (`PlantRules.SoilNeed`, cached per block, from the plant's own `canSurvive` run in a
+  `VirtualLevel`): stands on dirt/grass -> ANY (natural soils + universal soils: `#virtualfarmworks:universal_soils`
+  = `#minecraft:supports_vegetation`, plus every FarmlandBlock); only on farmland -> FARMLAND (crop-like, hoe on
+  dirt: pitcher pod); on none -> NONE (lily pad, small dripleaf, vines, hanging plants: soil slot ignored, plots =
+  seeds, `PlantAnalysis#needsSoil` false).
 - Soil slot: the item places a block some plantable plant grows on, or is in `#virtualfarmworks:tillable_soils`.
-  Plants are never soils. Cached per item; caches clear on `TagsUpdatedEvent`.
-- `canGrowOn`: the soil's NeoForge `canSustainPlant` hook first, then the plant's `mayPlaceOn` (reflective
-  MethodHandle: an access transformer breaks the MC recompile, 19 vanilla subclasses override it as protected) or
-  the vanilla `#supports_*` tag. Virtual plots ignore light, water and neighbours. Mushrooms use
-  `#virtualfarmworks:supports_mushrooms` (mycelium, podzol, nylium) and glow berries
-  `#virtualfarmworks:supports_glow_berries` (stone, moss, dirt) because their vanilla rules accept almost any block.
+  Plants are never soils. Soil-less plants and "any solid surface" rules (seagrass, kelp, leaf litter...:
+  `PlantRules#definesSoils`) do not count, so ice, stone... do not become soils. Cached per item; caches clear on
+  `TagsUpdatedEvent`.
+- `canGrowOn`: the soil's NeoForge `canSustainPlant` hook first; generic plants: `canSurvive` in a VirtualLevel or a
+  universal soil (ANY); native plants: `mayPlaceOn` (reflective MethodHandle: an access transformer breaks the MC
+  recompile, 19 vanilla subclasses override it as protected) or the vanilla `#supports_*` tag. Virtual plots ignore
+  light, water and neighbours. Mushrooms use `#virtualfarmworks:supports_mushrooms` (mycelium, podzol, nylium) and
+  glow berries `#virtualfarmworks:supports_glow_berries` (stone, moss, dirt) because their vanilla rules accept almost
+  any block.
+- `VirtualLevel`: an in-memory `WorldGenLevel` (flat plane of the soil below y 64, air above, full light, no water, no
+  entities, placement cap). `rules(ground)` has no server (plant rules also run on the client); `growth(...)` borrows
+  the server's registries and chunk generator for tree features. Never touches the real world.
 - Hoe needed = the plant cannot grow on the soil but can on farmland, and the soil is tillable (`hoe.requireHoe`).
 - Game-test gotcha: a block that supports no plant is MISSING_SOIL (the slot rejects it), not INVALID_SOIL.
 
@@ -245,12 +267,14 @@ Breaking drops contents in `preRemoveSideEffects`.
 ## Performance and benchmark
 
 - `gametest/LoadBenchmark`: detached machines ticked directly (the ticker's work; vanilla's per-BE overhead excluded),
-  warm-up + best of 3. Rows: growing 1 vs 64 plots, OUTPUT FULL, harvest tick (wheat x64/x1, MA x64), busy farm
-  (64 wheat, 3x), busy farm + a pipe pulling 1 item/tick with and without a filter, revalidation, auto-export into a
-  real chest. Never fails on numbers. Run-to-run noise is ~10-20%: compare rows within one run.
+  warm-up + best of 3. Rows: growing 1 vs 64 plots, OUTPUT FULL, harvest tick (wheat x64/x1, MA x64, poppy x64,
+  oak saplings x32, crimson fungus x8), busy farm (64 wheat / 64 oak saplings, 3x), busy farm + a pipe pulling 1
+  item/tick with and without a filter, revalidation, auto-export into a real chest. Never fails on numbers, but every
+  timed harvest must fit one batch (hence few tree plots). Run-to-run noise is ~10-20%: compare rows within one run.
 - Reference (2026-09-28, owner's PC, game closed): busy farm 0.28 us per machine per tick (~3,500 busy machines per
-  ms; 1,000 = 0.56% of a 50 ms tick); growing ~0.01 us; harvest tick 64 us (64 wheat) / 4.5 us (64 MA). History of
-  results in `docs/history.md`.
+  ms; 1,000 = 0.56% of a 50 ms tick); growing ~0.01 us; harvest tick 64 us (64 wheat) / 4.5 us (64 MA). Trees
+  (Claude's noisy run, same day, relative to wheat in that run): a tree harvest ~2x a 64-wheat harvest, a busy oak
+  farm ~3x a busy wheat farm; a poppy harvest ~0.1x. History of results in `docs/history.md`.
 - The priciest routine work is auto-export into a full neighbour (NeoForge transfer + the neighbour's inventory):
   tunable with `output.autoExportIntervalTicks`.
 - Lessons: never run work after EVERY output change (the filter cleanup cost +35% that way); cache what the tick
@@ -273,6 +297,12 @@ Breaking drops contents in `preRemoveSideEffects`.
   client send: `ClientPacketDistributor.sendToServer`.
 - `ModConfigSpec.ConfigValue#set` changes the value in memory only (no save, no event): game tests that change config
   must restore it in the SAME tick (call `serverTick` directly in a loop), since tests of a batch run together.
+- 26.1 names: the lily pad block class is `LilyPadBlock`; the dry grass ITEMS are `Items.DRY_SHORT_GRASS` /
+  `DRY_TALL_GRASS` (blocks: `SHORT_DRY_GRASS` / `TALL_DRY_GRASS`); nether fungi are `NetherFungusBlock`.
+- `TreeGrower` (final class) picks its feature in private methods (`getConfiguredFeature(RandomSource, boolean)`,
+  `getConfiguredMegaFeature`); `SaplingBlock#treeGrower` and `NetherFungusBlock#feature/requiredBlock` are
+  non-public fields: `harvest/TreeGrowth` reads them by reflection (works in dev and production, like
+  `StemBlock#fruit`).
 
 ### GUI (26.1)
 - Rendering is the "extract" API: `GuiGraphicsExtractor`, `extractBackground`, `extractLabels` (translated to the GUI
@@ -300,6 +330,8 @@ Breaking drops contents in `preRemoveSideEffects`.
   a comment, breaks `generateModMetadata`.
 - If `gradlew build` says UP-TO-DATE after code changes, delete the project `.gradle/` folder and rebuild.
 - Long paths: `git clone` into deep folders may fail with `'$GIT_DIR' too big` — download a ZIP or use a short path.
+- No Python on the owner's machine: script with bash/sed/awk or use the Edit tool. A recursive grep over `build/`
+  (sources + caches) takes minutes: grep `build/mcsrc` or `build/neosrc` subfolders instead.
 - The owner usually has `runClient` open on `run/`. An old build running there "corrects" the shared config TOML and
   removes new keys: ask the owner to restart the client after code changes. When the owner edits the TOML by hand: a
   number with a leading zero (`05.0`) makes NeoForge back up the file and recreate it with DEFAULTS; an edited comment
@@ -318,18 +350,21 @@ Breaking drops contents in `preRemoveSideEffects`.
 - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
 - `config/` — `VfwServerConfig` (spec + comments pack makers read), `VfwConfig` (runtime: compiled filters,
   generation), `ItemFilter`.
-- `data/` — `SoilProperties` + `ModDataMaps` (soil growth bonus data map).
-- `plant/` — `PlantRules`, `SoilRules`, `PlantAnalysis`, `SoilView`, `VfwTags`.
+- `data/` — `ModDataMaps` with `SoilProperties` (soil growth bonus) and `FixedYield` (fixed harvests) data maps.
+- `plant/` — `PlantRules`, `SoilRules`, `PlantAnalysis`, `SoilView` (2-block BlockGetter for native rules),
+  `VirtualLevel` (in-memory WorldGenLevel for generic rules and tree growth), `VfwTags`.
 - `sim/` — Minecraft-free core: `GrowthCycle`, `PlotGroup`, `GrowthSpeed`, `MachineStatus`, `MachineConditions`,
   `HarvestMath`, `DropTally`, `HarvestBatching`, `YieldSample`.
-- `harvest/` — `DropSource`, `LootDropSource`, `HarvestPlans`, `Harvester`, `HarvestFilter`.
+- `harvest/` — `DropSource`, `LootDropSource`, `TreeDropSource` + `TreeGrowth`, `FixedDropSource`, `HarvestPlans`,
+  `Harvester`, `HarvestFilter`.
 - `menu/` — `FarmMatrixMenu` (both sides), `FarmMatrixLayout`, `FilterPageView`, `DisplayFormats`.
 - `network/` — `SetFilterGhostPayload`.
 - `client/` — CLIENT ONLY: `VirtualFarmWorksClient` (second `@Mod`, dist CLIENT), `FarmMatrixScreen`,
   `SmoothProgress`, `compat/VfwJeiPlugin`. Never reference `client/` from common code (a dedicated server crashes).
 - `compat/jade/`, `compat/mysticalagriculture/` — see Integrations.
 - `gametest/` (dev only) — `VfwGameTests` (registration: add a `test(...)` line with a max tick count),
-  `MachineGameTests`, `FilterGameTests`, `MysticalHarvestTests`, `MysticalFarmlandTests`, `LoadBenchmark`.
+  `MachineGameTests`, `FilterGameTests`, `PlantablesGameTests`, `MysticalHarvestTests`, `MysticalFarmlandTests`,
+  `LoadBenchmark`.
   `FarmMatrixBlockEntity#setProgressForTesting` exists only for tests.
 - `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`).
 - `src/main/resources/data/virtualfarmworks/` — tags, data maps, recipes, loot tables (see `docs/resources.md`).
@@ -337,7 +372,7 @@ Breaking drops contents in `preRemoveSideEffects`.
 
 ## Docs (read the specs before implementing)
 
-- `docs/specs/starter-farm-matrix.md` — the Starter spec and every owner decision since (GUI, output, filter, next
+- `docs/specs/starter-farm-matrix.md` — the Starter spec and every owner decision since (GUI, output, filter,
   plantables).
 - `docs/specs/configurability.md` — every pack-maker setting and where it lives.
 - `docs/resources.md` — what each JSON resource does and who authored it.

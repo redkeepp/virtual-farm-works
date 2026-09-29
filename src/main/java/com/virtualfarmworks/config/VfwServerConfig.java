@@ -46,6 +46,7 @@ public final class VfwServerConfig {
     // --- drops ------------------------------------------------------------------------------------------------------
     public static final ModConfigSpec.DoubleValue GLOBAL_PRODUCTION_MULTIPLIER;
     public static final ModConfigSpec.DoubleValue SECONDARY_DROP_MULTIPLIER;
+    public static final ModConfigSpec.IntValue OTHER_PLANT_YIELD;
     public static final ModConfigSpec.DoubleValue MYSTICAL_SECONDARY_SEED_MULTIPLIER;
 
     // --- Mystical Agriculture ---------------------------------------------------------------------------------------
@@ -53,6 +54,7 @@ public final class VfwServerConfig {
 
     // --- performance ------------------------------------------------------------------------------------------------
     public static final ModConfigSpec.IntValue MAX_LOOT_ROLLS_PER_HARVEST;
+    public static final ModConfigSpec.IntValue MAX_TREES_GROWN_PER_HARVEST;
 
     // --- filters ----------------------------------------------------------------------------------------------------
     public static final ModConfigSpec.ConfigValue<List<? extends String>> GLOBAL_SEED_BLACKLIST;
@@ -158,6 +160,15 @@ public final class VfwServerConfig {
                 .comment("Multiplier for secondary drops: extra seeds and by-products such as Mystical Agriculture's",
                         "Fertilized Essence. 1.0 = normal, 0.0 = disabled.")
                 .defineInRange("secondaryDropMultiplier", 1.0, 0.0, 1000.0);
+        // Owner decision (2026-09-28): "each one yields 10 of itself per harvest".
+        OTHER_PLANT_YIELD = b
+                .comment("Items per plot and harvest for plants without a harvest of their own: flowers, grass,",
+                        "ferns, bushes, roots, vines, lily pads, kelp and other aquatic plants... Each plot yields this",
+                        "many of the plant itself and the plant stays planted. Also the default amount of the",
+                        "fixed_yield data map (Torchflower Seeds and Pitcher Pod yield this many flowers).",
+                        "Not used by crops (their real drops), trees (the drops of the whole tree) or Mystical",
+                        "Agriculture. The production multipliers apply on top.")
+                .defineInRange("otherPlantYield", 10, 0, 1_000_000);
         b.push("mysticalagriculture");
         // Base chances below were read from Mystical Agriculture 9.0.9 (Crop#getSecondaryChance): 10% on any
         // essence farmland, +10% more when the farmland matches the crop tier, 0% on non-essence soil. They can differ
@@ -211,6 +222,13 @@ public final class VfwServerConfig {
                         "coarser. Lower = cheaper harvests on huge machines. Mystical Agriculture crops do not use",
                         "loot tables and are always computed exactly.")
                 .defineInRange("maxLootRollsPerHarvest", 64, 1, 4096);
+        MAX_TREES_GROWN_PER_HARVEST = b
+                .comment("Trees grown (in memory, never in the world) per harvest of a sapling or fungus. Each grown",
+                        "tree stands for plots / trees plots (e.g. 64 saplings, 4 trees: each tree counts 16 times).",
+                        "The expected yield stays exact; only the randomness of a single harvest is coarser (tree",
+                        "heights and shapes vary). Growing a tree costs about as much as tens of loot rolls, so keep",
+                        "this low on busy servers. The blocks of the grown trees then share maxLootRollsPerHarvest.")
+                .defineInRange("maxTreesGrownPerHarvest", 4, 1, 256);
         b.pop();
 
         b.comment("Blacklists. By default everything is allowed; list what is NOT allowed.").push("filters");
