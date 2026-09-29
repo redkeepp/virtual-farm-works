@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "virtualfarmworks:block/entropic_farm_matrix"
+  }
+}

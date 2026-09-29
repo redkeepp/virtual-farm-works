@@ -171,6 +171,47 @@ public final class GrowthCycle {
         normalize();
     }
 
+    /**
+     * Sets the plot count of EVERY group at once, with the rules of {@link #setPlots}. Machines with several groups
+     * revalidate them together, and "the machine is empty" must then be decided once, before any group gets plots:
+     * groups filled at the same time on an empty machine (a pipe filling 60 groups in one go) all start ACTIVE, instead
+     * of only the first one while the others wait a cycle. With one group this is exactly {@link #setPlots}.
+     *
+     * @param plots        effective plot count per group (negative values count as 0)
+     * @param plantChanged per group: its plant type changed, so its old plots are uprooted first
+     */
+    public void setAllPlots(int[] plots, boolean[] plantChanged) {
+        if (plots.length != groups.length || plantChanged.length != groups.length) {
+            throw new IllegalArgumentException("Expected " + groups.length + " groups");
+        }
+        for (int i = 0; i < groups.length; i++) {
+            if (plantChanged[i]) {
+                groups[i].clear();
+            }
+        }
+        boolean empty = sumTotals() == 0;
+        boolean added = false;
+        for (int i = 0; i < groups.length; i++) {
+            PlotGroup group = groups[i];
+            int target = Math.max(0, plots[i]);
+            int current = group.total();
+            if (target < current) {
+                group.remove(current - target); // pending first
+            } else if (target > current) {
+                added = true;
+                if (empty) {
+                    group.addActive(target - current); // first plots of an empty machine: eligible right away
+                } else {
+                    group.addPending(target - current); // a cycle is (or may be) running: wait for the next one
+                }
+            }
+        }
+        if (empty && added) {
+            progress = 0.0; // fresh cycle
+        }
+        normalize();
+    }
+
     /** {@link #load(double, int[], int[], int[])} with nothing harvested yet (saves from before batched harvests). */
     public void load(double savedProgress, int[] active, int[] pending) {
         load(savedProgress, active, pending, new int[0]);

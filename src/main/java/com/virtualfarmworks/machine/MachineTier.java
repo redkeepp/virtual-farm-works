@@ -20,13 +20,13 @@ import net.minecraft.util.StringRepresentable;
  * upgrade simply fits more machines.
  */
 public enum MachineTier implements StringRepresentable {
-    // Only the Starter theme color is specified so far. The other colors are placeholders until the owner provides
-    // each tier's spec; do not rely on them for anything visible yet.
+    // Starter: white (owner spec). Entropic: red, the border color of the owner's Entropic GUI texture. The other colors
+    // are placeholders until the owner provides each tier's spec; do not rely on them for anything visible yet.
     STARTER("starter", 0xFFFFFF),
     VOLTAIC("voltaic", 0xFFFFFF),
     IONIC("ionic", 0xFFFFFF),
     RESONANT("resonant", 0xFFFFFF),
-    ENTROPIC("entropic", 0xFFFFFF);
+    ENTROPIC("entropic", 0xFF0000);
 
     public static final Codec<MachineTier> CODEC = StringRepresentable.fromEnum(MachineTier::values);
 

@@ -14,7 +14,8 @@ drop entries (see NeoForge data map docs).
 
 | File(s) | Author | Purpose |
 |---|---|---|
-| `blockstates/starter_farm_matrix.json` | Claude | Maps the block's `facing` property (north/east/south/west) to the owner's block model, rotated 0/90/180/270 degrees around Y. The model's front is its north side (confirmed in game by the owner). Add one per new tier. |
+| `blockstates/starter_farm_matrix.json`, `blockstates/entropic_farm_matrix.json` | Claude | Maps the block's `facing` property (north/east/south/west) to the owner's block model, rotated 0/90/180/270 degrees around Y. The model's front is its north side (confirmed in game by the owner). Add one per new tier. |
+| `items/entropic_farm_matrix.json` | Claude | Item definition of the Entropic machine (the owner's drop had none): points at the owner's block model. |
 | `models/block/*_farm_matrix.json` | owner | Blockbench models of the five Farm Matrix tiers. Reference the Portuguese-named textures in `textures/block/`. |
 | `items/*_farm_matrix.json`, `items/{starter,voltaic,ionic,resonant}_water_provider_upgrade.json` | owner | 26.1 item definitions (item -> model). Farm Matrix items reuse the block model. |
 | `items/entropic_water_provider_upgrade.json`, `items/*_growth_upgrade.json`, `items/crux_provider_upgrade.json` | Claude | Same, for items the owner's drop did not define. Point at `models/item/<same name>`. |
@@ -27,8 +28,8 @@ drop entries (see NeoForge data map docs).
 
 | File | Author | Purpose |
 |---|---|---|
-| `virtualfarmworks/loot_table/blocks/starter_farm_matrix.json` | Claude | Breaking the machine drops the machine itself (unless destroyed by an explosion). Machine CONTENTS are not handled here (they belong to the BlockEntity, milestone 1 step 6). |
-| `minecraft/tags/block/mineable/pickaxe.json` | Claude | Adds the Starter Farm Matrix to the pickaxe-mineable tag (any pickaxe tier works because no `needs_*_tool` tag is used). Add new tiers here. |
+| `virtualfarmworks/loot_table/blocks/{starter,entropic}_farm_matrix.json` | Claude | Breaking the machine drops the machine itself (unless destroyed by an explosion). Machine CONTENTS are not handled here (they belong to the BlockEntity). |
+| `minecraft/tags/block/mineable/pickaxe.json` | Claude | Adds the Starter and Entropic Farm Matrix to the pickaxe-mineable tag (any pickaxe tier works because no `needs_*_tool` tag is used). Add new tiers here. |
 | `virtualfarmworks/data_maps/item/soil_properties.json` | Claude | Growth bonus per soil ITEM: `"growth_bonus": 0.35` = +35% speed. Defaults: Mystical Agriculture farmlands (Inferium 15%, Prudentium 20%, Tertium 25%, Imperium 30%, Supremium 35%, Awakened Supremium 40%) and Mystical Agradditions Insanium 40% (owner values). Each entry has a `neoforge:mod_loaded` condition so it is skipped when that mod is absent. Code: `data/SoilProperties`, `data/ModDataMaps`. |
 | `virtualfarmworks/data_maps/item/fixed_yield.json` | Claude | Plantable ITEMS whose plots yield a fixed harvest instead of their own: `"item"` (default: the plant itself) x `"count"` (default: config `drops.otherPlantYield`, 10) per plot, the plant staying planted. Defaults (owner, 2026-09-28): Torchflower Seeds -> Torchflower, Pitcher Pod -> Pitcher Plant. Pack makers can give any plant (vanilla or modded) a fixed harvest here. Code: `data/FixedYield`, `harvest/FixedDropSource`. |
 | `virtualfarmworks/tags/item/tillable_soils.json` | Claude | Soils that become farmland with a hoe in the machine (dirt, grass block, dirt path, coarse dirt, rooted dirt). Add modded dirts here. Code: `SoilRules#isTillable`. |

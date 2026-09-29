@@ -2,6 +2,7 @@
   "itemGroup.virtualfarmworks": "Virtual Farm Works",
 
   "block.virtualfarmworks.starter_farm_matrix": "Starter Farm Matrix",
+  "block.virtualfarmworks.entropic_farm_matrix": "Entropic Farm Matrix",
 
   "item.virtualfarmworks.starter_water_provider_upgrade": "Starter Water Provider Upgrade",
   "item.virtualfarmworks.voltaic_water_provider_upgrade": "Voltaic Water Provider Upgrade",
@@ -52,6 +53,7 @@
   "side.virtualfarmworks.right.short": "R",
 
   "gui.virtualfarmworks.starter_farm_matrix": "STARTER FARM MATRIX",
+  "gui.virtualfarmworks.entropic_farm_matrix": "ENTROPIC FARM MATRIX",
   "gui.virtualfarmworks.on": "ON",
   "gui.virtualfarmworks.off": "OFF",
   "gui.virtualfarmworks.hydration": "Hydration: (%sx speed)",

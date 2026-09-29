@@ -99,7 +99,12 @@ public final class VfwGameTests {
             test("plantables_fixed_yields", PlantablesGameTests::fixedYields, 20),
             test("plantables_trees_grow", PlantablesGameTests::treesGrow, 20),
             test("plantables_machine_without_soil", PlantablesGameTests::machineWithoutSoil, 40),
-            test("plantables_machine_grows_trees", PlantablesGameTests::machineGrowsTrees, 40));
+            test("plantables_machine_grows_trees", PlantablesGameTests::machineGrowsTrees, 40),
+            // Entropic Farm Matrix (owner spec 2026-09-29)
+            test("entropic_groups_have_their_own_problems", EntropicGameTests::groupsHaveTheirOwnProblems, 20),
+            test("entropic_energy_runs_the_machine", EntropicGameTests::energyRunsTheMachine, 20),
+            test("entropic_faces_and_pipe_input", EntropicGameTests::facesAndPipeInput, 20),
+            test("entropic_groups_harvest_together", EntropicGameTests::groupsHarvestTogether, 40));
 
     /**
      * Load benchmark: registered as a test ONLY in the {@code benchmark} run ({@code gradlew runBenchmark}, which sets

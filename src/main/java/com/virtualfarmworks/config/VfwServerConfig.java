@@ -9,6 +9,10 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
+
+import com.virtualfarmworks.machine.MachineLayout;
+import com.virtualfarmworks.machine.MachineSlots;
 import com.virtualfarmworks.machine.MachineTier;
 
 import net.neoforged.neoforge.common.ModConfigSpec;
@@ -71,9 +75,20 @@ public final class VfwServerConfig {
         public final ModConfigSpec.IntValue internalBufferSlots;
         public final ModConfigSpec.ConfigValue<List<? extends String>> seedBlacklist;
         public final ModConfigSpec.ConfigValue<List<? extends String>> soilBlacklist;
+        // Grid tiers only (null on the Starter, whose slots are fixed by the owner's spec).
+        public final ModConfigSpec.@Nullable IntValue seedsPerSlot;
+        public final ModConfigSpec.@Nullable IntValue soilsPerSlot;
+        // Tiers that use energy only.
+        public final ModConfigSpec.@Nullable IntValue energyPerPlot;
+        // Tiers with replanting only.
+        public final ModConfigSpec.@Nullable BooleanValue replant;
+        // Tiers with the autocrafter only.
+        public final ModConfigSpec.@Nullable IntValue crafterRecipes;
+        public final ModConfigSpec.@Nullable IntValue crafterBufferLimit;
 
         private MachineSettings(ModConfigSpec.Builder b, MachineTier tier, int defaultGrowthTicks,
                                 int defaultInternalBufferSlots) {
+            MachineLayout layout = MachineLayout.of(tier);
             b.push(tier.getSerializedName());
             growthTicks = b
                     .comment("Ticks for one full growth cycle at 1.0x speed (Water Provider installed, no Growth Speed",
@@ -106,7 +121,65 @@ public final class VfwServerConfig {
             soilBlacklist = b
                     .comment("Soils that this tier refuses, on top of the global blacklist. Same entry format.")
                     .defineListAllowEmpty("soilBlacklist", List.of(), () -> "modid:item", ItemFilter::isValidEntry);
+            if (layout.groups() > 1) {
+                // Owner's Entropic spec: 64 plantables / 64 soils per slot, both editable; the plot capacity follows
+                // (groups x the smaller of the two), and so does the energy buffer.
+                seedsPerSlot = b
+                        .comment("Plantables each slot of the seed grid holds. The machine's plot capacity is",
+                                "" + layout.groups() + " plot groups x the smaller of seedsPerSlot and soilsPerSlot"
+                                        + " (default " + layout.groups() + " x 64 = " + layout.groups() * 64 + ").",
+                                "Change these two values to change the capacity. May exceed a stack (e.g. 128).")
+                        .defineInRange("seedsPerSlot", 64, 1, 10_000);
+                soilsPerSlot = b
+                        .comment("Soils each slot of the soil grid holds. See seedsPerSlot.")
+                        .defineInRange("soilsPerSlot", 64, 1, 10_000);
+            } else {
+                seedsPerSlot = null;
+                soilsPerSlot = null;
+            }
+            if (layout.usesEnergy()) {
+                energyPerPlot = b
+                        .comment("FE per tick each planted plot consumes while the machine grows (owner spec: 90).",
+                                "The energy buffer is sized automatically: plot capacity x energyPerPlot x 3, so it",
+                                "always holds three ticks of the highest possible consumption.",
+                                "Without enough energy for a tick the machine shows MISSING FE and does not grow.")
+                        .defineInRange("energyPerPlot", 90, 0, 1_000_000);
+            } else {
+                energyPerPlot = null;
+            }
+            if (layout.acceptsInput()) {
+                // Owner's Entropic spec: generated plantables look for free soil inside the machine.
+                replant = b
+                        .comment("If true, plantables produced by the harvest (extra seeds, saplings...) are not",
+                                "exported: they are planted in the machine, in plot groups that already hold the same",
+                                "plantable and still have free soil. What finds no free soil goes to the output.")
+                        .define("replant", true);
+            } else {
+                replant = null;
+            }
+            if (layout.hasCrafter()) {
+                crafterRecipes = b
+                        .comment("Recipes the autocrafter can hold (RFTools' Crafter tier 3, the owner's inspiration,",
+                                "holds 8).")
+                        .defineInRange("crafterRecipes", 8, 1, 64);
+                crafterBufferLimit = b
+                        .comment("Items of ONE kind the autocrafter keeps while it waits for the rest of a recipe",
+                                "(e.g. 5 essences of a recipe that needs 8). Beyond this they go to the output, so an",
+                                "ingredient whose partner never comes cannot pile up forever.")
+                        .defineInRange("crafterBufferLimit", 1024, 0, 1_000_000);
+            } else {
+                crafterRecipes = null;
+                crafterBufferLimit = null;
+            }
             b.pop();
+        }
+
+        /** Plot capacity of a grid tier: groups x min(seedsPerSlot, soilsPerSlot); Starter: 64. */
+        public int plotCapacity(MachineLayout layout) {
+            if (seedsPerSlot == null || soilsPerSlot == null) {
+                return MachineSlots.SEED_SOIL_LIMIT;
+            }
+            return layout.groups() * Math.min(seedsPerSlot.get(), soilsPerSlot.get());
         }
     }
 
@@ -243,9 +316,11 @@ public final class VfwServerConfig {
 
         b.comment("Per-tier machine settings").push("machines");
         Map<MachineTier, MachineSettings> machines = new EnumMap<>(MachineTier.class);
-        // Starter: 30 s per cycle and 27 hidden output slots (owner decisions). Add other tiers here when their specs
-        // arrive.
+        // Starter: 30 s per cycle and 27 hidden output slots (owner decisions). Entropic: same cycle ("the rest like the
+        // Starter", owner), 72 hidden slots = 3 per visible slot like the Starter's 27 for 9. Add the other tiers here
+        // when their specs arrive.
         machines.put(MachineTier.STARTER, new MachineSettings(b, MachineTier.STARTER, 600, 27));
+        machines.put(MachineTier.ENTROPIC, new MachineSettings(b, MachineTier.ENTROPIC, 600, 72));
         MACHINES = Map.copyOf(machines);
         b.pop();
 

@@ -34,6 +34,8 @@ public final class ModItems {
 
     public static final DeferredItem<BlockItem> STARTER_FARM_MATRIX =
             ITEMS.registerSimpleBlockItem("starter_farm_matrix", ModBlocks.STARTER_FARM_MATRIX);
+    public static final DeferredItem<BlockItem> ENTROPIC_FARM_MATRIX =
+            ITEMS.registerSimpleBlockItem("entropic_farm_matrix", ModBlocks.ENTROPIC_FARM_MATRIX);
 
     /** {@code <tier>_water_provider_upgrade}, one per tier. */
     public static final Map<MachineTier, DeferredItem<TieredUpgradeItem>> WATER_PROVIDER_UPGRADES =

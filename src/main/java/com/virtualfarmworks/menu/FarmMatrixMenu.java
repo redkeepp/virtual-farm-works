@@ -115,7 +115,7 @@ public class FarmMatrixMenu extends AbstractContainerMenu {
         buf.readBlockPos(); // position, reserved for client-side lookups; not needed yet
         MachineTier tier = MachineTier.values()[Math.clamp(buf.readVarInt(), 0, MachineTier.values().length - 1)];
         return new FarmMatrixMenu(containerId, playerInventory, tier, new MachineInventory(tier, () -> {
-        }), new OutputBuffer(() -> {
+        }), new OutputBuffer(MachineSlots.OUTPUT_COUNT, () -> {
         }), null, ContainerLevelAccess.NULL, null);
     }
 

@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "virtualfarmworks:starter_farm_matrix"
+    "virtualfarmworks:starter_farm_matrix",
+    "virtualfarmworks:entropic_farm_matrix"
   ]
 }

@@ -391,6 +391,60 @@ class GrowthCycleTest {
     }
 
     @Test
+    void groupsFilledTogetherOnAnEmptyMachineAllStartActive() {
+        // Entropic: a pipe fills several plot groups in one go; none of them may wait a cycle.
+        GrowthCycle cycle = new GrowthCycle(3);
+        cycle.setAllPlots(new int[] {10, 20, 30}, new boolean[3]);
+
+        assertEquals(60, cycle.activePlots());
+        assertEquals(0, cycle.pendingPlots());
+        assertEquals(0.0, cycle.progress(), EPS);
+    }
+
+    @Test
+    void aGroupFilledWhileOthersGrowIsPending() {
+        GrowthCycle cycle = new GrowthCycle(3);
+        cycle.setAllPlots(new int[] {10, 0, 0}, new boolean[3]);
+        cycle.advance(0.5);
+
+        cycle.setAllPlots(new int[] {10, 5, 0}, new boolean[3]);
+
+        assertEquals(10, cycle.activePlots());
+        assertEquals(5, cycle.pendingPlots());
+        assertEquals(0.5, cycle.progress(), EPS, "the running cycle keeps its progress");
+    }
+
+    @Test
+    void setAllPlotsUprootsAChangedPlantAndKeepsTheOthers() {
+        GrowthCycle cycle = new GrowthCycle(2);
+        cycle.setAllPlots(new int[] {10, 10}, new boolean[2]);
+        cycle.advance(0.5);
+
+        cycle.setAllPlots(new int[] {10, 10}, new boolean[] {false, true});
+
+        assertEquals(10, cycle.activePlots(), "group 0 keeps growing");
+        assertEquals(10, cycle.pendingPlots(), "group 1 was replanted with another plant: next cycle");
+    }
+
+    @Test
+    void setAllPlotsWithOneGroupBehavesLikeSetPlots() {
+        GrowthCycle a = new GrowthCycle(1);
+        GrowthCycle b = new GrowthCycle(1);
+        a.setPlots(0, 40, false);
+        b.setAllPlots(new int[] {40}, new boolean[1]);
+        a.advance(0.3);
+        b.advance(0.3);
+        a.setPlots(0, 70, false);
+        b.setAllPlots(new int[] {70}, new boolean[1]);
+        a.setPlots(0, 55, false);
+        b.setAllPlots(new int[] {55}, new boolean[1]);
+
+        assertEquals(a.activePlots(), b.activePlots());
+        assertEquals(a.pendingPlots(), b.pendingPlots());
+        assertEquals(a.progress(), b.progress(), EPS);
+    }
+
+    @Test
     void loadRepairsImpossibleHarvestedCounters() {
         GrowthCycle cycle = new GrowthCycle(1);
         cycle.load(1.0, new int[] {10}, new int[] {0}, new int[] {99});

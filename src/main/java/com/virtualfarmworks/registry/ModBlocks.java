@@ -1,6 +1,6 @@
 /*
- * ModBlocks — DeferredRegister of VFW blocks (currently only the Starter Farm Matrix) and the block properties shared
- * by every Farm Matrix tier.
+ * ModBlocks — DeferredRegister of VFW blocks (the Starter and Entropic Farm Matrix so far) and the block properties
+ * shared by every Farm Matrix tier.
  */
 package com.virtualfarmworks.registry;
 
@@ -17,14 +17,16 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 /**
  * Block registrations.
  *
- * <p>Registry names are persisted in world saves: never rename or remove one once released. Only the Starter tier is
- * registered in milestone 1 (owner decision); Voltaic/Ionic/Resonant/Entropic are added when their specs arrive, using
- * the same {@link #registerFarmMatrix} helper.
+ * <p>Registry names are persisted in world saves: never rename or remove one once released. Tiers are registered when
+ * their specs arrive (Starter in milestone 1, Entropic next); Voltaic/Ionic/Resonant will use the same
+ * {@link #registerFarmMatrix} helper.
  */
 public final class ModBlocks {
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(VirtualFarmWorks.MODID);
 
     public static final DeferredBlock<FarmMatrixBlock> STARTER_FARM_MATRIX = registerFarmMatrix(MachineTier.STARTER);
+    /** Owner decision (2026-09-29): the Entropic comes before the middle tiers, to balance the midgame between them. */
+    public static final DeferredBlock<FarmMatrixBlock> ENTROPIC_FARM_MATRIX = registerFarmMatrix(MachineTier.ENTROPIC);
 
     private ModBlocks() {
     }

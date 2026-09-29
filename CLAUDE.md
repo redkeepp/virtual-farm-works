@@ -84,11 +84,10 @@ time-based wear; Fertilized Essence switch; per-machine harvest filter (whitelis
 smooth progress bar; Jade tooltip; JEI exclusion areas; recipes.
 Tests: 31 game tests (30 VFW + 1 vanilla), 73 JUnit, load benchmark.
 
-**Next: Voltaic tier** — needs the owner's spec (the GUI texture `voltaic_farm_matrix_gui.png` exists: 296 px wide,
-two 15x4 slot blocks, info panel, 3x3 grid). Owner's preview (2026-09-28): the two grids are plantables (top) and
-soils (bottom); "replanting" (replantio) = seeds produced by the harvest are planted automatically into the free
-soils, instead of going to the output or being filtered, until no free soil is left. Several classes are
-Starter-shaped today (GUI layout, menu slot constants, one plot group) and will need per-tier variants.
+**In progress: Entropic Farm Matrix** (owner, 2026-09-29: the strongest tier before the middle ones, to balance the
+midgame). Spec and every decision: `docs/specs/entropic-farm-matrix.md`. Stage 1 done (multi-group machine, FE, face
+modes, pipe input, registration); next: stage 2 GUI, 3 replant, 4 autocrafter + JEI "+", 5 tests/benchmark/docs.
+Voltaic, Ionic and Resonant come after (they will reuse `MachineLayout`).
 
 Open on the owner's side: multiplayer re-test (a custom packet was added since the last one; the owner planned to do
 it at the end), git tag "starter complete" (Claude may create it locally when asked; the owner pushes). Deferred by
@@ -349,10 +348,12 @@ Breaking drops contents in `preRemoveSideEffects`.
 ## Code map
 
 - `VirtualFarmWorks` — entry point; only wires registries, config, data maps, payloads and game tests.
-- `machine/` — `FarmMatrixBlockEntity` (the running machine), `MachineInventory`, `OutputBuffer` (visible output),
-  `InternalBuffer` (hidden output), `MachineFilter` (harvest filter), `MachineSlots` (persisted indices — never
-  reorder), `MachineTier` (order = progression, `accepts()`), `RelativeSide` (faces relative to the front; bit order
-  persisted).
+- `machine/` — `FarmMatrixBlockEntity` (the running machine, every tier), `MachineLayout` (per tier: plot groups,
+  slot indices, visible output size, features; groups = 1 reproduces the Starter's persisted slot order),
+  `MachineInventory`, `OutputBuffer` (visible output), `InternalBuffer` (hidden output), `MachineEnergy` (FE buffer),
+  `FaceMode` (NONE/OUTPUT/OUTPUT CRAFTED/OUTPUT ALL/INPUT, ordinal persisted), `GridInput` (pipe input routing),
+  `MachineFilter` (harvest filter), `MachineSlots` (Starter indices — persisted, never reorder), `MachineTier` (order =
+  progression, `accepts()`), `RelativeSide` (faces relative to the front; order persisted).
 - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
 - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`; items carry no behavior.
 - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
@@ -371,8 +372,8 @@ Breaking drops contents in `preRemoveSideEffects`.
   `SmoothProgress`, `compat/VfwJeiPlugin`. Never reference `client/` from common code (a dedicated server crashes).
 - `compat/jade/`, `compat/mysticalagriculture/` — see Integrations.
 - `gametest/` (dev only) — `VfwGameTests` (registration: add a `test(...)` line with a max tick count),
-  `MachineGameTests`, `FilterGameTests`, `PlantablesGameTests`, `MysticalHarvestTests`, `MysticalFarmlandTests`,
-  `LoadBenchmark`.
+  `MachineGameTests`, `FilterGameTests`, `PlantablesGameTests`, `EntropicGameTests`, `MysticalHarvestTests`,
+  `MysticalFarmlandTests`, `LoadBenchmark`.
   `FarmMatrixBlockEntity#setProgressForTesting` exists only for tests.
 - `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`).
 - `src/main/resources/data/virtualfarmworks/` — tags, data maps, recipes, loot tables (see `docs/resources.md`).
@@ -382,6 +383,7 @@ Breaking drops contents in `preRemoveSideEffects`.
 
 - `docs/specs/starter-farm-matrix.md` — the Starter spec and every owner decision since (GUI, output, filter,
   plantables).
+- `docs/specs/entropic-farm-matrix.md` — the Entropic spec (owner's rules, GUI coordinates, decisions, stages).
 - `docs/specs/configurability.md` — every pack-maker setting and where it lives.
 - `docs/resources.md` — what each JSON resource does and who authored it.
 - `docs/history.md` — how milestone 1 was built, step by step, and the benchmark results log.

@@ -30,7 +30,11 @@ data maps in `data/virtualfarmworks/data_maps/item/` (code: `data/SoilProperties
 | Accept an item whose block VFW does not recognize as a plant | Item tag (harvested like a crop) | `#virtualfarmworks:extra_plantables` |
 | Multiplier without Water Provider, per tier | Server config per tier (default 0.25) | `machines.<tier>.noWaterSpeedMultiplier` |
 | Auto-output interval or disable | Server config (default 20, 0 = off) | `output.autoExportIntervalTicks` |
-| Hidden output slots behind the 9 visible ones, per tier (Starter 27; deleted when the machine breaks) | Server config per tier (0..256, 0 = none) | `machines.<tier>.internalBufferSlots` |
+| Hidden output slots behind the visible ones, per tier (Starter 27, Entropic 72; deleted when the machine breaks) | Server config per tier (0..256, 0 = none) | `machines.<tier>.internalBufferSlots` |
+| Plantables / soils per grid slot, hence the plot capacity (Entropic: 60 groups x 64 = 3,840) | Server config per grid tier (owner: default 64 each) | `machines.<tier>.seedsPerSlot`, `soilsPerSlot` |
+| FE per planted plot per tick (owner: 90); the buffer is sized from it (capacity x FE x 3) | Server config per tier with energy | `machines.<tier>.energyPerPlot` |
+| Replant produced plantables into free soils (Entropic) | Server config per tier (default true) | `machines.<tier>.replant` |
+| Autocrafter recipes and waiting-ingredient limit (Entropic) | Server config per tier (8 recipes, 1,024 items of a kind) | `machines.<tier>.crafterRecipes`, `crafterBufferLimit` |
 | Secondary drops multiplier (extra seeds, Fertilized Essence, by-products) | Server config (default 1.0) | `drops.secondaryDropMultiplier` |
 | Global and per-tier production (yield) multiplier | Server config | `drops.productionMultiplier`, `machines.<tier>.productionMultiplier` |
 | Growth Speed Upgrade bonus (default +50% each) | Server config | `growth.bonusPerUpgrade` |

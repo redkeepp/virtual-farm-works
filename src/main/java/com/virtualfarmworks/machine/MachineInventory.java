@@ -1,6 +1,7 @@
 /*
- * MachineInventory — the input inventory of a Farm Matrix (seed, soil, water provider, hoe, growth upgrades, crux):
- * what each slot accepts and how many items it holds. Validation runs on both client (menu) and server.
+ * MachineInventory — the input inventory of a Farm Matrix (seed and soil slots of every plot group, water provider,
+ * hoe, growth upgrades, crux): what each slot accepts and how many items it holds. Validation runs on both client
+ * (menu) and server.
  */
 package com.virtualfarmworks.machine;
 
@@ -19,11 +20,14 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
 /**
  * Transaction-aware item storage for the machine's inputs, built on NeoForge's {@link ItemStacksResourceHandler}.
+ * Slot order: see {@link MachineLayout}.
  *
- * <p>Slot rules (owner spec, {@code docs/specs/starter-farm-matrix.md}):
+ * <p>Slot rules (owner specs, {@code docs/specs/}):
  * <ul>
- *   <li>seed: plantable (see {@code PlantRules}) and not blacklisted for this tier; up to 64;</li>
- *   <li>soil: a soil (see {@code SoilRules}) and not blacklisted for this tier; up to 64;</li>
+ *   <li>seed slots: plantable (see {@code PlantRules}) and not blacklisted for this tier; Starter up to 64, other
+ *       tiers config {@code machines.<tier>.seedsPerSlot} (default 64, may exceed a stack);</li>
+ *   <li>soil slots: a soil (see {@code SoilRules}) and not blacklisted for this tier; same limits with
+ *       {@code soilsPerSlot};</li>
  *   <li>water provider: a Water Provider Upgrade that fits this tier; 1;</li>
  *   <li>hoe: any hoe, any tier, damaged or not; 1;</li>
  *   <li>growth x4: Growth Speed Upgrades that fit this tier; {@code growth.upgradesPerSlot} each (default 1);</li>
@@ -37,12 +41,18 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
  */
 public final class MachineInventory extends ItemStacksResourceHandler {
     private final MachineTier tier;
+    private final MachineLayout layout;
     private final Runnable onChange;
 
     public MachineInventory(MachineTier tier, Runnable onChange) {
-        super(MachineSlots.INPUT_COUNT);
+        super(MachineLayout.of(tier).inputCount());
         this.tier = tier;
+        this.layout = MachineLayout.of(tier);
         this.onChange = onChange;
+    }
+
+    public MachineLayout layout() {
+        return layout;
     }
 
     @Override
@@ -51,22 +61,22 @@ public final class MachineInventory extends ItemStacksResourceHandler {
             return false;
         }
         ItemStack stack = resource.toStack();
-        if (index == MachineSlots.SEED) {
+        if (layout.isSeedSlot(index)) {
             return PlantRules.isPlantable(stack) && !VfwConfig.isSeedBlacklisted(stack, tier);
         }
-        if (index == MachineSlots.SOIL) {
+        if (layout.isSoilSlot(index)) {
             return SoilRules.isAcceptableSoil(stack) && !VfwConfig.isSoilBlacklisted(stack, tier);
         }
-        if (index == MachineSlots.WATER_PROVIDER) {
+        if (index == layout.waterSlot()) {
             return isUpgrade(stack, UpgradeType.WATER_PROVIDER);
         }
-        if (index == MachineSlots.HOE) {
+        if (index == layout.hoeSlot()) {
             return SoilRules.isHoe(stack);
         }
-        if (MachineSlots.isGrowthSlot(index)) {
+        if (layout.isGrowthSlot(index)) {
             return isUpgrade(stack, UpgradeType.GROWTH_SPEED);
         }
-        if (index == MachineSlots.CRUX_PROVIDER) {
+        if (index == layout.cruxSlot()) {
             return stack.getItem() instanceof CruxProviderUpgradeItem;
         }
         return false;
@@ -79,20 +89,36 @@ public final class MachineInventory extends ItemStacksResourceHandler {
     @Override
     protected int getCapacity(int index, ItemResource resource) {
         int limit = slotLimit(index);
+        if (layout.groups() > 1 && (layout.isSeedSlot(index) || layout.isSoilSlot(index))) {
+            return limit; // grid slots count plants, not stacks: a pack maker may allow more than a stack
+        }
         return resource.isEmpty() ? limit : Math.min(limit, resource.getMaxStackSize());
     }
 
-    /** Maximum item count of a slot, before the item's own max stack size. */
-    public static int slotLimit(int index) {
-        if (index == MachineSlots.SEED || index == MachineSlots.SOIL) {
-            return MachineSlots.SEED_SOIL_LIMIT;
+    /** Maximum item count of a slot, before the item's own max stack size (Starter) or regardless of it (grids). */
+    public int slotLimit(int index) {
+        if (layout.isSeedSlot(index)) {
+            return layout.groups() == 1 ? MachineSlots.SEED_SOIL_LIMIT : configValue(true);
         }
-        if (MachineSlots.isGrowthSlot(index)) {
+        if (layout.isSoilSlot(index)) {
+            return layout.groups() == 1 ? MachineSlots.SEED_SOIL_LIMIT : configValue(false);
+        }
+        if (layout.isGrowthSlot(index)) {
             // Server config, synced to clients; outside a world (never expected here) fall back to the default.
             return VfwServerConfig.SPEC.isLoaded() ? VfwServerConfig.GROWTH_UPGRADES_PER_SLOT.get()
                     : VfwServerConfig.GROWTH_UPGRADES_PER_SLOT.getDefault();
         }
         return 1;
+    }
+
+    /** Grid tiers: {@code machines.<tier>.seedsPerSlot} or {@code soilsPerSlot} (default when no world is loaded). */
+    private int configValue(boolean seeds) {
+        VfwServerConfig.MachineSettings settings = VfwServerConfig.machine(tier);
+        var value = seeds ? settings.seedsPerSlot : settings.soilsPerSlot;
+        if (value == null) {
+            return MachineSlots.SEED_SOIL_LIMIT;
+        }
+        return VfwServerConfig.SPEC.isLoaded() ? value.get() : value.getDefault();
     }
 
     @Override
@@ -106,15 +132,15 @@ public final class MachineInventory extends ItemStacksResourceHandler {
     }
 
     /**
-     * After loading a save, make sure the inventory has exactly {@link MachineSlots#INPUT_COUNT} slots (a save from a
-     * version with fewer slots gets empty new slots). Never shrinks: slots beyond the current layout are kept, so no
-     * item is ever lost by a version change.
+     * After loading a save, make sure the inventory has exactly the layout's slot count (a save from a version with
+     * fewer slots gets empty new slots). Never shrinks: slots beyond the current layout are kept, so no item is ever
+     * lost by a version change.
      */
     void ensureMinimumSize() {
-        if (size() >= MachineSlots.INPUT_COUNT) {
+        if (size() >= layout.inputCount()) {
             return;
         }
-        NonNullList<ItemStack> resized = NonNullList.withSize(MachineSlots.INPUT_COUNT, ItemStack.EMPTY);
+        NonNullList<ItemStack> resized = NonNullList.withSize(layout.inputCount(), ItemStack.EMPTY);
         for (int i = 0; i < size(); i++) {
             resized.set(i, stackInSlot(i));
         }

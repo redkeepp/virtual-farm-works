@@ -23,6 +23,7 @@ public final class ModCreativeTabs {
                     .icon(() -> ModItems.STARTER_FARM_MATRIX.get().getDefaultInstance())
                     .displayItems((parameters, output) -> {
                         output.accept(ModItems.STARTER_FARM_MATRIX.get());
+                        output.accept(ModItems.ENTROPIC_FARM_MATRIX.get());
                         // EnumMap values iterate in tier order: Starter -> Entropic.
                         ModItems.WATER_PROVIDER_UPGRADES.values().forEach(item -> output.accept(item.get()));
                         ModItems.GROWTH_SPEED_UPGRADES.values().forEach(item -> output.accept(item.get()));

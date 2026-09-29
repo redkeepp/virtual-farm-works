@@ -40,6 +40,16 @@ public enum RelativeSide {
         };
     }
 
+    /** The side a world direction is, for a machine whose front faces {@code facing} (inverse of {@link #toWorld}). */
+    public static RelativeSide fromWorld(Direction world, Direction facing) {
+        for (RelativeSide side : VALUES) {
+            if (side.toWorld(facing) == world) {
+                return side;
+            }
+        }
+        return FRONT; // unreachable for a horizontal facing
+    }
+
     public int bit() {
         return 1 << ordinal();
     }
