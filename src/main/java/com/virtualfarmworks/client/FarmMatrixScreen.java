@@ -49,7 +49,8 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
  * an element that overlaps an earlier item on a higher layer, which is what makes the item look 40% opaque (vanilla
  * recipe-book technique).
  */
-public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu> {
+public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
+        implements FarmMatrixJeiTargets {
     private final Identifier texture;
     private final int themeColor;
     /** Placeholder shown in each empty input slot, by {@link MachineSlots} index (owner spec). */

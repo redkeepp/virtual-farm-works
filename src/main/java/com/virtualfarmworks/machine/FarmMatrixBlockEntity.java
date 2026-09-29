@@ -23,6 +23,7 @@ import com.virtualfarmworks.harvest.DropSource;
 import com.virtualfarmworks.harvest.HarvestFilter;
 import com.virtualfarmworks.harvest.HarvestPlans;
 import com.virtualfarmworks.harvest.Harvester;
+import com.virtualfarmworks.menu.EntropicFarmMatrixMenu;
 import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.plant.PlantAnalysis;
 import com.virtualfarmworks.plant.SoilRules;
@@ -1035,7 +1036,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     @Override
     public @Nullable AbstractContainerMenu createMenu(int containerId, Inventory playerInventory, Player player) {
-        return layout == MachineLayout.STARTER ? new FarmMatrixMenu(containerId, playerInventory, this) : null;
+        return layout == MachineLayout.STARTER ? new FarmMatrixMenu(containerId, playerInventory, this)
+                : new EntropicFarmMatrixMenu(containerId, playerInventory, this);
     }
 
     // =================================================================================================================

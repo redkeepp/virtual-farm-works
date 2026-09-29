@@ -6,7 +6,7 @@
 package com.virtualfarmworks.network;
 
 import com.virtualfarmworks.VirtualFarmWorks;
-import com.virtualfarmworks.menu.FarmMatrixMenu;
+import com.virtualfarmworks.menu.AbstractFarmMatrixMenu;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -53,7 +53,7 @@ public record SetFilterGhostPayload(int containerId, int slot, ItemStack stack) 
     /** Server, main thread (NeoForge's default for payload handlers). */
     private static void handle(SetFilterGhostPayload payload, IPayloadContext context) {
         Player player = context.player();
-        if (player.containerMenu instanceof FarmMatrixMenu menu && menu.containerId == payload.containerId()
+        if (player.containerMenu instanceof AbstractFarmMatrixMenu menu && menu.containerId == payload.containerId()
                 && menu.stillValid(player)) {
             menu.setFilterGhost(payload.slot(), payload.stack());
         }

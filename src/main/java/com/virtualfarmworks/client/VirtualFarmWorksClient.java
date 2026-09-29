@@ -19,7 +19,9 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 @Mod(value = VirtualFarmWorks.MODID, dist = Dist.CLIENT)
 public final class VirtualFarmWorksClient {
     public VirtualFarmWorksClient(IEventBus modEventBus) {
-        modEventBus.addListener(RegisterMenuScreensEvent.class,
-                event -> event.register(ModMenus.FARM_MATRIX.get(), FarmMatrixScreen::new));
+        modEventBus.addListener(RegisterMenuScreensEvent.class, event -> {
+            event.register(ModMenus.FARM_MATRIX.get(), FarmMatrixScreen::new);
+            event.register(ModMenus.ENTROPIC_FARM_MATRIX.get(), EntropicFarmMatrixScreen::new);
+        });
     }
 }

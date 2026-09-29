@@ -109,4 +109,7 @@ button and the ON/OFF button (owner, 2026-09-29):
 
 - Stage 1 (done): multi-group machine (`machine/MachineLayout`), energy (`machine/MachineEnergy`), face modes
   (`machine/FaceMode`), pipe input (`machine/GridInput`), registration, config section `machines.entropic`.
-- Stage 2: Entropic GUI. Stage 3: replant. Stage 4: autocrafter and JEI "+". Stage 5: tests, benchmark, docs.
+- Stage 2 (done): Entropic GUI (`menu/EntropicFarmMatrixMenu`, `menu/EntropicLayout`,
+  `client/EntropicFarmMatrixScreen`); shared menu logic moved to `menu/AbstractFarmMatrixMenu`. The 120 grid slots
+  show no 40% placeholders (a grid of faded seeds would hide what is planted; the other slots have them).
+- Stage 3: replant. Stage 4: autocrafter and JEI "+". Stage 5: tests, benchmark, docs.

@@ -11,6 +11,8 @@ import com.virtualfarmworks.machine.MachineEnergy;
 import com.virtualfarmworks.machine.MachineInventory;
 import com.virtualfarmworks.machine.MachineLayout;
 import com.virtualfarmworks.machine.RelativeSide;
+import com.virtualfarmworks.menu.AbstractFarmMatrixMenu;
+import com.virtualfarmworks.menu.EntropicFarmMatrixMenu;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.sim.MachineStatus;
 
@@ -18,8 +20,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.energy.EnergyHandler;
@@ -170,6 +175,49 @@ final class EntropicGameTests {
             check(helper, machine.progress() < 0.5, "the bar restarts");
             check(helper, machine.totalPlots() == 40, "plots stay planted");
         });
+    }
+
+    /**
+     * The menu's server side: slot layout, face buttons (click = next mode, right click = previous), synced numbers
+     * (plots, capacity, waiting plots, energy, face modes, group statuses) and shift-click into the grids.
+     */
+    static void menuWorks(GameTestHelper helper) {
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        EntropicFarmMatrixMenu menu = new EntropicFarmMatrixMenu(1, player.getInventory(), machine);
+        check(helper, menu.slots.size() == 196, "127 inputs + 24 outputs + 36 player + 9 filter = 196, got "
+                + menu.slots.size());
+
+        // Shift-click from the player: seeds to the seed grid, soils to the soil grid.
+        player.getInventory().setItem(9, new ItemStack(Items.WHEAT_SEEDS, 20));
+        player.getInventory().setItem(10, new ItemStack(Items.DIRT, 20));
+        menu.quickMoveStack(player, EntropicFarmMatrixMenu.PLAYER_START);
+        menu.quickMoveStack(player, EntropicFarmMatrixMenu.PLAYER_START + 1);
+        MachineInventory inputs = machine.inputs();
+        check(helper, inputs.getResource(LAYOUT.seedSlot(0)).is(Items.WHEAT_SEEDS)
+                        && inputs.getAmountAsInt(LAYOUT.seedSlot(0)) == 20, "shift-clicked seeds go to the seed grid");
+        check(helper, inputs.getResource(LAYOUT.soilSlot(0)).is(Items.DIRT)
+                        && inputs.getAmountAsInt(LAYOUT.soilSlot(0)) == 20, "shift-clicked soils go to the soil grid");
+
+        // Face buttons: click = next, right click = previous.
+        menu.clickMenuButton(player, AbstractFarmMatrixMenu.BUTTON_FACE_FIRST
+                + RelativeSide.LEFT.ordinal());
+        check(helper, machine.faceMode(RelativeSide.LEFT) == FaceMode.INPUT, "OUTPUT ALL -> INPUT");
+        menu.clickMenuButton(player, AbstractFarmMatrixMenu.BUTTON_FACE_BACK_FIRST
+                + RelativeSide.LEFT.ordinal());
+        check(helper, machine.faceMode(RelativeSide.LEFT) == FaceMode.OUTPUT_ALL, "right click goes back");
+
+        // Synced numbers (server copy; the client reads the same indices).
+        machine.revalidate();
+        menu.broadcastChanges();
+        menu.clickMenuButton(player, AbstractFarmMatrixMenu.BUTTON_FERTILIZED); // refresh
+        check(helper, menu.plotCapacity() == 60L * 64, "capacity 3840, got " + menu.plotCapacity());
+        check(helper, menu.groupStatus(0) == MachineStatus.MISSING_HOE, "wheat on dirt needs a hoe: "
+                + menu.groupStatus(0));
+        check(helper, menu.waitingPlots() == 20, "20 dirt wait for the hoe: " + menu.waitingPlots());
+        check(helper, menu.energyCapacity() == 60L * 64 * 90 * 3, "energy capacity synced: " + menu.energyCapacity());
+        check(helper, menu.faceMode(RelativeSide.LEFT) == FaceMode.OUTPUT_ALL, "face mode synced");
+        helper.succeed();
     }
 
     // --- helpers ----------------------------------------------------------------------------------------------------

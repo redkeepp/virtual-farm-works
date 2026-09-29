@@ -83,5 +83,21 @@
   "gui.virtualfarmworks.slot.water_provider": "Water Provider Upgrade (without it: reduced speed)",
   "gui.virtualfarmworks.slot.hoe": "Hoe (only needed when the soil must be tilled)",
   "gui.virtualfarmworks.slot.growth": "Growth Speed Upgrade",
-  "gui.virtualfarmworks.slot.crux": "Crux Provider Upgrade (for seeds that need a crux)"
+  "gui.virtualfarmworks.slot.crux": "Crux Provider Upgrade (for seeds that need a crux)",
+  "gui.virtualfarmworks.slot.seed_grid": "Plantable (up to %s)",
+  "gui.virtualfarmworks.slot.soil_grid": "Soil (up to %s)",
+
+  "gui.virtualfarmworks.plots_active": "Active plots: %s/%s",
+  "gui.virtualfarmworks.plots_waiting": "Waiting plots: %s",
+  "gui.virtualfarmworks.energy": "%s/%s FE",
+  "gui.virtualfarmworks.energy_use": "Uses %s FE/t while growing",
+  "gui.virtualfarmworks.group_problem": "This plot group: %s",
+  "gui.virtualfarmworks.crafter": "Autocrafter",
+  "gui.virtualfarmworks.face_mode": "%s: %s",
+  "gui.virtualfarmworks.face_mode.hint": "Click: next mode. Right click: previous mode.",
+  "face_mode.virtualfarmworks.none": "NONE",
+  "face_mode.virtualfarmworks.output": "OUTPUT",
+  "face_mode.virtualfarmworks.output_crafted": "OUTPUT CRAFTED",
+  "face_mode.virtualfarmworks.output_all": "OUTPUT ALL",
+  "face_mode.virtualfarmworks.input": "INPUT"
 }
