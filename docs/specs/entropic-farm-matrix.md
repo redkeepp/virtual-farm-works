@@ -112,4 +112,6 @@ button and the ON/OFF button (owner, 2026-09-29):
 - Stage 2 (done): Entropic GUI (`menu/EntropicFarmMatrixMenu`, `menu/EntropicLayout`,
   `client/EntropicFarmMatrixScreen`); shared menu logic moved to `menu/AbstractFarmMatrixMenu`. The 120 grid slots
   show no 40% placeholders (a grid of faded seeds would hide what is planted; the other slots have them).
-- Stage 3: replant. Stage 4: autocrafter and JEI "+". Stage 5: tests, benchmark, docs.
+- Stage 3 (done): replant (`FarmMatrixBlockEntity#planReplant`), before the harvest filter; replanted seeds are
+  added while the harvest is still due, so they grow from the next cycle.
+- Stage 4: autocrafter and JEI "+". Stage 5: tests, benchmark, docs.

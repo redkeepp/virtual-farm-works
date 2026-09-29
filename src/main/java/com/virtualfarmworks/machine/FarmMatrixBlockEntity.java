@@ -209,6 +209,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private int internalSlots;
     private boolean hoeWears;
     private int hoeWearInterval;
+    /** Config {@code machines.<tier>.replant} (tiers that have it). */
+    private boolean replantEnabled;
     /** Ticks of RUNNING-with-a-needed-hoe since the hoe last lost durability (not saved: at most one interval lost). */
     private int hoeWearTicks;
 
@@ -447,24 +449,34 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         YieldSample sample = sampleFor(key);
         if (pendingBatch == null || !key.equals(pendingBatchKey) || pendingBatchPlots > plotsLeft) {
             int plots = HarvestBatching.batchSize(plotsLeft, freeOutputSlots(), sample);
+            // With replanting the roll ignores the harvest filter: produced plantables are planted first ("instead of
+            // being output or blacklisted", owner), and the filter then applies to what is left (see below).
+            HarvestFilter rollFilter = replantEnabled ? HarvestFilter.NONE : filter.snapshot();
             pendingBatch = unit.source() == null
                     ? List.of()
                     : Harvester.roll(unit.source(), plots, tier,
                             new DropSource.Context(level, worldPosition, level.getRandom(), maxLootRolls,
-                                    fertilizedEssence, filter.snapshot()));
+                                    fertilizedEssence, rollFilter));
             pendingBatchPlots = plots;
             pendingBatchKey = key;
             sample.record(plots, Harvester.slotsFilled(pendingBatch), pendingBatch.size());
         }
 
+        // Owner's harvest order: replant, then the filter, then the output. Planned on every attempt (free soil may
+        // change while the batch waits) and applied only after the store commits, so nothing is planted twice.
+        List<Replanting> replanting = replantEnabled ? planReplant(pendingBatch) : List.of();
+        List<DropTally.Entry<ItemResource>> toStore = replantEnabled
+                ? withoutFiltered(withoutReplanted(pendingBatch, replanting))
+                : pendingBatch;
+
         List<ResourceHandler<ItemResource>> targets = fillTargets();
-        if (!Harvester.tryStore(pendingBatch, targets)) {
-            if (Harvester.slotsNeeded(pendingBatch) <= totalOutputSlots()) {
+        if (!Harvester.tryStore(toStore, targets)) {
+            if (Harvester.slotsNeeded(toStore) <= totalOutputSlots()) {
                 return false; // fits once space frees up: keep this roll and wait (OUTPUT FULL)
             }
             // Extreme case (owner: hold it): not even empty buffers could take this batch. Store what fits now and
             // hold the rest; it is stored before anything else and blocks the cycle until then.
-            heldDrops = Harvester.storeWhatFits(pendingBatch, targets);
+            heldDrops = Harvester.storeWhatFits(toStore, targets);
         }
         // Only after a committed store: a plot is harvested exactly once. The batch's plots are spread over the unit's
         // groups in slot order.
@@ -476,8 +488,79 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
         pendingBatch = null;
         pendingBatchKey = null;
+        if (!replanting.isEmpty()) {
+            for (Replanting planted : replanting) {
+                int slot = layout.seedSlot(planted.group());
+                inputs.set(slot, inputs.getResource(slot), inputs.getAmountAsInt(slot) + planted.amount());
+            }
+            // Right away, while the harvest is still due: the new plots enter as PENDING and become ACTIVE when this
+            // cycle completes, so replanted seeds grow from the next cycle (not one later).
+            revalidate();
+        }
         markForSave();
         return true;
+    }
+
+    /** Seeds planted into one plot group by the replant (owner's Entropic spec). */
+    private record Replanting(int group, ItemResource seed, int amount) {
+    }
+
+    /**
+     * Replant plan (owner: produced plantables look for free soil inside the machine; decision: only in plot groups
+     * that already hold that plantable, so a player's free soil is never taken by another plant). A group takes as many
+     * as it has free soil ({@code soils - seeds}) and seed-slot room; plants that need no soil do not replant. Groups
+     * whose pairing is not valid are skipped. What finds no room stays in the drops and goes to the output.
+     */
+    private List<Replanting> planReplant(List<DropTally.Entry<ItemResource>> drops) {
+        List<Replanting> plan = new ArrayList<>();
+        for (DropTally.Entry<ItemResource> drop : drops) {
+            long left = drop.amount();
+            for (int g = 0; g < layout.groups() && left > 0; g++) {
+                int seedSlot = layout.seedSlot(g);
+                ItemResource seed = inputs.getResource(seedSlot);
+                if (seed.isEmpty() || !seed.equals(drop.key()) || !analyses[g].isValid() || !analyses[g].needsSoil()) {
+                    continue;
+                }
+                long seeds = inputs.getAmountAsLong(seedSlot);
+                long freeSoil = inputs.getAmountAsLong(layout.soilSlot(g)) - seeds;
+                long slotRoom = inputs.getCapacityAsLong(seedSlot, seed) - seeds;
+                long take = Math.min(left, Math.min(freeSoil, slotRoom));
+                if (take > 0) {
+                    plan.add(new Replanting(g, seed, (int) take));
+                    left -= take;
+                }
+            }
+        }
+        return plan;
+    }
+
+    /** The drops minus what the replant plants. */
+    private static List<DropTally.Entry<ItemResource>> withoutReplanted(List<DropTally.Entry<ItemResource>> drops,
+                                                                       List<Replanting> replanting) {
+        if (replanting.isEmpty()) {
+            return drops;
+        }
+        Map<ItemResource, Long> planted = new HashMap<>();
+        for (Replanting r : replanting) {
+            planted.merge(r.seed(), (long) r.amount(), Long::sum);
+        }
+        List<DropTally.Entry<ItemResource>> left = new ArrayList<>(drops.size());
+        for (DropTally.Entry<ItemResource> drop : drops) {
+            long amount = drop.amount() - planted.getOrDefault(drop.key(), 0L);
+            if (amount > 0) {
+                left.add(new DropTally.Entry<>(drop.key(), amount));
+            }
+        }
+        return left;
+    }
+
+    /** The drops the harvest filter lets through (used when the roll itself was not filtered). */
+    private List<DropTally.Entry<ItemResource>> withoutFiltered(List<DropTally.Entry<ItemResource>> drops) {
+        HarvestFilter current = filter.snapshot();
+        if (current.items().isEmpty()) {
+            return drops;
+        }
+        return drops.stream().filter(drop -> current.allows(drop.key())).toList();
     }
 
     /** The yield sample of a unit for exactly this key; a key change (switch, filter, config) starts a fresh one. */
@@ -620,6 +703,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         maxLootRolls = VfwServerConfig.MAX_LOOT_ROLLS_PER_HARVEST.get();
         hoeWears = VfwServerConfig.HOE_CONSUMES_DURABILITY.get();
         hoeWearInterval = VfwServerConfig.HOE_WEAR_INTERVAL_TICKS.get();
+        replantEnabled = settings.replant != null && settings.replant.get();
         internalSlots = settings.internalBufferSlots.get();
         internal.setUsableSlots(internalSlots); // a lowered value never deletes items, see InternalBuffer
         refillRequested = true;                 // a raised or lowered size may change what can move

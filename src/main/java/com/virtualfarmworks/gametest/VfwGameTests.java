@@ -105,7 +105,8 @@ public final class VfwGameTests {
             test("entropic_energy_runs_the_machine", EntropicGameTests::energyRunsTheMachine, 20),
             test("entropic_faces_and_pipe_input", EntropicGameTests::facesAndPipeInput, 20),
             test("entropic_groups_harvest_together", EntropicGameTests::groupsHarvestTogether, 40),
-            test("entropic_menu_works", EntropicGameTests::menuWorks, 20));
+            test("entropic_menu_works", EntropicGameTests::menuWorks, 20),
+            test("entropic_replants_extra_seeds", EntropicGameTests::replantsExtraSeeds, 20));
 
     /**
      * Load benchmark: registered as a test ONLY in the {@code benchmark} run ({@code gradlew runBenchmark}, which sets

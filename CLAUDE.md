@@ -87,7 +87,7 @@ Tests: 31 game tests (30 VFW + 1 vanilla), 73 JUnit, load benchmark.
 **In progress: Entropic Farm Matrix** (owner, 2026-09-29: the strongest tier before the middle ones, to balance the
 midgame). Spec and every decision: `docs/specs/entropic-farm-matrix.md`. Done: stage 1 (multi-group machine, FE, face
 modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `EntropicLayout`, `EntropicFarmMatrixScreen`,
-shared `AbstractFarmMatrixMenu`); next: 3 replant, 4 autocrafter + JEI "+", 5 tests/benchmark/docs. Not yet seen in
+shared `AbstractFarmMatrixMenu`), stage 3 (replant); next: 4 autocrafter + JEI "+", 5 tests/benchmark/docs. Not yet seen in
 game by the owner. Voltaic, Ionic and Resonant come after (they will reuse `MachineLayout`).
 
 Open on the owner's side: multiplayer re-test (a custom packet was added since the last one; the owner planned to do

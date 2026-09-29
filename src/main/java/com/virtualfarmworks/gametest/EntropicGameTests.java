@@ -220,7 +220,79 @@ final class EntropicGameTests {
         helper.succeed();
     }
 
+    /**
+     * Replant (owner's spec): the extra seeds of a harvest are planted into the free soil of the groups that hold that
+     * seed, even when the filter blacklists them, and they grow from the next cycle; a group without free soil takes
+     * none. With replant off in the config the seeds go to the output.
+     */
+    static void replantsExtraSeeds(GameTestHelper helper) {
+        var level = helper.getLevel();
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        MachineInventory inputs = machine.inputs();
+        put(inputs, LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
+        put(inputs, LAYOUT.soilSlot(0), Items.FARMLAND, 64);
+        put(inputs, LAYOUT.seedSlot(1), Items.WHEAT_SEEDS, 5);
+        put(inputs, LAYOUT.soilSlot(1), Items.FARMLAND, 5);
+        noFaces(machine);
+        machine.filter().set(0, Items.WHEAT_SEEDS); // blacklist: replanting still comes first (owner)
+        machine.revalidate();
+        fillEnergy(machine);
+        machine.setProgressForTesting(1.0);
+        harvestNow(machine, level); // several batches: the first ones measure the yield
+
+        int group0 = inputs.getAmountAsInt(LAYOUT.seedSlot(0));
+        check(helper, count(machine, Items.WHEAT) == 15, "15 wheat plots give 15 wheat: " + count(machine, Items.WHEAT));
+        check(helper, group0 > 10, "extra seeds are replanted into group 0's free soil: " + group0);
+        check(helper, inputs.getAmountAsInt(LAYOUT.seedSlot(1)) == 5, "group 1 has no free soil");
+        check(helper, count(machine, Items.WHEAT_SEEDS) == 0, "no seed reaches the output (all found free soil)");
+        check(helper, machine.activePlots() == group0 + 5 && machine.pendingPlots() == 0,
+                "replanted seeds grow from the next cycle: " + machine.activePlots() + " active, "
+                        + machine.pendingPlots() + " pending");
+
+        // Replant off (config restored in the same tick: tests of a batch run together).
+        FarmMatrixBlockEntity other = placeMachineAt(helper, new BlockPos(2, 0, 0));
+        MachineInventory otherInputs = other.inputs();
+        put(otherInputs, LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
+        put(otherInputs, LAYOUT.soilSlot(0), Items.FARMLAND, 64);
+        noFaces(other);
+        var replant = com.virtualfarmworks.config.VfwServerConfig.machine(other.tier()).replant;
+        boolean configured = replant.get();
+        try {
+            replant.set(false);
+            other.revalidate();
+            fillEnergy(other);
+            other.setProgressForTesting(1.0);
+            harvestNow(other, level);
+        } finally {
+            replant.set(configured);
+        }
+        check(helper, otherInputs.getAmountAsInt(LAYOUT.seedSlot(0)) == 10, "replant off: nothing is planted");
+        check(helper, count(other, Items.WHEAT_SEEDS) > 0, "replant off: extra seeds go to the output");
+        helper.succeed();
+    }
+
     // --- helpers ----------------------------------------------------------------------------------------------------
+
+    private static FarmMatrixBlockEntity placeMachineAt(GameTestHelper helper, BlockPos pos) {
+        helper.setBlock(pos, ModBlocks.ENTROPIC_FARM_MATRIX.get().defaultBlockState());
+        return helper.getBlockEntity(pos, FarmMatrixBlockEntity.class);
+    }
+
+    /** Ticks the machine directly until its due harvest is complete (at most 40 ticks, all in this game tick). */
+    private static void harvestNow(FarmMatrixBlockEntity machine, net.minecraft.server.level.ServerLevel level) {
+        for (int tick = 0; tick < 40 && machine.progress() >= 0.999; tick++) {
+            machine.serverTick(level);
+        }
+    }
+
+    /** All faces NONE: harvests stay in the buffers. */
+    private static void noFaces(FarmMatrixBlockEntity machine) {
+        for (RelativeSide side : RelativeSide.all()) {
+            while (machine.faceMode(side) != FaceMode.NONE) {
+                machine.cycleFaceMode(side, true);
+            }
+        }
+    }
 
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.ENTROPIC_FARM_MATRIX.get().defaultBlockState());
