@@ -32,7 +32,7 @@ data maps in `data/virtualfarmworks/data_maps/item/` (code: `data/SoilProperties
 | Auto-output interval or disable (also the pulling of INPUT faces from glued inventories, Entropic) | Server config (default 20, 0 = off) | `output.autoExportIntervalTicks` |
 | Hidden output slots behind the visible ones, per tier (Starter 27, Entropic 72; deleted when the machine breaks) | Server config per tier (0..256, 0 = none) | `machines.<tier>.internalBufferSlots` |
 | Plantables / soils per grid slot, hence the plot capacity (Entropic: 60 groups x 64 = 3,840) | Server config per grid tier (owner: default 64 each) | `machines.<tier>.seedsPerSlot`, `soilsPerSlot` |
-| FE per planted plot per tick (owner: 90); the buffer is sized from it (capacity x FE x 3) | Server config per tier with energy | `machines.<tier>.energyPerPlot` |
+| FE per planted plot per tick (owner: 90); the buffer is sized from it (capacity x FE x 3; the x 3 stays in code, owner 2026-09-30) | Server config per tier with energy | `machines.<tier>.energyPerPlot` |
 | Replant produced plantables into free soils (Entropic): allowed or not; each machine then has its own switch (GUI) | Server config per tier (default true = allowed) | `machines.<tier>.replant` |
 | Autocrafter recipes and waiting-ingredient limit (Entropic) | Server config per tier (100 recipes, at most 100; 1,024 items of a kind) | `machines.<tier>.crafterRecipes`, `crafterBufferLimit` |
 | Autocrafter catalysts: what the catalyst slot takes, used by recipes without being spent (Entropic) | Item tag (default: Mystical Agriculture's Master Infusion Crystal) | `#virtualfarmworks:crafter_catalysts` |

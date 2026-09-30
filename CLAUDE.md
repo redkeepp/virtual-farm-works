@@ -94,8 +94,9 @@ every change in game (2026-09-30). Recipes of the machine and its Water Provider
 Ionic and Resonant come after (they will reuse `MachineLayout`).
 Tests: 45 game tests (44 VFW + 1 vanilla), 86 JUnit, load benchmark.
 
-Open: the owner's in-game check of the GUI scale fit and of RUNNING WITH LOW FE (both 2026-09-30), and the
-multiplayer re-test (custom packets were added since the last one; the owner is doing it, 2026-09-30). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
+The owner checked the GUI scale fit, RUNNING WITH LOW FE and the recipes kept on the item in game: working
+(2026-09-30). Open before the tag `entropic-complete`: the multiplayer re-test (custom packets were added since the
+last one; the owner is doing it) and a final clean benchmark (every game closed). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
 "scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or
 with JEI.
 
@@ -117,8 +118,9 @@ with JEI.
   seeds or soils returns exactly those items and updates active/pending atomically.
 - From the owner's original spec for later tiers, now on the Entropic: FE energy (less than a whole tick stored =
   `RUNNING WITH LOW FE`: what is left pays part of a tick and the bar moves that part, so a buffer whose source
-  stopped drains to exactly 0 (owner, 2026-09-30); an empty buffer = `MISSING FE`, no progress), autocrafting (its
-  leftovers and recipes persist) and automated input.
+  stopped drains to exactly 0 (owner, 2026-09-30); an empty buffer = `MISSING FE`, no progress; buffer = capacity x
+  FE per plot x 3, the x 3 hard-coded by owner decision), autocrafting (its leftovers and recipes persist) and
+  automated input.
 - Content: Starter, Voltaic, Ionic, Resonant, Entropic **Farm Matrix**; Water Provider Upgrade and Growth Speed
   Upgrade in those 5 tiers (an upgrade fits machines of its tier or lower: `MachineTier#accepts`); one Crux Provider
   Upgrade. Progression: from a Botany-Pot-like Starter to thousands of plots (Entropic ≈ 6,000 as a design target).

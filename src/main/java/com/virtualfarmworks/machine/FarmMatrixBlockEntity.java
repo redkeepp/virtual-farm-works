@@ -158,7 +158,10 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private static final int SAVE_INTERVAL = 20;
     /** Harvest batches of different units stored in one tick at most (lag guard for machines full of plant types). */
     private static final int MAX_BATCHES_PER_TICK = 4;
-    /** Owner formula: the energy buffer holds three ticks of the highest possible consumption. */
+    /**
+     * Owner formula: the energy buffer holds three ticks of the highest possible consumption. Stays in code, not in
+     * the config (owner, 2026-09-30).
+     */
     private static final int ENERGY_BUFFER_TICKS = 3;
 
     /** Saved form of {@link #heldDrops}: item and amount (amounts can exceed a stack, so not ItemStacks). */

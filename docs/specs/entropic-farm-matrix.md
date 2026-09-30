@@ -27,7 +27,7 @@ midgame is easier to balance.
     waiting plots).
 - Each active plot consumes 90 FE/t (config).
 - FE buffer = maximum capacity (3,840 by default) x FE per active plot (90) x 3, so the buffer always holds at least
-  three times the highest possible consumption.
+  three times the highest possible consumption. The x 3 stays in code, not in the config (owner, 2026-09-30).
 - Hovering the FE bar shows current FE / total FE, e.g. 1000000/1000000.
 - Both grids accept automated INPUT (e.g. 3,000 Diamond Seeds piped in from a big chest instead of by hand).
 - The output box ("O") has 5 modes per face: NONE (gray, gives and takes nothing), OUTPUT (green, as now: only what
@@ -215,4 +215,5 @@ Entropic loses nothing. Game test `recipes_are_loaded` crafts every owner grid a
 - GUI scale fit and RUNNING WITH LOW FE (2026-09-30, done): `client/GuiScaleFit` + `EntropicFarmMatrixScreen`
   (`added`, `resize`, `removed`); `MachineStatus.RUNNING_LOW_FE`. Growth Speed Upgrades keep one bonus for every
   tier (Claude offered a per-tier bonus; owner: leave it as it is, 2026-09-30).
-- Waiting for the owner: in-game check of the two above; multiplayer re-test (in progress).
+- The owner checked the two above and the recipes kept on the item in game: working (2026-09-30).
+- Before the owner declares the Entropic done: multiplayer re-test (in progress), final clean benchmark.
