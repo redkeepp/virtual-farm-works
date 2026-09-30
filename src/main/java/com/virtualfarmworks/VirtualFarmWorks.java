@@ -17,6 +17,7 @@ import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.registry.ModBlockEntities;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModCreativeTabs;
+import com.virtualfarmworks.registry.ModDataComponents;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.registry.ModMenus;
 
@@ -39,6 +40,7 @@ public class VirtualFarmWorks {
         // the order readable anyway).
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
+        ModDataComponents.register(modEventBus); // the autocrafter recipes a broken machine keeps on its item
         ModBlockEntities.register(modEventBus); // also registers capabilities
         ModMenus.register(modEventBus);
         ModCreativeTabs.register(modEventBus);

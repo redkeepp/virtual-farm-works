@@ -103,6 +103,12 @@ button and the ON/OFF button (owner, 2026-09-29):
 - Recipes (owner): up to 100 (config `crafterRecipes`, default 100), the list growing only as recipes are added.
 - GUI size: kept as drawn (296x320) for now (owner: "let's test it like this and you change it later"); at the
   automatic GUI scale on a 1080p screen the machine needs GUI scale 3.
+  **OPEN** (owner asked for Claude's solution, 2026-09-30). The automatic scale always leaves 240-270 px of height
+  (1080p: 270, 1440p and 4K: 240), so the 320 px GUI never fits and is cut at the top and bottom. **PROPOSED**:
+  while the Entropic screen is open, lower the GUI scale to the largest one where it fits (1080p: 4 -> 3) and give
+  the player's own scale back when it closes; integer scale, so the pixel art stays sharp, JEI follows, the
+  owner's texture is unchanged. Alternatives set aside: redrawing a GUI of at most 240 px (a new layout and new
+  art), drawing it at a fractional scale (blurry pixel art and text), or only telling players to use GUI scale 3.
 - Owner's changes after the first in-game test (2026-09-29): SET CRAFT and CRAFT: ON/OFF in smaller letters; the FE
   bar's tooltip only "current/total" (a source keeping up shows the buffer full); a lightning box right below the "O"
   (not a button) whose tooltip says "Uses X FE/t per active plot" and "Using X FE/t" (0 while the machine does not
@@ -161,6 +167,10 @@ button and the ON/OFF button (owner, 2026-09-29):
   items the harvest filter rejects are deleted, as they would have been without the crafter (crafted items never
   are).
 - The list shows five recipes at a time; the mouse wheel (or a click on the scrollbar) scrolls it.
+- Recipes stay on the machine's item when it breaks (Claude's offer, owner OK 2026-09-30): the dropped Entropic
+  Farm Matrix keeps them (tooltip "Autocrafter recipes: N") and a machine placed from it has them again. Only the
+  recipes: the waiting ingredients are deleted with the machine (owner rule for hidden items) and CRAFT is ON again,
+  as on any machine just placed. A machine without recipes drops a plain item, which stacks with new ones.
 
 ## Recipes (owner, 2026-09-30)
 
@@ -197,4 +207,8 @@ Entropic loses nothing. Game test `recipes_are_loaded` crafts every owner grid a
   info lines one pixel lower. Game tests `entropic_groups_must_all_be_valid`, `entropic_input_face_pulls_from_chests`,
   `crafter_uses_the_catalyst`; the replant test covers option (b), the switch and the config.
 - Recipes (2026-09-30, done): the machine, its Water Provider Upgrade and its Growth Speed Upgrade (above).
-- Waiting for the owner: in-game test of these changes.
+- Autocrafter recipes kept on the broken machine's item (2026-09-30, done): `machine/CrafterRecipes` (item data
+  component), `registry/ModDataComponents`, loot table `copy_components`; game test
+  `crafter_recipes_stay_on_the_item`.
+- The owner tested and approved these changes in game (2026-09-30).
+- OPEN: GUI size (see "GUI size" under Decisions); multiplayer re-test (owner, in progress).

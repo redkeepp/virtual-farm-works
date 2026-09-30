@@ -1,8 +1,9 @@
 /*
  * CrafterGameTests — game tests of the Entropic Farm Matrix autocrafter (owner spec 2026-09-29): recipe matching,
  * chains in order, circles that stop, items a recipe accepts in place of the grid's, remainders, the waiting limit, a
- * real harvest crafted before the output, face modes and the filter with crafted items, CRAFT OFF, saving, and the
- * menu (grid, result, SET CRAFT, select, replace, delete, limit, switch).
+ * real harvest crafted before the output, face modes and the filter with crafted items, CRAFT OFF, saving, the
+ * menu (grid, result, SET CRAFT, select, replace, delete, limit, switch), and the recipes a broken machine keeps on
+ * its item.
  */
 package com.virtualfarmworks.gametest;
 
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
+import com.virtualfarmworks.machine.CrafterRecipes;
 import com.virtualfarmworks.machine.FaceMode;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineCrafter;
@@ -20,6 +22,8 @@ import com.virtualfarmworks.machine.MachineLayout;
 import com.virtualfarmworks.machine.RelativeSide;
 import com.virtualfarmworks.menu.EntropicFarmMatrixMenu;
 import com.virtualfarmworks.registry.ModBlocks;
+import com.virtualfarmworks.registry.ModDataComponents;
+import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.DropTally;
 
 import net.minecraft.core.BlockPos;
@@ -28,15 +32,25 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.item.ItemResource;
@@ -312,6 +326,45 @@ final class CrafterGameTests {
         helper.succeed();
     }
 
+    /**
+     * Owner (2026-09-30): a broken machine keeps its recipes on its item, whose tooltip counts them, and gets them back
+     * when placed; the waiting ingredients are deleted with it (owner rule for hidden items). Without recipes the
+     * machine drops a plain item, which stacks with a new one.
+     */
+    static void crafterRecipesStayOnTheItem(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        setRecipes(helper, machine, nine(Items.WHEAT), nine(Items.IRON_INGOT));
+        MachineCrafter crafter = machine.crafter();
+        crafter.commit(crafter.plan(drops(Items.WHEAT, 5), Map.of(), level, 1024, ItemResource.EMPTY));
+        check(helper, waitingIn(crafter, Items.WHEAT) == 5, "5 wheat wait for the rest of the hay bale");
+
+        breakMachine(helper);
+        ItemStack dropped = takeDroppedMachine(helper);
+        CrafterRecipes kept = dropped.get(ModDataComponents.CRAFTER_RECIPES.get());
+        check(helper, kept != null && kept.patterns().size() == 2 && kept.patterns().get(0).grid().get(8).is(Items.WHEAT)
+                && kept.patterns().get(1).grid().get(0).is(Items.IRON_INGOT), "the dropped machine keeps its 2 recipes");
+        helper.assertItemEntityNotPresent(Items.WHEAT, MACHINE, 2.0);
+        List<Component> tooltip = dropped.getTooltipLines(Item.TooltipContext.of(level), null, TooltipFlag.NORMAL);
+        check(helper, tooltip.stream().anyMatch(line -> line.getContents() instanceof TranslatableContents text
+                && text.getKey().equals("tooltip.virtualfarmworks.crafter_recipes")), "the tooltip counts the recipes");
+
+        FarmMatrixBlockEntity placed = placeFromItem(helper, dropped);
+        MachineCrafter recipes = placed.crafter();
+        placed.serverTick(level); // matches the recipes to the loaded data
+        check(helper, recipes.size() == 2 && recipes.result(0).is(Items.HAY_BLOCK) && recipes.result(1).is(Items.IRON_BLOCK)
+                && recipes.isEnabled() && recipes.buffer().isEmpty(), "placed again: the 2 recipes, nothing waiting");
+
+        placed.removeCrafterRecipe(1);
+        placed.removeCrafterRecipe(0);
+        breakMachine(helper);
+        ItemStack plain = takeDroppedMachine(helper);
+        check(helper, !plain.has(ModDataComponents.CRAFTER_RECIPES.get())
+                        && ItemStack.isSameItemSameComponents(plain, new ItemStack(ModItems.ENTROPIC_FARM_MATRIX.get())),
+                "no recipes: a plain item that stacks with a new one");
+        helper.succeed();
+    }
+
     // --- helpers ----------------------------------------------------------------------------------------------------
 
     private static Item item(String id) {
@@ -321,6 +374,37 @@ final class CrafterGameTests {
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.ENTROPIC_FARM_MATRIX.get().defaultBlockState());
         return helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+    }
+
+    /** Places the machine from an item as a player does ({@link BlockItem#place}, which hands the item's data over). */
+    private static FarmMatrixBlockEntity placeFromItem(GameTestHelper helper, ItemStack stack) {
+        BlockPos pos = helper.absolutePos(MACHINE);
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        player.setItemInHand(InteractionHand.MAIN_HAND, stack.copy());
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(pos), Direction.UP, pos, false);
+        InteractionResult result = ((BlockItem) stack.getItem())
+                .place(new BlockPlaceContext(player, InteractionHand.MAIN_HAND, player.getMainHandItem(), hit));
+        check(helper, result.consumesAction(), "the machine item must place: " + result);
+        return helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+    }
+
+    /** Breaks the machine as a player does, block drops included (GameTestHelper#destroyBlock drops nothing). */
+    private static void breakMachine(GameTestHelper helper) {
+        helper.getLevel().destroyBlock(helper.absolutePos(MACHINE), true);
+    }
+
+    /** The machine item dropped where the machine stood; its entity is removed, so the next break finds its own. */
+    private static ItemStack takeDroppedMachine(GameTestHelper helper) {
+        AABB area = new AABB(helper.absolutePos(MACHINE)).inflate(2.0);
+        for (ItemEntity entity : helper.getLevel().getEntitiesOfClass(ItemEntity.class, area)) {
+            if (entity.getItem().is(ModItems.ENTROPIC_FARM_MATRIX.get())) {
+                ItemStack stack = entity.getItem().copy();
+                entity.discard();
+                return stack;
+            }
+        }
+        check(helper, false, "the broken machine must drop its item");
+        return ItemStack.EMPTY;
     }
 
     /** A recipe grid, row by row ({@link #NONE} = empty cell; missing cells are empty). */

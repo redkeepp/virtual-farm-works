@@ -78,7 +78,8 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  * <h2>Items leaving the buffer</h2>
  * CRAFT turned OFF: the whole buffer goes to the output (owner decision); recipes edited: the items no recipe uses any
  * more. Both are returned to the machine, which stores them before anything else. Breaking the machine deletes the
- * buffer (owner rule for hidden items).
+ * buffer (owner rule for hidden items); the recipes stay on the machine's item ({@link CrafterRecipes}, owner,
+ * 2026-09-30).
  */
 public final class MachineCrafter {
     /** Most recipes a machine can hold, whatever the config says (its upper bound; owner, 2026-09-29: up to 100). */
@@ -87,14 +88,30 @@ public final class MachineCrafter {
     /** Item choices tried per recipe and batch; each round uses an item up, so ordinary recipes need one or two. */
     private static final int MAX_ROUNDS = 16;
 
-    /** A recipe as the player set it: the grid (9 cells, one item or empty each) and the recipe it made then. */
+    /**
+     * A recipe as the player set it: the grid (9 cells, one item or empty each) and the recipe it made then. Compared
+     * by content (an ItemStack has no equals of its own), as the machine item's {@link CrafterRecipes} needs.
+     */
     public record Pattern(List<ItemStack> grid, Optional<ResourceKey<Recipe<?>>> recipeId) {
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Pattern pattern && ItemStack.listMatches(grid, pattern.grid)
+                    && recipeId.equals(pattern.recipeId);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * ItemStack.hashStackList(grid) + recipeId.hashCode();
+        }
     }
 
     private static final Codec<Pattern> PATTERN_CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ItemStack.OPTIONAL_CODEC.listOf().fieldOf("grid").forGetter(Pattern::grid),
             Recipe.KEY_CODEC.optionalFieldOf("recipe").forGetter(Pattern::recipeId))
             .apply(instance, Pattern::new));
+
+    /** Saved form of a recipe list: the machine's save and its item's {@link CrafterRecipes}. */
+    public static final Codec<List<Pattern>> PATTERNS_CODEC = PATTERN_CODEC.listOf();
 
     /** Saved form of the buffer: item and amount (amounts can exceed a stack). */
     private static final Codec<List<DropTally.Entry<ItemResource>>> AMOUNTS_CODEC = RecordCodecBuilder
@@ -232,6 +249,24 @@ public final class MachineCrafter {
             patterns.remove(index);
             recipesChanged();
         }
+    }
+
+    /** The recipes as the player set them, in list order: what the machine's item keeps when it breaks. */
+    public List<Pattern> patterns() {
+        return List.copyOf(patterns);
+    }
+
+    /** Replaces every recipe (a machine placed from an item that kept them). Resolve before crafting. */
+    public void setPatterns(List<Pattern> list) {
+        patterns.clear();
+        patterns.addAll(trim(list));
+        recipesChanged();
+    }
+
+    /** A recipe list as a machine holds it: at most {@link #MAX_RECIPES}, every grid {@link #normalize normalized}. */
+    public static List<Pattern> trim(List<Pattern> list) {
+        return list.stream().limit(MAX_RECIPES).map(pattern -> new Pattern(normalize(pattern.grid()), pattern.recipeId()))
+                .toList();
     }
 
     private void recipesChanged() {
@@ -673,7 +708,7 @@ public final class MachineCrafter {
 
     public void save(ValueOutput out) {
         out.putBoolean("enabled", enabled);
-        out.store("recipes", PATTERN_CODEC.listOf(), patterns);
+        out.store("recipes", PATTERNS_CODEC, patterns);
         if (!buffer.isEmpty()) {
             out.store("buffer", AMOUNTS_CODEC, entries(buffer));
         }
@@ -682,8 +717,7 @@ public final class MachineCrafter {
     public void load(ValueInput in) {
         enabled = in.getBooleanOr("enabled", true);
         patterns.clear();
-        in.read("recipes", PATTERN_CODEC.listOf()).ifPresent(list -> list.stream().limit(MAX_RECIPES)
-                .forEach(pattern -> patterns.add(new Pattern(normalize(pattern.grid()), pattern.recipeId()))));
+        in.read("recipes", PATTERNS_CODEC).ifPresent(list -> patterns.addAll(trim(list)));
         buffer = new LinkedHashMap<>();
         in.read("buffer", AMOUNTS_CODEC).ifPresent(list -> list.forEach(entry -> {
             if (!entry.key().isEmpty() && entry.amount() > 0) {

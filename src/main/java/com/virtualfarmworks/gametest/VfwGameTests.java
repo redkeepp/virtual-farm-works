@@ -114,7 +114,8 @@ public final class VfwGameTests {
             test("crafter_crafts_the_harvest", CrafterGameTests::crafterCraftsTheHarvest, 20),
             test("crafter_menu_works", CrafterGameTests::crafterMenuWorks, 20),
             test("crafter_uses_the_output", CrafterGameTests::crafterUsesTheOutput, 20),
-            test("crafter_uses_the_catalyst", CrafterGameTests::crafterUsesTheCatalyst, 20));
+            test("crafter_uses_the_catalyst", CrafterGameTests::crafterUsesTheCatalyst, 20),
+            test("crafter_recipes_stay_on_the_item", CrafterGameTests::crafterRecipesStayOnTheItem, 20));
 
     /**
      * Load benchmark: registered as a test ONLY in the {@code benchmark} run ({@code gradlew runBenchmark}, which sets

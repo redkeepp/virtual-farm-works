@@ -30,6 +30,7 @@ import com.virtualfarmworks.plant.PlantAnalysis;
 import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.registry.ModBlockEntities;
+import com.virtualfarmworks.registry.ModDataComponents;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.GrowthCycle;
 import com.virtualfarmworks.sim.GrowthSpeed;
@@ -40,6 +41,8 @@ import com.virtualfarmworks.sim.YieldSample;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponentGetter;
+import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -145,7 +148,8 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  *
  * <h2>Breaking the machine</h2>
  * Inputs and the visible output slots drop; the hidden buffer, held drops, the autocrafter's waiting ingredients,
- * stored energy and ripe plots are deleted (owner rule).
+ * stored energy and ripe plots are deleted (owner rule). The autocrafter's recipes stay on the dropped machine item
+ * and come back when it is placed ({@link CrafterRecipes}, owner, 2026-09-30).
  *
  * <h2>Chunk unload</h2>
  * No ticking while unloaded, no catch-up when reloaded, no chunk loading (owner rules).
@@ -1319,6 +1323,30 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
+     * What the machine's item keeps when it is made from the block (loot table {@code copy_components}): the
+     * autocrafter's recipes, when there are any (owner, 2026-09-30). A machine without recipes drops a plain item.
+     */
+    @Override
+    protected void collectImplicitComponents(DataComponentMap.Builder components) {
+        super.collectImplicitComponents(components);
+        if (crafter != null && crafter.size() > 0) {
+            components.set(ModDataComponents.CRAFTER_RECIPES.get(), new CrafterRecipes(crafter.patterns()));
+        }
+    }
+
+    /** Placed from an item that kept autocrafter recipes: they are the machine's again (matched on the next tick). */
+    @Override
+    protected void applyImplicitComponents(DataComponentGetter components) {
+        super.applyImplicitComponents(components);
+        if (crafter != null) {
+            CrafterRecipes recipes = components.get(ModDataComponents.CRAFTER_RECIPES.get());
+            if (recipes != null) {
+                crafter.setPatterns(recipes.patterns());
+            }
+        }
+    }
+
+    /**
      * Face modes: "face_modes" (one ordinal per side), or the Starter's older "output_faces" bit mask (bit set =
      * OUTPUT, clear = NONE), or the tier's defaults.
      */
@@ -1342,7 +1370,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     /**
      * The block is being removed (broken, replaced): drop the inputs and the visible output slots. The hidden output
      * slots, held drops, stored energy and ripe plots are deleted (owner rule, step 8). A rolled but unstored batch was
-     * never produced.
+     * never produced. The autocrafter's recipes leave with the machine's own item (the loot table copies them, see
+     * {@link #collectImplicitComponents}).
      */
     @Override
     public void preRemoveSideEffects(BlockPos pos, BlockState state) {

@@ -156,6 +156,10 @@ game tests passed:
   Starter Farm Matrix), Entropic Water Provider Upgrade (the Starter recipe around a Starter Water Provider Upgrade)
   and Entropic Growth Speed Upgrade (redstone blocks and diamonds around a Starter Growth Speed Upgrade), each with
   its recipe-book advancement. `recipes_are_loaded` now crafts every owner grid, Starter ones included.
+- **Recipes stay on a broken machine (2026-09-30, owner OK).** The autocrafter's recipes (up to 100) used to be
+  lost with the machine; now its item keeps them in an item data component (`machine/CrafterRecipes`, copied by
+  the loot table, tooltip "Autocrafter recipes: N") and a machine placed from it gets them back. Waiting
+  ingredients are still deleted. Game test `crafter_recipes_stay_on_the_item`.
 
 ## Benchmark results log
 

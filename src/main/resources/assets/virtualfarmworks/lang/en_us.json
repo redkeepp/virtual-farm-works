@@ -28,6 +28,7 @@
   "tooltip.virtualfarmworks.growth_upgrade": "+%s%% growth speed",
   "tooltip.virtualfarmworks.crux_provider_upgrade": "Provides any crux a seed requires",
   "tooltip.virtualfarmworks.fits": "Fits: %s",
+  "tooltip.virtualfarmworks.crafter_recipes": "Autocrafter recipes: %s",
 
   "status.virtualfarmworks.running": "RUNNING",
   "status.virtualfarmworks.missing_seed": "MISSING SEED",

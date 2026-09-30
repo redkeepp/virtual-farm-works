@@ -88,14 +88,15 @@ modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `Entro
 `EntropicFarmMatrixScreen`, shared `AbstractFarmMatrixMenu`), stage 3 (replant), stage 4 (autocrafter
 `machine/MachineCrafter`, its panel, JEI "+"), stage 5 (benchmark rows, docs), then the owner's answers and first
 in-game test (2026-09-29: all groups must be valid, no hoe, replant option (b) + button, 100 recipes, catalyst slot,
-FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 runs). Waiting for the owner: in-game
-test of those changes. Recipes of the machine and its Water Provider and Growth Speed Upgrades: owner's costs
+FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 runs); the owner tested and approved
+every change in game (2026-09-30). Recipes of the machine and its Water Provider and Growth Speed Upgrades: owner's costs
 (2026-09-30, `docs/resources.md`). Voltaic,
 Ionic and Resonant come after (they will reuse `MachineLayout`).
-Tests: 44 game tests (43 VFW + 1 vanilla), 81 JUnit, load benchmark.
+Tests: 45 game tests (44 VFW + 1 vanilla), 81 JUnit, load benchmark.
 
-Open on the owner's side: multiplayer re-test (custom packets were added since the last one; the owner planned to do
-it at the end). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
+Open: the Entropic GUI size (296x320 never fits at the automatic GUI scale; Claude proposed lowering the GUI scale
+only while the screen is open, 2026-09-30, waiting for the owner) and the multiplayer re-test (custom packets were
+added since the last one; the owner is doing it, 2026-09-30). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
 "scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or
 with JEI.
 
@@ -140,7 +141,8 @@ Specs with the full owner decisions: `docs/specs/starter-farm-matrix.md`, `docs/
 
 Block interaction (`block/FarmMatrixBlock`): right-click opens the GUI (`useWithoutItem`); right-click holding an
 upgrade pulls in as many as fit (`useItemOn` -> `FarmMatrixBlockEntity#insertUpgradesFrom`), else opens the GUI.
-Breaking drops contents in `preRemoveSideEffects`.
+Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes leave on the machine's own item
+(`machine/CrafterRecipes` data component, copied by the loot table, read back on placement).
 
 ### Growth (`sim/` — pure Java, NO net.minecraft imports, JUnit-tested)
 - `GrowthCycle`: progress 0..1, `PlotGroup`s (active, pending, harvested), carry-over capped so at most one harvest
@@ -218,6 +220,10 @@ Breaking drops contents in `preRemoveSideEffects`.
 - CRAFT OFF (and recipe edits) release the buffer into `heldDrops` (filtered like the harvest). Recipes, switch and
   buffer are saved; the buffer is deleted when the machine breaks. Re-resolved after edits and datapack reloads
   (`SoilRules#cacheGeneration`).
+- Broken machine (owner, 2026-09-30): the recipes stay on its item (`CrafterRecipes`, component
+  `virtualfarmworks:crafter_recipes`, tooltip "Autocrafter recipes: N") and come back when it is placed; the switch
+  is ON again. `collectImplicitComponents` adds the component only when there are recipes, so an empty machine drops
+  a plain item that stacks with new ones.
 
 ### Output
 - Visible `OutputBuffer` (9 slots): players take and put items by hand (menu `OutputSlot`); automation only extracts
@@ -366,6 +372,15 @@ Breaking drops contents in `preRemoveSideEffects`.
 - `ResourceLocation` is `net.minecraft.resources.Identifier`. `ClickType` is `ContainerInput`. Block placement rules
   use `#supports_*` block tags (e.g. `supports_vegetation` = `#substrate_overworld` + farmland).
 - `Item#appendHoverText(ItemStack, Item.TooltipContext, TooltipDisplay, Consumer<Component>, TooltipFlag)`.
+- Item data components: `DeferredRegister.createDataComponents` + `registerComponentType` (`persistent` codec,
+  `networkSynchronized` stream codec). Values must be immutable with content equals/hashCode (ItemStack has none:
+  `ItemStack.listMatches` / `hashStackList`). A block entity hands components to its dropped item with
+  `collectImplicitComponents` + the loot function `minecraft:copy_components` (`"source": "block_entity"`,
+  `include`), and takes them back on placement in `applyImplicitComponents` (`BlockItem#place`). A modded
+  component shows no tooltip unless registered in `RegisterTooltipAppendersEvent` (mod bus; the value implements
+  `TooltipProvider`).
+- `GameTestHelper#destroyBlock` breaks WITHOUT block drops (`dropBlock` false): to test a loot table, call
+  `level.destroyBlock(pos, true)`.
 - Every block type needs a `MapCodec` (`codec()`).
 - Item models: `assets/<ns>/items/<id>.json` (item definition) -> `models/item/<id>.json`; both required.
 - Persistence: `ValueOutput`/`ValueInput`. Transfer API: `ResourceHandler<ItemResource>`, `Transaction.openRoot()`,
@@ -411,7 +426,7 @@ Breaking drops contents in `preRemoveSideEffects`.
   a comment, breaks `generateModMetadata`.
 - If `gradlew build` says UP-TO-DATE after code changes, delete the project `.gradle/` folder and rebuild.
 - Long paths: `git clone` into deep folders may fail with `'$GIT_DIR' too big` — download a ZIP or use a short path.
-- No Python on the owner's machine: script with bash/sed/awk or use the Edit tool. A recursive grep over `build/`
+- Python 3.13 is installed (`python` in the Bash tool; it was missing before 2026-09-30). A recursive grep over `build/`
   (sources + caches) takes minutes: grep `build/mcsrc` or `build/neosrc` subfolders instead.
 - The owner usually has `runClient` open on `run/`. An old build running there "corrects" the shared config TOML and
   removes new keys: ask the owner to restart the client after code changes. When the owner edits the TOML by hand: a
@@ -429,12 +444,14 @@ Breaking drops contents in `preRemoveSideEffects`.
   slot indices, visible output size, features; groups = 1 reproduces the Starter's persisted slot order),
   `MachineInventory`, `OutputBuffer` (visible output), `InternalBuffer` (hidden output), `MachineEnergy` (FE buffer),
   `FaceMode` (NONE/OUTPUT/OUTPUT CRAFTED/OUTPUT ALL/INPUT, ordinal persisted), `GridInput` (pipe input routing),
-  `MachineCrafter` (autocrafter), `MachineFilter` (harvest filter), `MachineSlots` (Starter indices — persisted, never
+  `MachineCrafter` (autocrafter), `CrafterRecipes` (its recipes on a broken machine's item), `MachineFilter`
+  (harvest filter), `MachineSlots` (Starter indices — persisted, never
   reorder), `MachineTier` (order = progression, `accepts()`), `RelativeSide` (faces relative to the front; order
   persisted).
 - `block/FarmMatrixBlock` — one block class for all tiers (tier is a constructor arg).
 - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`; items carry no behavior.
-- `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
+- `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`,
+  `ModDataComponents` (item data components + their tooltip appenders).
 - `config/` — `VfwServerConfig` (spec + comments pack makers read), `VfwConfig` (runtime: compiled filters,
   generation, file layout), `ConfigFileLayout` (blank line before each setting), `ItemFilter`.
 - `data/` — `ModDataMaps` with `SoilProperties` (soil growth bonus) and `FixedYield` (fixed harvests) data maps.
