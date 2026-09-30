@@ -91,14 +91,15 @@ public final class EntropicLayout {
     public static final int PANEL_BOTTOM = POWER_BOX_TOP + FarmMatrixLayout.boxHeight(1);                         // 267
     /**
      * Lightning bolt drawn in the energy box, copied pixel by pixel from the owner's drawing (2026-09-29): {x, y} inside
-     * the 16x16 cell, a light purple stroke and its dark purple shade.
+     * the 16x16 cell, a red stroke (the FE bar's red) and its dark red shade. The drawing was purple; the owner wants
+     * it red.
      */
     public static final int[][] BOLT_LIGHT = {
             {8, 4}, {7, 5}, {6, 6}, {5, 7}, {6, 7}, {7, 7}, {8, 7}, {9, 7}, {8, 8}, {7, 9}, {6, 10}};
     public static final int[][] BOLT_SHADE = {
             {9, 5}, {8, 6}, {6, 8}, {7, 8}, {9, 8}, {10, 8}, {9, 9}, {8, 10}, {7, 11}};
-    public static final int COLOR_BOLT_LIGHT = 0xFFB36CFF;
-    public static final int COLOR_BOLT_SHADE = 0xFF2C1B3F;
+    public static final int COLOR_BOLT_LIGHT = COLOR_ENERGY;
+    public static final int COLOR_BOLT_SHADE = 0xFF3F1010;
     /** Replant button look while the config disables replanting: grey box, greyed seed. */
     public static final int COLOR_DISABLED = 0xFF5E5E5E;
     public static final int COLOR_DISABLED_COVER = 0xA0555555;
