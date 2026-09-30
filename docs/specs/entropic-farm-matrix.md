@@ -103,11 +103,11 @@ button and the ON/OFF button (owner, 2026-09-29):
 - Recipes (owner): up to 100 (config `crafterRecipes`, default 100), the list growing only as recipes are added.
 - GUI size: kept as drawn (296x320) for now (owner: "let's test it like this and you change it later"); at the
   automatic GUI scale on a 1080p screen the machine needs GUI scale 3.
-  **OPEN** (owner asked for Claude's solution, 2026-09-30). The automatic scale always leaves 240-270 px of height
-  (1080p: 270, 1440p and 4K: 240), so the 320 px GUI never fits and is cut at the top and bottom. **PROPOSED**:
-  while the Entropic screen is open, lower the GUI scale to the largest one where it fits (1080p: 4 -> 3) and give
-  the player's own scale back when it closes; integer scale, so the pixel art stays sharp, JEI follows, the
-  owner's texture is unchanged. Alternatives set aside: redrawing a GUI of at most 240 px (a new layout and new
+  Owner asked for Claude's solution and approved it (2026-09-30). The automatic scale always leaves 240-270 px of
+  height (1080p: 270, 1440p and 4K: 240), so the 320 px GUI never fits and is cut at the top and bottom. So while
+  the Entropic screen is open, the GUI scale drops to the largest one where it fits (1080p: 4 -> 3), and the
+  player's own scale comes back when it closes; integer scale, so the pixel art stays sharp, JEI follows, the
+  owner's texture is unchanged. The width counts the face and filter boxes (460 x 320 GUI pixels). Alternatives set aside: redrawing a GUI of at most 240 px (a new layout and new
   art), drawing it at a fractional scale (blurry pixel art and text), or only telling players to use GUI scale 3.
 - Owner's changes after the first in-game test (2026-09-29): SET CRAFT and CRAFT: ON/OFF in smaller letters; the FE
   bar's tooltip only "current/total" (a source keeping up shows the buffer full); a lightning box right below the "O"
@@ -118,7 +118,8 @@ button and the ON/OFF button (owner, 2026-09-29):
   Provider, 4 Growth Speed Upgrades and Crux Provider in the side column, Fertilized Essence switch, harvest filter,
   on/off; theme color red (the texture's border); capacity = 60 x min(seeds per slot, soils per slot); every planted
   plot pays FE, only while the bar advances; not enough FE for a tick = MISSING FE (owner, 2026-09-30: the buffer must
-  still drain to 0, so what is left pays part of a tick and the bar moves that part); FE from any face; 5 info lines
+  still drain to 0, so what is left pays part of a tick and the bar moves that part; later the same day: that state
+  is RUNNING WITH LOW FE, yellow, and MISSING FE only an empty buffer); FE from any face; 5 info lines
   (status, hydration, active plots / capacity, waiting plots, growth); faces cycle NONE -> OUTPUT -> OUTPUT CRAFTED ->
   OUTPUT ALL -> INPUT with a click (right click goes back), default OUTPUT ALL; pipe input fills slots already holding
   the item, then empty slots whose other half matches, then any empty slot; 72 hidden output slots (3 per visible
@@ -211,4 +212,7 @@ Entropic loses nothing. Game test `recipes_are_loaded` crafts every owner grid a
   component), `registry/ModDataComponents`, loot table `copy_components`; game test
   `crafter_recipes_stay_on_the_item`.
 - The owner tested and approved these changes in game (2026-09-30).
-- OPEN: GUI size (see "GUI size" under Decisions); multiplayer re-test (owner, in progress).
+- GUI scale fit and RUNNING WITH LOW FE (2026-09-30, done): `client/GuiScaleFit` + `EntropicFarmMatrixScreen`
+  (`added`, `resize`, `removed`); `MachineStatus.RUNNING_LOW_FE`. Growth Speed Upgrades keep one bonus for every
+  tier (Claude offered a per-tier bonus; owner: leave it as it is, 2026-09-30).
+- Waiting for the owner: in-game check of the two above; multiplayer re-test (in progress).

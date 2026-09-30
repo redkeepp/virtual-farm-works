@@ -145,11 +145,12 @@ game tests passed:
   once per round brought it back below the plain machine. Game test `crafter_uses_the_output`.
 - **FE drains to 0 (2026-09-30, owner).** With the source cut, the buffer used to stop at the remainder smaller than
   one tick (e.g. 1,800 FE with 100 plots). Now a tick the buffer cannot pay in full spends what is left and moves the
-  bar that fraction (status MISSING FE), so the buffer ends at exactly 0 and no FE is stranded or wasted; a weak
-  source grows the farm proportionally slower instead of stop-and-go. The lightning icon became red (the owner's
-  drawing was only an example color). Game test `entropic_energy_drains_to_zero`. A crash reported while exporting
-  into a Trash Cans "Item Trash Can" was traced to Trash Cans 1.1.1 itself (its deleted-items codec returns a null
-  component patch; reproduced with a plain handler insertion, no VFW machine), not to VFW.
+  bar that fraction (status MISSING FE, later RUNNING WITH LOW FE), so the buffer ends at exactly 0 and no FE is
+  stranded or wasted; a weak source grows the farm proportionally slower instead of stop-and-go. The lightning icon
+  became red (the owner's drawing was only an example color). Game test `entropic_energy_drains_to_zero`. A crash
+  reported while exporting into a Trash Cans "Item Trash Can" was traced to Trash Cans 1.1.1 itself (its
+  deleted-items codec returns a null component patch; reproduced with a plain handler insertion, no VFW machine), not
+  to VFW.
 - **Config file layout (2026-09-30, owner).** A blank line before every setting of `virtualfarmworks-server.toml`
   (`config/ConfigFileLayout`, applied after FML loads the file); the owner then tested the config values in game.
 - **Recipes (2026-09-30, owner's costs).** Entropic Farm Matrix (netherite ingots, diamonds and redstone around a
@@ -160,6 +161,11 @@ game tests passed:
   lost with the machine; now its item keeps them in an item data component (`machine/CrafterRecipes`, copied by
   the loot table, tooltip "Autocrafter recipes: N") and a machine placed from it gets them back. Waiting
   ingredients are still deleted. Game test `crafter_recipes_stay_on_the_item`.
+- **RUNNING WITH LOW FE and the GUI scale (2026-09-30, owner).** A buffer holding less than a tick now shows
+  RUNNING WITH LOW FE (yellow; the bar moves the part the FE pays); MISSING FE means an empty buffer. The Entropic
+  GUI (296x320) never fit at the automatic GUI scale (240-270 px high): while its screen is open the GUI scale now
+  drops to the largest that fits (`client/GuiScaleFit`) and the player's own comes back on close. Growth Speed
+  Upgrades keep one bonus for every tier (owner).
 
 ## Benchmark results log
 

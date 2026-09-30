@@ -112,6 +112,13 @@ public final class EntropicLayout {
     public static final int FILTER_BOX_X = FarmMatrixLayout.FILTER_BOX_X;
     public static final int FILTER_BOX_Y = FILTER_BUTTON_TOP + FarmMatrixLayout.boxHeight(1) - FarmMatrixLayout.FILTER_BOX_HEIGHT;
     public static final int FILTER_CONTENT_X = FILTER_BOX_X + 4;
+
+    /**
+     * GUI pixels the screen needs (owner, 2026-09-30): the centered GUI, with room on its left for the face and filter
+     * boxes (they open left of the side column). While the screen is open, the GUI scale drops until this fits.
+     */
+    public static final int FIT_WIDTH = GUI_WIDTH + 2 * -Math.min(FACE_BOX_X - 1, FILTER_BOX_X);            // 460
+    public static final int FIT_HEIGHT = GUI_HEIGHT;                                                     // 320
     public static final int FILTER_STRIP_Y = FILTER_BOX_Y + 3;
     public static final int FILTER_GRID_Y = FILTER_STRIP_Y + FarmMatrixLayout.FILTER_STRIP_HEIGHT + 1;
     public static final int FILTER_PAGE_ROW_Y = FILTER_GRID_Y + FarmMatrixLayout.FILTER_GRID_SIZE + 1;

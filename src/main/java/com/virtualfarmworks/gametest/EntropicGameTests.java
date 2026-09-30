@@ -165,7 +165,8 @@ final class EntropicGameTests {
 
     /**
      * Owner (2026-09-30): with its source gone, the buffer drains to exactly 0. 10 plots (900 FE/t) and 2,000 FE: two
-     * whole ticks, then the last 200 FE pay part of a tick (the bar moves 2/9 of a tick), then the bar stops at 0 FE.
+     * whole ticks (RUNNING), then the last 200 FE pay part of a tick (RUNNING WITH LOW FE, the bar moves 2/9 of a
+     * tick), then the bar stops at 0 FE (MISSING FE).
      */
     static void energyDrainsToZero(GameTestHelper helper) {
         var level = helper.getLevel();
@@ -180,6 +181,7 @@ final class EntropicGameTests {
         machine.serverTick(level);
         machine.serverTick(level);
         double twoTicks = machine.progress();
+        check(helper, machine.status() == MachineStatus.RUNNING, "whole ticks: RUNNING, got " + machine.status());
         check(helper, energy.getAmountAsLong() == 200, "two whole ticks: 2,000 - 2 x 900 = 200, got "
                 + energy.getAmountAsLong());
 
@@ -188,10 +190,13 @@ final class EntropicGameTests {
         check(helper, energy.getAmountAsLong() == 0, "the last 200 FE are spent, left " + energy.getAmountAsLong());
         check(helper, Math.abs(part - twoTicks / 2 * 200 / 900) < 1e-12, "the bar moves 2/9 of a tick, moved "
                 + part / (twoTicks / 2));
-        check(helper, machine.status() == MachineStatus.MISSING_FE, "not enough for a whole tick: MISSING FE");
+        check(helper, machine.status() == MachineStatus.RUNNING_LOW_FE,
+                "part of a tick: RUNNING WITH LOW FE, got " + machine.status());
 
         machine.serverTick(level);
         check(helper, machine.progress() == twoTicks + part, "at 0 FE the bar stops");
+        check(helper, machine.status() == MachineStatus.MISSING_FE, "an empty buffer: MISSING FE, got "
+                + machine.status());
         helper.succeed();
     }
 

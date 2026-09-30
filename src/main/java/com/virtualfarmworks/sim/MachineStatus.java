@@ -1,6 +1,7 @@
 /*
- * MachineStatus — the states shown in the machine GUI (RUNNING, MISSING ..., INVALID SOIL, OUTPUT FULL, SHUTDOWN), their
- * priority, colors and lang keys. Part of the Minecraft-free simulation core (package sim), unit-tested.
+ * MachineStatus — the states shown in the machine GUI (RUNNING, RUNNING WITH LOW FE, MISSING ..., INVALID SOIL, OUTPUT
+ * FULL, SHUTDOWN), their priority, colors and lang keys. Part of the Minecraft-free simulation core (package sim),
+ * unit-tested.
  */
 package com.virtualfarmworks.sim;
 
@@ -11,9 +12,13 @@ package com.virtualfarmworks.sim;
  * {@link #resolve(MachineConditions)}). The missing-input order is the owner's hierarchy (MISSING SEED > MISSING SOIL >
  * INVALID SOIL > MISSING HOE > MISSING CRUX > MISSING FE). SHUTDOWN comes first because it is the player's explicit
  * choice; OUTPUT FULL comes after the missing inputs because it only matters once the machine could grow at all.
+ * RUNNING WITH LOW FE (owner, 2026-09-30) is a machine that runs, slower: its buffer holds FE, less than a whole
+ * tick, which pays part of the tick; MISSING FE is left for an empty buffer, where the bar stops.
  *
  * <p>The ordinal is synced to the client as a number, so appending new states at the end is safe but REORDERING
- * changes priority and the network meaning — review both when touching this enum.
+ * changes priority and the network meaning — review both when touching this enum. (RUNNING WITH LOW FE went in
+ * before RUNNING, reviewed: ordinals are never saved, client and server always run the same mod version, and the
+ * Entropic menu packs group states in 4 bits, room for 16.)
  */
 public enum MachineStatus {
     SHUTDOWN(Tone.ERROR),
@@ -24,11 +29,16 @@ public enum MachineStatus {
     MISSING_CRUX(Tone.WARNING),
     MISSING_FE(Tone.WARNING),
     OUTPUT_FULL(Tone.ERROR),
+    RUNNING_LOW_FE(Tone.CAUTION),
     RUNNING(Tone.GOOD);
 
-    /** Display color family (owner spec: RUNNING green, missing inputs orange, OUTPUT FULL / SHUTDOWN red). */
+    /**
+     * Display color family (owner spec: RUNNING green, missing inputs orange, OUTPUT FULL / SHUTDOWN red; Claude:
+     * RUNNING WITH LOW FE yellow, running but held back).
+     */
     public enum Tone {
         GOOD(0x55FF55),
+        CAUTION(0xFFFF55),
         WARNING(0xFFAA00),
         ERROR(0xFF5555);
 
@@ -55,9 +65,9 @@ public enum MachineStatus {
         return tone;
     }
 
-    /** Only a RUNNING machine advances its growth cycle. */
+    /** The growth cycle advances: a whole tick when RUNNING, the part its FE pays when RUNNING WITH LOW FE. */
     public boolean isRunning() {
-        return this == RUNNING;
+        return this == RUNNING || this == RUNNING_LOW_FE;
     }
 
     /** Lang key, e.g. {@code status.virtualfarmworks.missing_seed}. */
@@ -90,11 +100,14 @@ public enum MachineStatus {
         if (c.needsCrux && !c.hasCrux) {
             return MISSING_CRUX;
         }
-        if (c.needsEnergy && !c.hasEnergy) {
+        if (c.needsEnergy && !c.hasSomeEnergy) {
             return MISSING_FE;
         }
         if (c.outputBlocked) {
             return OUTPUT_FULL;
+        }
+        if (c.needsEnergy && !c.hasEnergy) {
+            return RUNNING_LOW_FE;
         }
         return RUNNING;
     }

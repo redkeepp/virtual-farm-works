@@ -22,6 +22,7 @@ public final class MachineConditions {
     boolean hasCrux;
     boolean needsEnergy;
     boolean hasEnergy;
+    boolean hasSomeEnergy;
     boolean outputBlocked;
 
     /** The on/off button is ON. */
@@ -60,10 +61,19 @@ public final class MachineConditions {
         return this;
     }
 
-    /** Energy requirement for this tick (always "not needed" for the Starter tier). */
+    /** Energy requirement for this tick (always "not needed" for the Starter tier): a whole tick, or nothing. */
     public MachineConditions energy(boolean needed, boolean present) {
+        return energy(needed, present, present);
+    }
+
+    /**
+     * Energy requirement for this tick: {@code wholeTick} = the buffer pays a whole tick; {@code some} = it holds FE,
+     * perhaps less than a tick, which the machine spends to run part of one (owner, 2026-09-30: RUNNING WITH LOW FE).
+     */
+    public MachineConditions energy(boolean needed, boolean wholeTick, boolean some) {
         needsEnergy = needed;
-        hasEnergy = present;
+        hasEnergy = wholeTick;
+        hasSomeEnergy = wholeTick || some;
         return this;
     }
 

@@ -31,6 +31,7 @@
   "tooltip.virtualfarmworks.crafter_recipes": "Autocrafter recipes: %s",
 
   "status.virtualfarmworks.running": "RUNNING",
+  "status.virtualfarmworks.running_low_fe": "RUNNING WITH LOW FE",
   "status.virtualfarmworks.missing_seed": "MISSING SEED",
   "status.virtualfarmworks.missing_soil": "MISSING SOIL",
   "status.virtualfarmworks.invalid_soil": "INVALID SOIL",

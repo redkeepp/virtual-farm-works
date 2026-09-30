@@ -237,6 +237,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private long energyPerTick;
     /** The buffer could pay the last tick checked (tiers with energy). */
     private boolean hasEnergy = true;
+    /** The buffer held some FE at the last check, perhaps less than a tick (then RUNNING WITH LOW FE). */
+    private boolean hasSomeEnergy = true;
     // Config values cached at revalidation (no config reads in the per-tick path).
     private int exportInterval;
     private int maxLootRolls;
@@ -371,19 +373,19 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
                 checkEnergy();
             }
             if (status.isRunning()) {
+                double advance = progressPerTick;
                 if (energy != null) {
-                    energy.consume(energyPerTick);
+                    // Owner (2026-09-30): the buffer drains to 0. What cannot pay a whole tick pays part of one
+                    // (RUNNING WITH LOW FE) and the bar moves that part: no FE is stranded, none is wasted, and a weak
+                    // source grows the farm slower.
+                    long pay = status == MachineStatus.RUNNING_LOW_FE ? energy.getAmountAsLong() : energyPerTick;
+                    energy.consume(pay);
                     paid = true;
+                    if (pay < energyPerTick) {
+                        advance = progressPerTick * pay / energyPerTick;
+                    }
                 }
-                cycle.advance(progressPerTick);
-                saveDue = true;
-            } else if (status == MachineStatus.MISSING_FE && energy != null && energy.getAmountAsLong() > 0) {
-                // Owner (2026-09-30): the buffer drains to 0. What cannot pay a whole tick pays part of one, and the
-                // bar moves that part: no FE is stranded, none is wasted, and a weak source grows the farm slower.
-                long left = energy.getAmountAsLong();
-                energy.consume(left);
-                paid = true;
-                cycle.advance(progressPerTick * left / energyPerTick);
+                cycle.advance(advance);
                 saveDue = true;
             }
         }
@@ -403,11 +405,16 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
     }
 
-    /** Tiers with energy: whether the buffer can pay this tick; a change flips RUNNING / MISSING FE. */
+    /**
+     * Tiers with energy: whether the buffer pays this tick whole, in part or not at all; a change flips RUNNING /
+     * RUNNING WITH LOW FE / MISSING FE.
+     */
     private void checkEnergy() {
         boolean enough = energy == null || energy.canPay(energyPerTick);
-        if (enough != hasEnergy) {
+        boolean some = enough || energy.getAmountAsLong() > 0;
+        if (enough != hasEnergy || some != hasSomeEnergy) {
             hasEnergy = enough;
+            hasSomeEnergy = some;
             updateStatus();
         }
     }
@@ -431,12 +438,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * RUNNING, or OUTPUT FULL (which only means "the last attempt did not fit"), or MISSING FE (the plants are ripe;
-     * harvesting costs no energy).
+     * RUNNING (with low FE too), or OUTPUT FULL (which only means "the last attempt did not fit"), or MISSING FE (the
+     * plants are ripe; harvesting costs no energy).
      */
     private boolean inputsAllowHarvest() {
-        return status == MachineStatus.RUNNING || status == MachineStatus.OUTPUT_FULL
-                || status == MachineStatus.MISSING_FE;
+        return status.isRunning() || status == MachineStatus.OUTPUT_FULL || status == MachineStatus.MISSING_FE;
     }
 
     /**
@@ -965,6 +971,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             energy.setCapacity(settings.plotCapacity(layout) * energyPerPlot * ENERGY_BUFFER_TICKS);
             energyPerTick = energyPerPlot * cycle.totalPlots();
             hasEnergy = energy.canPay(energyPerTick);
+            hasSomeEnergy = hasEnergy || energy.getAmountAsLong() > 0;
         }
 
         rebuildDropSources(groups);
@@ -1058,7 +1065,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
      * that stops the whole machine with that problem (owner, 2026-09-29); with one group this is the Starter's rule.
      */
     private void updateStatus() {
-        boolean energyMissing = layout.usesEnergy() && !hasEnergy && cycle.totalPlots() > 0;
+        // No plots: nothing to pay, so no energy problem.
+        boolean wholeTick = !layout.usesEnergy() || hasEnergy || cycle.totalPlots() == 0;
         MachineConditions conditions = new MachineConditions()
                 .enabled(enabled)
                 .hasSeed(anySeed)
@@ -1066,7 +1074,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
                 .soilCompatible(everySoilValid)
                 .hoe(anyGroupNeedsHoe, hasHoe)
                 .crux(anyGroupNeedsCrux, hasCrux)
-                .energy(layout.usesEnergy(), !energyMissing)
+                .energy(layout.usesEnergy(), wholeTick, hasSomeEnergy)
                 .outputBlocked(harvestBlocked);
         status = MachineStatus.resolve(conditions);
     }

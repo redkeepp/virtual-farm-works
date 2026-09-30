@@ -1,5 +1,6 @@
 /*
- * MachineStatusTest — JUnit tests of sim/MachineStatus: state priority, colors and safe decoding of synced values.
+ * MachineStatusTest — JUnit tests of sim/MachineStatus: state priority, the energy states (MISSING FE, RUNNING WITH LOW
+ * FE), colors and safe decoding of synced values.
  * Run with `gradlew test`.
  */
 package com.virtualfarmworks.sim;
@@ -46,9 +47,11 @@ class MachineStatusTest {
         assertEquals(MachineStatus.MISSING_CRUX, MachineStatus.resolve(c));
         c.crux(true, true);
         assertEquals(MachineStatus.MISSING_FE, MachineStatus.resolve(c));
-        c.energy(true, true);
+        c.energy(true, false, true); // some FE, less than a whole tick
         assertEquals(MachineStatus.OUTPUT_FULL, MachineStatus.resolve(c));
         c.outputBlocked(false);
+        assertEquals(MachineStatus.RUNNING_LOW_FE, MachineStatus.resolve(c));
+        c.energy(true, true);
         assertEquals(MachineStatus.RUNNING, MachineStatus.resolve(c));
     }
 
@@ -60,15 +63,27 @@ class MachineStatusTest {
     }
 
     @Test
-    void onlyRunningAdvancesTheCycle() {
+    void onlyRunningStatesAdvanceTheCycle() {
         for (MachineStatus status : MachineStatus.values()) {
-            assertEquals(status == MachineStatus.RUNNING, status.isRunning(), status.name());
+            boolean running = status == MachineStatus.RUNNING || status == MachineStatus.RUNNING_LOW_FE;
+            assertEquals(running, status.isRunning(), status.name());
         }
+    }
+
+    @Test
+    void anEmptyBufferIsMissingFeAndAPartialOneRunsLow() {
+        assertEquals(MachineStatus.MISSING_FE, MachineStatus.resolve(new MachineConditions().energy(true, false, false)));
+        assertEquals(MachineStatus.RUNNING_LOW_FE,
+                MachineStatus.resolve(new MachineConditions().energy(true, false, true)));
+        assertEquals(MachineStatus.RUNNING, MachineStatus.resolve(new MachineConditions().energy(true, true, true)));
+        assertEquals(MachineStatus.RUNNING, MachineStatus.resolve(new MachineConditions().energy(false, false, false)),
+                "a tier without energy never lacks it");
     }
 
     @Test
     void colorsFollowTheSpec() {
         assertEquals(MachineStatus.Tone.GOOD, MachineStatus.RUNNING.tone());
+        assertEquals(MachineStatus.Tone.CAUTION, MachineStatus.RUNNING_LOW_FE.tone());
         assertEquals(MachineStatus.Tone.ERROR, MachineStatus.OUTPUT_FULL.tone());
         assertEquals(MachineStatus.Tone.ERROR, MachineStatus.SHUTDOWN.tone());
         for (MachineStatus missing : new MachineStatus[] {MachineStatus.MISSING_SEED, MachineStatus.MISSING_SOIL,

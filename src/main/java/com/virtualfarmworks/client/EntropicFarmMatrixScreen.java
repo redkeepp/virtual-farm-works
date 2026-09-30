@@ -2,7 +2,8 @@
  * EntropicFarmMatrixScreen — the Entropic Farm Matrix GUI (client only): the owner's texture with its two 4x15 grids,
  * the dynamic texts (title, status, hydration, active and waiting plots, growth), the green progress bar, the striped
  * FE bar, the red tint of plot groups with a problem, the side column drawn by code (face modes, upgrades and hoe,
- * Fertilized Essence, harvest filter, autocrafter, power) and the autocrafter panel opened over the grids.
+ * Fertilized Essence, harvest filter, autocrafter, power) and the autocrafter panel opened over the grids. While open,
+ * it lowers the GUI scale when the machine would not fit (the player's own scale comes back on close).
  */
 package com.virtualfarmworks.client;
 
@@ -11,6 +12,7 @@ import java.util.List;
 
 import org.jspecify.annotations.Nullable;
 
+import com.mojang.blaze3d.platform.Window;
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.machine.FaceMode;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
@@ -96,6 +98,8 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     private int recipeScroll;
     /** Recipe clicked last: a double click deletes only when both clicks hit the same recipe. */
     private int lastClickedRecipe = -1;
+    /** This screen lowered the GUI scale to fit (see {@link #added}); the player's own comes back on close. */
+    private boolean scaleLowered;
 
     public EntropicFarmMatrixScreen(EntropicFarmMatrixMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title, EntropicLayout.GUI_WIDTH, EntropicLayout.GUI_HEIGHT);
@@ -117,6 +121,60 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
             return new ItemStack(item);
         }
         return ItemStack.EMPTY;
+    }
+
+    // =================================================================================================================
+    // GUI scale (owner, 2026-09-30)
+    // =================================================================================================================
+
+    /**
+     * Opening (or coming back from JEI's recipe view), before the screen is sized: the automatic GUI scale never leaves
+     * room for this 320 px GUI, so the scale drops to the largest one where the machine fits ({@link GuiScaleFit}),
+     * only while the screen is open.
+     */
+    @Override
+    public void added() {
+        super.added();
+        fitGuiScale();
+    }
+
+    /** The window changed: Minecraft has just set the player's own scale again, so fit again before laying out. */
+    @Override
+    public void resize(int width, int height) {
+        scaleLowered = false;
+        if (fitGuiScale()) {
+            Window window = minecraft.getWindow();
+            width = window.getGuiScaledWidth();
+            height = window.getGuiScaledHeight();
+        }
+        super.resize(width, height);
+    }
+
+    /**
+     * Closing (or leaving for another screen): the player's own scale comes back, as Minecraft computes it from the
+     * options, before the next screen is sized. The options themselves are never changed.
+     */
+    @Override
+    public void removed() {
+        super.removed();
+        if (scaleLowered) {
+            Window window = minecraft.getWindow();
+            window.setGuiScale(window.calculateScale(minecraft.options.guiScale().get(), minecraft.isEnforceUnicode()));
+            scaleLowered = false;
+        }
+    }
+
+    /** Lowers the GUI scale when the machine does not fit at the current one; returns whether it did. */
+    private boolean fitGuiScale() {
+        Window window = minecraft.getWindow();
+        int scale = GuiScaleFit.fittingScale(window.getWidth(), window.getHeight(), window.getGuiScale(),
+                EntropicLayout.FIT_WIDTH, EntropicLayout.FIT_HEIGHT);
+        if (scale == window.getGuiScale()) {
+            return false;
+        }
+        window.setGuiScale(scale);
+        scaleLowered = true;
+        return true;
     }
 
     // =================================================================================================================

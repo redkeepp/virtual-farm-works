@@ -92,11 +92,10 @@ FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 run
 every change in game (2026-09-30). Recipes of the machine and its Water Provider and Growth Speed Upgrades: owner's costs
 (2026-09-30, `docs/resources.md`). Voltaic,
 Ionic and Resonant come after (they will reuse `MachineLayout`).
-Tests: 45 game tests (44 VFW + 1 vanilla), 81 JUnit, load benchmark.
+Tests: 45 game tests (44 VFW + 1 vanilla), 86 JUnit, load benchmark.
 
-Open: the Entropic GUI size (296x320 never fits at the automatic GUI scale; Claude proposed lowering the GUI scale
-only while the screen is open, 2026-09-30, waiting for the owner) and the multiplayer re-test (custom packets were
-added since the last one; the owner is doing it, 2026-09-30). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
+Open: the owner's in-game check of the GUI scale fit and of RUNNING WITH LOW FE (both 2026-09-30), and the
+multiplayer re-test (custom packets were added since the last one; the owner is doing it, 2026-09-30). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
 "scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or
 with JEI.
 
@@ -117,9 +116,9 @@ with JEI.
   validates and applies them to the real block entity. Harvests are transactional: no dupes, no voids. Removing
   seeds or soils returns exactly those items and updates active/pending atomically.
 - From the owner's original spec for later tiers, now on the Entropic: FE energy (less than a whole tick stored =
-  `MISSING FE`; what is left pays part of a tick and the bar moves that part, so a buffer whose source stopped drains
-  to exactly 0 (owner, 2026-09-30); at 0 FE no progress), autocrafting (its leftovers and recipes persist) and
-  automated input.
+  `RUNNING WITH LOW FE`: what is left pays part of a tick and the bar moves that part, so a buffer whose source
+  stopped drains to exactly 0 (owner, 2026-09-30); an empty buffer = `MISSING FE`, no progress), autocrafting (its
+  leftovers and recipes persist) and automated input.
 - Content: Starter, Voltaic, Ionic, Resonant, Entropic **Farm Matrix**; Water Provider Upgrade and Growth Speed
   Upgrade in those 5 tiers (an upgrade fits machines of its tier or lower: `MachineTier#accepts`); one Crux Provider
   Upgrade. Progression: from a Botany-Pot-like Starter to thousands of plots (Entropic ≈ 6,000 as a design target).
@@ -152,7 +151,9 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
   progress; a plant change uproots. Persist progress, active, pending, harvested (`load` repairs corrupted data).
 - Speed = hydration (Water Provider or `noWaterSpeedMultiplier`) x (1 + bonus x upgrades) x soil bonus (data map).
 - `MachineStatus` priority = declaration order: SHUTDOWN > MISSING SEED > MISSING SOIL > INVALID SOIL > MISSING HOE >
-  MISSING CRUX > MISSING FE > OUTPUT FULL > RUNNING.
+  MISSING CRUX > MISSING FE > OUTPUT FULL > RUNNING WITH LOW FE > RUNNING. `isRunning()` (the bar advances) is true
+  for both RUNNING states; RUNNING WITH LOW FE (yellow, owner name, 2026-09-30) = the buffer holds FE but less than
+  a tick, MISSING FE = it is empty.
 
 ### Harvest (`harvest/`)
 - Drop sources, built on revalidation by `HarvestPlans` (first match wins):
@@ -260,6 +261,12 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
   grid is per viewer, not saved. Side column: O, lightning (energy use tooltip), 5 upgrade cells, Fertilized
   Essence, replant, filter, crafter, ON/OFF. The FE shown is `MachineEnergy#shownAmount` (level before the machine's
   own payment of its last tick, so a buffer a source keeps up with reads full).
+- GUI scale (owner OK, 2026-09-30): the automatic scale always leaves 240-270 px of height, so while the Entropic
+  screen is open it lowers the GUI scale to the largest one where `EntropicLayout.FIT_WIDTH` x `FIT_HEIGHT` (460 x
+  320: the GUI plus the face/filter boxes) fits (`client/GuiScaleFit`, 1080p: 4 -> 3), in `added()` and `resize()`;
+  `removed()` gives back the scale computed from the options (never changed). The renderer reads the scale each
+  frame, and `setScreen` calls the old screen's `removed()` before sizing the next one, so JEI's recipe view and the
+  HUD get the player's scale back.
 - INPUT faces pull from glued inventories every `output.autoExportIntervalTicks` (`autoTransfer`), through
   `ResourceHandlerUtil.move` (index-less insertion, so `GridInput` routing pairs seeds and soils; `moveStacking`
   would insert slot by slot and skip the routing).
@@ -467,14 +474,15 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
 - `network/` — `SetFilterGhostPayload`, `SetCrafterGridPayload` (client -> server), `CrafterRecipesPayload` (server ->
   client).
 - `client/` — CLIENT ONLY: `VirtualFarmWorksClient` (second `@Mod`, dist CLIENT), `FarmMatrixScreen`,
-  `EntropicFarmMatrixScreen`, `FarmMatrixJeiTargets`, `SmoothProgress`, `compat/VfwJeiPlugin`. Never reference
+  `EntropicFarmMatrixScreen`, `FarmMatrixJeiTargets`, `SmoothProgress`, `GuiScaleFit`, `compat/VfwJeiPlugin`. Never reference
   `client/` from common code (a dedicated server crashes).
 - `compat/jade/`, `compat/mysticalagriculture/` — see Integrations.
 - `gametest/` (dev only) — `VfwGameTests` (registration: add a `test(...)` line with a max tick count),
   `MachineGameTests`, `FilterGameTests`, `PlantablesGameTests`, `EntropicGameTests`, `CrafterGameTests`,
   `MysticalHarvestTests`, `MysticalFarmlandTests`, `LoadBenchmark`.
   `FarmMatrixBlockEntity#setProgressForTesting` exists only for tests.
-- `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`, `config/ConfigFileLayout`).
+- `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`, `client/GuiScaleFit`,
+  `config/ConfigFileLayout`).
 - `src/main/resources/data/virtualfarmworks/` — tags, data maps, recipes, loot tables (see `docs/resources.md`).
 - `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata (Gradle expands it from `gradle.properties`).
 
