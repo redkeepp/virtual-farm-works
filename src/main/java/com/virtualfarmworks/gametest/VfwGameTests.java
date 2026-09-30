@@ -104,6 +104,7 @@ public final class VfwGameTests {
             test("entropic_groups_must_all_be_valid", EntropicGameTests::groupsMustAllBeValid, 20),
             test("entropic_input_face_pulls_from_chests", EntropicGameTests::inputFacePullsFromChests, 20),
             test("entropic_energy_runs_the_machine", EntropicGameTests::energyRunsTheMachine, 20),
+            test("entropic_energy_drains_to_zero", EntropicGameTests::energyDrainsToZero, 20),
             test("entropic_faces_and_pipe_input", EntropicGameTests::facesAndPipeInput, 20),
             test("entropic_groups_harvest_together", EntropicGameTests::groupsHarvestTogether, 40),
             test("entropic_menu_works", EntropicGameTests::menuWorks, 20),

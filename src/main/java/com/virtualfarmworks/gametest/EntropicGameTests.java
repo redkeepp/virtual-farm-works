@@ -164,6 +164,38 @@ final class EntropicGameTests {
     }
 
     /**
+     * Owner (2026-09-30): with its source gone, the buffer drains to exactly 0. 10 plots (900 FE/t) and 2,000 FE: two
+     * whole ticks, then the last 200 FE pay part of a tick (the bar moves 2/9 of a tick), then the bar stops at 0 FE.
+     */
+    static void energyDrainsToZero(GameTestHelper helper) {
+        var level = helper.getLevel();
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        MachineInventory inputs = machine.inputs();
+        put(inputs, LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
+        put(inputs, LAYOUT.soilSlot(0), Items.FARMLAND, 10);
+        noFaces(machine);
+        machine.revalidate();
+        MachineEnergy energy = machine.energy();
+        energy.set(2_000);
+        machine.serverTick(level);
+        machine.serverTick(level);
+        double twoTicks = machine.progress();
+        check(helper, energy.getAmountAsLong() == 200, "two whole ticks: 2,000 - 2 x 900 = 200, got "
+                + energy.getAmountAsLong());
+
+        machine.serverTick(level);
+        double part = machine.progress() - twoTicks;
+        check(helper, energy.getAmountAsLong() == 0, "the last 200 FE are spent, left " + energy.getAmountAsLong());
+        check(helper, Math.abs(part - twoTicks / 2 * 200 / 900) < 1e-12, "the bar moves 2/9 of a tick, moved "
+                + part / (twoTicks / 2));
+        check(helper, machine.status() == MachineStatus.MISSING_FE, "not enough for a whole tick: MISSING FE");
+
+        machine.serverTick(level);
+        check(helper, machine.progress() == twoTicks + part, "at 0 FE the bar stops");
+        helper.succeed();
+    }
+
+    /**
      * Face modes: OUTPUT ALL by default; INPUT takes plantables into the seed grid and soils into the soil grid, pairing
      * them; NONE shows nothing; OUTPUT shows an extract-only output.
      */

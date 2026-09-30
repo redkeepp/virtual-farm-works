@@ -111,7 +111,8 @@ button and the ON/OFF button (owner, 2026-09-29):
 - Assumptions announced to the owner (not objected to): same cycle as the Starter (30 s), production x1, Water
   Provider, 4 Growth Speed Upgrades and Crux Provider in the side column, Fertilized Essence switch, harvest filter,
   on/off; theme color red (the texture's border); capacity = 60 x min(seeds per slot, soils per slot); every planted
-  plot pays FE, only while the bar advances; not enough FE for a tick = MISSING FE; FE from any face; 5 info lines
+  plot pays FE, only while the bar advances; not enough FE for a tick = MISSING FE (owner, 2026-09-30: the buffer must
+  still drain to 0, so what is left pays part of a tick and the bar moves that part); FE from any face; 5 info lines
   (status, hydration, active plots / capacity, waiting plots, growth); faces cycle NONE -> OUTPUT -> OUTPUT CRAFTED ->
   OUTPUT ALL -> INPUT with a click (right click goes back), default OUTPUT ALL; pipe input fills slots already holding
   the item, then empty slots whose other half matches, then any empty slot; 72 hidden output slots (3 per visible

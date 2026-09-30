@@ -143,6 +143,13 @@ game tests passed:
   version of the stock hashed every output slot and every candidate per cell and made a busy crafting Entropic ~20%
   slower (an item's hash covers all its components); grouping slots by comparing items and building the candidates
   once per round brought it back below the plain machine. Game test `crafter_uses_the_output`.
+- **FE drains to 0 (2026-09-30, owner).** With the source cut, the buffer used to stop at the remainder smaller than
+  one tick (e.g. 1,800 FE with 100 plots). Now a tick the buffer cannot pay in full spends what is left and moves the
+  bar that fraction (status MISSING FE), so the buffer ends at exactly 0 and no FE is stranded or wasted; a weak
+  source grows the farm proportionally slower instead of stop-and-go. The lightning icon became red (the owner's
+  drawing was only an example color). Game test `entropic_energy_drains_to_zero`. A crash reported while exporting
+  into a Trash Cans "Item Trash Can" was traced to Trash Cans 1.1.1 itself (its deleted-items codec returns a null
+  component patch; reproduced with a plain handler insertion, no VFW machine), not to VFW.
 
 ## Benchmark results log
 

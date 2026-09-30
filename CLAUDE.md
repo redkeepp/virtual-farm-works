@@ -91,7 +91,7 @@ in-game test (2026-09-29: all groups must be valid, no hoe, replant option (b) +
 FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 runs). Waiting for the owner: in-game
 test of those changes. No machine recipe until the owner defines one. Voltaic,
 Ionic and Resonant come after (they will reuse `MachineLayout`).
-Tests: 43 game tests (42 VFW + 1 vanilla), 77 JUnit, load benchmark.
+Tests: 44 game tests (43 VFW + 1 vanilla), 77 JUnit, load benchmark.
 
 Open on the owner's side: multiplayer re-test (custom packets were added since the last one; the owner planned to do
 it at the end). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
@@ -114,8 +114,10 @@ with JEI.
 - **Server authoritative**: the client only sends intents (slot clicks, button ids, the JEI ghost packet); the server
   validates and applies them to the real block entity. Harvests are transactional: no dupes, no voids. Removing
   seeds or soils returns exactly those items and updates active/pending atomically.
-- From the owner's original spec for later tiers, now on the Entropic: FE energy (no energy = `MISSING FE`, no
-  progress), autocrafting (its leftovers and recipes persist) and automated input.
+- From the owner's original spec for later tiers, now on the Entropic: FE energy (less than a whole tick stored =
+  `MISSING FE`; what is left pays part of a tick and the bar moves that part, so a buffer whose source stopped drains
+  to exactly 0 (owner, 2026-09-30); at 0 FE no progress), autocrafting (its leftovers and recipes persist) and
+  automated input.
 - Content: Starter, Voltaic, Ionic, Resonant, Entropic **Farm Matrix**; Water Provider Upgrade and Growth Speed
   Upgrade in those 5 tiers (an upgrade fits machines of its tier or lower: `MachineTier#accepts`); one Crux Provider
   Upgrade. Progression: from a Botany-Pot-like Starter to thousands of plots (Entropic ≈ 6,000 as a design target).

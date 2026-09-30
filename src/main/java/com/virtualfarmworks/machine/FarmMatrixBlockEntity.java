@@ -131,8 +131,10 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  *
  * <h2>Energy (tiers that use it)</h2>
  * Each planted plot costs {@code machines.<tier>.energyPerPlot} FE per tick while the bar advances (owner spec: 90);
- * not while the bar waits. Without enough stored FE for a tick: MISSING FE, the bar does not move. The buffer is sized
- * from the config (plot capacity x FE per plot x 3) and accepts FE from cables on every face.
+ * not while the bar waits. Without enough stored FE for a whole tick the status is MISSING FE and the machine spends
+ * what is left on part of a tick (the bar moves that part), so a buffer whose source stopped drains to exactly 0
+ * (owner, 2026-09-30) and a weak source grows the farm proportionally slower; at 0 FE the bar stops. The buffer is
+ * sized from the config (plot capacity x FE per plot x 3) and accepts FE from cables on every face.
  *
  * <h2>Persistence</h2>
  * Saved: inventories (inputs, visible and hidden output), held drops, energy, progress, active/pending/harvested
@@ -370,6 +372,14 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
                     paid = true;
                 }
                 cycle.advance(progressPerTick);
+                saveDue = true;
+            } else if (status == MachineStatus.MISSING_FE && energy != null && energy.getAmountAsLong() > 0) {
+                // Owner (2026-09-30): the buffer drains to 0. What cannot pay a whole tick pays part of one, and the
+                // bar moves that part: no FE is stranded, none is wasted, and a weak source grows the farm slower.
+                long left = energy.getAmountAsLong();
+                energy.consume(left);
+                paid = true;
+                cycle.advance(progressPerTick * left / energyPerTick);
                 saveDue = true;
             }
         }
