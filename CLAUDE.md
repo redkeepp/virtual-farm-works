@@ -91,7 +91,7 @@ in-game test (2026-09-29: all groups must be valid, no hoe, replant option (b) +
 FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 runs). Waiting for the owner: in-game
 test of those changes. No machine recipe until the owner defines one. Voltaic,
 Ionic and Resonant come after (they will reuse `MachineLayout`).
-Tests: 42 game tests (41 VFW + 1 vanilla), 77 JUnit, load benchmark.
+Tests: 43 game tests (42 VFW + 1 vanilla), 77 JUnit, load benchmark.
 
 Open on the owner's side: multiplayer re-test (custom packets were added since the last one; the owner planned to do
 it at the end). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
@@ -204,6 +204,11 @@ Breaking drops contents in `preRemoveSideEffects`.
 - Per batch: ingredients join a hidden buffer, recipes craft in chain order (Tarjan SCCs over "B uses A's result");
   a result stays in the buffer only for a recipe of ANOTHER SCC, so circles (ingots <-> block) end in the output.
   Leftovers wait up to `crafterBufferLimit` per item (the rest goes out). Remainders go out. No FE, no time.
+- The output is stock too (owner: "pull any item in the output buffer, even what it crafted"): `plan` gets
+  `outputStock()` and returns `taken`; `Harvester#tryTakeAndStore` extracts it and stores the results in ONE root
+  transaction. A recipe never takes back its own SCC's results (`circleResults`), or circles would turn forever.
+  Besides harvests, `craftFromOutput` runs on events only (recipes edited or loaded, CRAFT ON, hand placement,
+  room after a blocked pass), never per tick.
 - Catalyst (tool slot, `#virtualfarmworks:crafter_catalysts` = MA's Master Infusion Crystal): serves the cells no
   harvested item fits, never consumed; a craft whose remainder would not give it back whole is skipped
   (`catalystComesBack`, remainders indexed by the TRIMMED `CraftingInput.Positioned`).
@@ -311,7 +316,9 @@ Breaking drops contents in `preRemoveSideEffects`.
   (screens describe them through `client/FarmMatrixJeiTargets`: filter slots, the crafter's 9 cells) and the Entropic
   crafter's recipe transfer ("+" on `RecipeTypes.CRAFTING`; sends the 9 displayed stacks, opens the panel).
 - Jade (compile-only, Modrinth maven): `compat/jade/` — `@WailaPlugin`, server data provider and client tooltip in
-  separate classes (a dedicated server must never load the client one); same lines as the GUI (`menu/DisplayFormats`).
+  separate classes (a dedicated server must never load the client one); same lines as the tier's GUI
+  (`menu/DisplayFormats`): Starter "Seeds x/64"; grid tiers active plots / capacity and waiting plots (optional keys);
+  tiers with energy the FE shown.
 - EMI: no 26.1.2 release yet; add an exclusion-area plugin when it exists.
 
 ## Performance and benchmark
@@ -342,7 +349,10 @@ Breaking drops contents in `preRemoveSideEffects`.
 - The priciest routine work is auto-export into a full neighbour (NeoForge transfer + the neighbour's inventory):
   tunable with `output.autoExportIntervalTicks`.
 - Lessons: never run work after EVERY output change (the filter cleanup cost +35% that way); cache what the tick
-  reads; re-run the benchmark after changes to the tick or harvest path.
+  reads; re-run the benchmark after changes to the tick or harvest path. An `ItemResource`'s hash covers ALL its
+  components (hundreds of ns): never hash items per slot or per cell in hot loops. Group slots by comparing items
+  (`getItem() ==` then `equals`) and look each distinct item up once; the crafter's stock scan and cell loop cost +20%
+  on a busy crafting Entropic until they did that.
 
 ## Gotchas
 

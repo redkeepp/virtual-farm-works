@@ -8,6 +8,7 @@ package com.virtualfarmworks.gametest;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
 import com.virtualfarmworks.machine.FaceMode;
@@ -62,7 +63,7 @@ final class CrafterGameTests {
         // Chain, listed backwards: ladders (7 sticks -> 3) first, sticks from bamboo (2 -> 1) second.
         setRecipes(helper, machine, grid(Items.STICK, NONE, Items.STICK, Items.STICK, Items.STICK, Items.STICK,
                 Items.STICK, NONE, Items.STICK), grid(Items.BAMBOO, NONE, NONE, Items.BAMBOO));
-        MachineCrafter.Plan plan = crafter.plan(drops(Items.BAMBOO, 90), level, 1024, ItemResource.EMPTY);
+        MachineCrafter.Plan plan = crafter.plan(drops(Items.BAMBOO, 90), Map.of(), level, 1024, ItemResource.EMPTY);
         check(helper, amount(plan.output(), Items.LADDER) == 18, "90 bamboo -> 45 sticks -> 18 ladders, got "
                 + amount(plan.output(), Items.LADDER));
         check(helper, amount(plan.output(), Items.STICK) == 0 && waiting(plan, Items.STICK) == 3,
@@ -73,7 +74,7 @@ final class CrafterGameTests {
 
         // A recipe set with oak planks also takes birch planks, like a crafting table.
         setRecipes(helper, machine, grid(Items.OAK_PLANKS, NONE, NONE, Items.OAK_PLANKS));
-        plan = crafter.plan(drops(Items.BIRCH_PLANKS, 4), level, 1024, ItemResource.EMPTY);
+        plan = crafter.plan(drops(Items.BIRCH_PLANKS, 4), Map.of(), level, 1024, ItemResource.EMPTY);
         check(helper, amount(plan.output(), Items.STICK) == 8, "4 birch planks -> 8 sticks, got "
                 + amount(plan.output(), Items.STICK));
 
@@ -81,21 +82,21 @@ final class CrafterGameTests {
         List<ItemStack> nineIngots = grid(Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT,
                 Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT);
         setRecipes(helper, machine, nineIngots, grid(Items.IRON_BLOCK));
-        plan = crafter.plan(drops(Items.IRON_INGOT, 20), level, 1024, ItemResource.EMPTY);
+        plan = crafter.plan(drops(Items.IRON_INGOT, 20), Map.of(), level, 1024, ItemResource.EMPTY);
         check(helper, amount(plan.output(), Items.IRON_BLOCK) == 2 && amount(plan.output(), Items.IRON_INGOT) == 0
                 && waiting(plan, Items.IRON_INGOT) == 2, "20 ingots -> 2 blocks out, 2 ingots wait; got "
                 + plan.output() + " / " + plan.buffer());
 
         // Remainders go out with the result.
         setRecipes(helper, machine, grid(Items.HONEY_BOTTLE));
-        plan = crafter.plan(drops(Items.HONEY_BOTTLE, 2), level, 1024, ItemResource.EMPTY);
+        plan = crafter.plan(drops(Items.HONEY_BOTTLE, 2), Map.of(), level, 1024, ItemResource.EMPTY);
         check(helper, amount(plan.output(), Items.SUGAR) == 6 && amount(plan.output(), Items.GLASS_BOTTLE) == 2,
                 "2 honey bottles -> 6 sugar + 2 glass bottles, got " + plan.output());
 
         // An ingredient whose partner never comes waits up to the limit; items no recipe uses pass through.
         setRecipes(helper, machine, grid(Items.WHEAT, Items.COCOA_BEANS, Items.WHEAT));
         List<DropTally.Entry<ItemResource>> harvest = List.of(entry(Items.WHEAT, 20), entry(Items.WHEAT_SEEDS, 5));
-        plan = crafter.plan(harvest, level, 5, ItemResource.EMPTY);
+        plan = crafter.plan(harvest, Map.of(), level, 5, ItemResource.EMPTY);
         check(helper, waiting(plan, Items.WHEAT) == 5 && amount(plan.output(), Items.WHEAT) == 15
                 && amount(plan.output(), Items.WHEAT_SEEDS) == 5, "5 wheat wait (limit), 15 go out, seeds pass; got "
                 + plan.output() + " / " + plan.buffer());
@@ -234,6 +235,48 @@ final class CrafterGameTests {
     }
 
     /**
+     * Owner (2026-09-29): "the autocrafter must pull any item in the output buffer, even what it crafted itself". Wheat
+     * harvested before its recipe existed and ingots crafted before the block recipe existed are crafted as soon as the
+     * recipes are set; what waits for the rest of a recipe stays in the output; an item put in by hand is used too. A
+     * circle (block back to ingots) never takes back what it makes, so the output stays still.
+     */
+    static void crafterUsesTheOutput(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        MachineCrafter crafter = machine.crafter();
+        noFaces(machine);
+        machine.output().set(0, ItemResource.of(Items.WHEAT), 20);
+        machine.output().set(1, ItemResource.of(Items.IRON_INGOT), 18);
+        machine.addCrafterRecipe(nine(Items.WHEAT), null);
+        machine.addCrafterRecipe(nine(Items.IRON_INGOT), null);
+        machine.serverTick(level); // recipes edited: a pass over the output
+        check(helper, count(machine, Items.HAY_BLOCK) == 2 && count(machine, Items.WHEAT) == 2,
+                "20 wheat in the output -> 2 hay bales, 2 wheat stay there; got " + count(machine, Items.HAY_BLOCK)
+                        + " / " + count(machine, Items.WHEAT));
+        check(helper, count(machine, Items.IRON_BLOCK) == 2 && count(machine, Items.IRON_INGOT) == 0,
+                "18 ingots in the output -> 2 blocks");
+        check(helper, crafter.buffer().isEmpty(), "nothing moves into the hidden buffer");
+
+        // Seven more wheat put in by hand (menu slot): with the 2 waiting, 9 -> one more bale.
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        EntropicFarmMatrixMenu menu = new EntropicFarmMatrixMenu(1, player.getInventory(), machine);
+        menu.slots.get(EntropicFarmMatrixMenu.OUTPUT_START + 5).setByPlayer(new ItemStack(Items.WHEAT, 7));
+        machine.serverTick(level);
+        check(helper, count(machine, Items.HAY_BLOCK) == 3 && count(machine, Items.WHEAT) == 0,
+                "a hand-placed item is used too; got " + count(machine, Items.HAY_BLOCK) + " / "
+                        + count(machine, Items.WHEAT));
+
+        // A circle leaves its own results alone: blocks back to ingots is added, the 2 blocks stay.
+        machine.addCrafterRecipe(grid(Items.IRON_BLOCK), null);
+        machine.serverTick(level);
+        machine.serverTick(level);
+        check(helper, count(machine, Items.IRON_BLOCK) == 2 && count(machine, Items.IRON_INGOT) == 0,
+                "a circle never turns its own results round; got " + count(machine, Items.IRON_BLOCK) + " / "
+                        + count(machine, Items.IRON_INGOT));
+        helper.succeed();
+    }
+
+    /**
      * Owner (2026-09-29): the catalyst slot takes Mystical Agriculture's Master Infusion Crystal only; with it, the
      * Prudentium recipe (4 Inferium around an infusion crystal) crafts from harvested Inferium, and the crystal is never
      * spent nor output. Without it the essences wait. Skipped without Mystical Agriculture.
@@ -258,12 +301,12 @@ final class CrafterGameTests {
 
         setRecipes(helper, machine, grid(NONE, inferium, NONE, inferium, master, inferium, NONE, inferium, NONE));
         check(helper, crafter.result(0).is(prudentium), "the grid makes Prudentium: " + crafter.result(0));
-        MachineCrafter.Plan without = crafter.plan(drops(inferium, 8), level, 1024, ItemResource.EMPTY);
+        MachineCrafter.Plan without = crafter.plan(drops(inferium, 8), Map.of(), level, 1024, ItemResource.EMPTY);
         check(helper, amount(without.output(), prudentium) == 0 && waiting(without, inferium) == 8,
                 "without the crystal the essences wait: " + without.output());
 
         inputs.set(slot, ItemResource.of(master), 1);
-        MachineCrafter.Plan with = crafter.plan(drops(inferium, 8), level, 1024, inputs.getResource(slot));
+        MachineCrafter.Plan with = crafter.plan(drops(inferium, 8), Map.of(), level, 1024, inputs.getResource(slot));
         check(helper, amount(with.output(), prudentium) == 2 && amount(with.output(), master) == 0
                 && with.buffer().isEmpty(), "with it, 8 Inferium -> 2 Prudentium and no crystal out: " + with.output());
         helper.succeed();

@@ -91,9 +91,13 @@ button and the ON/OFF button (owner, 2026-09-29):
   soil it grows on (it never starts a group that could not grow at once). Each machine has a replant button (owner:
   wheat seeds on green ON / red OFF, like ON/OFF); with `machines.entropic.replant = false` in the config the button is
   grey, DISABLED.
-- Crafter ingredients (owner: "only from the harvest"), with chains (a result that is an ingredient of another recipe
-  goes on crafting, e.g. essence tiers). Exception (owner): the catalyst slot below the result holds the Master
-  Infusion Crystal, which recipes use without spending it (see "Autocrafter details").
+- Crafter ingredients: first answer "only from the harvest", with chains (a result that is an ingredient of another
+  recipe goes on crafting, e.g. essence tiers); then (owner, after playing): "the autocrafter must pull any item in
+  the output buffer, even what it crafted itself". So the crafter uses the harvest AND whatever the output (visible and
+  hidden) holds: items harvested before a recipe existed, items put in by hand, its own earlier results. Only what a
+  craft really uses leaves the output. Exception to stop circles (Claude): a recipe never takes back from the output
+  what its own circle makes (ingots -> block -> ingots would otherwise turn forever). The catalyst slot below the
+  result holds the Master Infusion Crystal, which recipes use without spending it (see "Autocrafter details").
 - Crafter panel (owner): a modal over the machine GUI, opened by the crafting-table button between the filter and
   ON/OFF.
 - Recipes (owner): up to 100 (config `crafterRecipes`, default 100), the list growing only as recipes are added.

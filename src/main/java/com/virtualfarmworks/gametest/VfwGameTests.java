@@ -112,6 +112,7 @@ public final class VfwGameTests {
             test("crafter_plans", CrafterGameTests::crafterPlans, 20),
             test("crafter_crafts_the_harvest", CrafterGameTests::crafterCraftsTheHarvest, 20),
             test("crafter_menu_works", CrafterGameTests::crafterMenuWorks, 20),
+            test("crafter_uses_the_output", CrafterGameTests::crafterUsesTheOutput, 20),
             test("crafter_uses_the_catalyst", CrafterGameTests::crafterUsesTheCatalyst, 20));
 
     /**

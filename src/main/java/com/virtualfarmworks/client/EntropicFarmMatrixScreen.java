@@ -205,9 +205,13 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         int energyTop = y0 + EntropicLayout.ENERGY_BOX_TOP;
         extractPanelBox(graphics, x0, energyTop, 1, FarmMatrixLayout.COLOR_BACKGROUND);
         int boltY = FarmMatrixLayout.cellY(energyTop, 0);
-        for (int[] row : EntropicLayout.BOLT_PIXELS) {
-            graphics.fill(cellX + row[1], boltY + row[0], cellX + row[2] + 1, boltY + row[0] + 1,
-                    EntropicLayout.COLOR_BOLT);
+        for (int[] pixel : EntropicLayout.BOLT_SHADE) {
+            graphics.fill(cellX + pixel[0], boltY + pixel[1], cellX + pixel[0] + 1, boltY + pixel[1] + 1,
+                    EntropicLayout.COLOR_BOLT_SHADE);
+        }
+        for (int[] pixel : EntropicLayout.BOLT_LIGHT) {
+            graphics.fill(cellX + pixel[0], boltY + pixel[1], cellX + pixel[0] + 1, boltY + pixel[1] + 1,
+                    EntropicLayout.COLOR_BOLT_LIGHT);
         }
 
         extractPanelBox(graphics, x0, y0 + EntropicLayout.UPGRADE_BOX_TOP, EntropicLayout.UPGRADE_CELLS,

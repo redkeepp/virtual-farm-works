@@ -136,6 +136,13 @@ game tests passed:
   Infusion Crystal (MA essence tiers), smaller button text, the FE tooltip reduced to "current/total" and shown full
   while a source keeps up (it read one tick of use short), a lightning box with "Uses X FE/t per active plot" /
   "Using X FE/t", INPUT faces pulling from glued inventories, info lines one pixel lower. 3 new game tests.
+- **Second round of owner changes (same day).** The autocrafter uses whatever the output holds, even its own earlier
+  results (the output is a stock the plan may take from, removed in the same transaction that stores the results;
+  circles never take back their own results); Jade shows the Entropic's active plots / capacity, waiting plots and
+  FE instead of the Starter's "Seeds: x/64"; the lightning icon redrawn from the owner's pixel drawing. The first
+  version of the stock hashed every output slot and every candidate per cell and made a busy crafting Entropic ~20%
+  slower (an item's hash covers all its components); grouping slots by comparing items and building the candidates
+  once per round brought it back below the plain machine. Game test `crafter_uses_the_output`.
 
 ## Benchmark results log
 

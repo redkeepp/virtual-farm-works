@@ -7,6 +7,9 @@ package com.virtualfarmworks.harvest;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
+import org.jspecify.annotations.Nullable;
 
 import com.virtualfarmworks.config.VfwServerConfig;
 import com.virtualfarmworks.machine.MachineTier;
@@ -73,13 +76,27 @@ public final class Harvester {
      */
     public static boolean tryStore(List<DropTally.Entry<ItemResource>> drops,
                                    List<ResourceHandler<ItemResource>> targets) {
+        return tryTakeAndStore(Map.of(), List.of(), drops, targets);
+    }
+
+    /**
+     * {@link #tryStore(List, List)} that first takes {@code take} out of {@code sources}, in the SAME root transaction:
+     * the autocrafter used items already in the output and its results replace them (owner, 2026-09-29). Everything
+     * happens, or nothing: a take that falls short or drops that do not fit roll the whole transaction back.
+     */
+    public static boolean tryTakeAndStore(Map<ItemResource, Long> take, List<ResourceHandler<ItemResource>> sources,
+                                          List<DropTally.Entry<ItemResource>> drops,
+                                          List<ResourceHandler<ItemResource>> targets) {
         if (Transaction.getLifecycle() != Transaction.Lifecycle.NONE) {
             return false;
         }
         try (Transaction transaction = Transaction.openRoot()) {
+            if (!takeAll(take, sources, transaction)) {
+                return false; // not committed: leaving the try block rolls everything back
+            }
             for (DropTally.Entry<ItemResource> drop : drops) {
                 if (insertInOrder(drop.key(), drop.amount(), targets, transaction) < drop.amount()) {
-                    return false; // not committed: leaving the try block rolls every insertion back
+                    return false;
                 }
             }
             transaction.commit();
@@ -94,11 +111,29 @@ public final class Harvester {
      */
     public static List<DropTally.Entry<ItemResource>> storeWhatFits(List<DropTally.Entry<ItemResource>> drops,
                                                                     List<ResourceHandler<ItemResource>> targets) {
-        if (drops.isEmpty() || Transaction.getLifecycle() != Transaction.Lifecycle.NONE) {
+        List<DropTally.Entry<ItemResource>> left = takeAndStoreWhatFits(Map.of(), List.of(), drops, targets);
+        return left != null ? left : drops;
+    }
+
+    /**
+     * {@link #storeWhatFits} that first takes {@code take} out of {@code sources} in the same transaction. Returns null,
+     * with nothing changed, when the take falls short or a transaction is already open: the caller must then keep its
+     * whole plan (the autocrafter's results may only exist once their ingredients are gone).
+     */
+    public static @Nullable List<DropTally.Entry<ItemResource>> takeAndStoreWhatFits(
+            Map<ItemResource, Long> take, List<ResourceHandler<ItemResource>> sources,
+            List<DropTally.Entry<ItemResource>> drops, List<ResourceHandler<ItemResource>> targets) {
+        if (Transaction.getLifecycle() != Transaction.Lifecycle.NONE) {
+            return null;
+        }
+        if (take.isEmpty() && drops.isEmpty()) {
             return drops;
         }
         List<DropTally.Entry<ItemResource>> left = new ArrayList<>();
         try (Transaction transaction = Transaction.openRoot()) {
+            if (!takeAll(take, sources, transaction)) {
+                return null;
+            }
             for (DropTally.Entry<ItemResource> drop : drops) {
                 long stored = insertInOrder(drop.key(), drop.amount(), targets, transaction);
                 if (stored < drop.amount()) {
@@ -108,6 +143,28 @@ public final class Harvester {
             transaction.commit();
         }
         return List.copyOf(left);
+    }
+
+    /** Extracts every amount of {@code take} from the sources in order; false when one falls short. */
+    private static boolean takeAll(Map<ItemResource, Long> take, List<ResourceHandler<ItemResource>> sources,
+                                   Transaction transaction) {
+        for (Map.Entry<ItemResource, Long> wanted : take.entrySet()) {
+            long missing = wanted.getValue();
+            for (ResourceHandler<ItemResource> source : sources) {
+                while (missing > 0) {
+                    int chunk = (int) Math.min(missing, Integer.MAX_VALUE);
+                    int got = source.extract(wanted.getKey(), chunk, transaction);
+                    missing -= got;
+                    if (got < chunk) {
+                        break; // this source has no more of it: try the next one
+                    }
+                }
+            }
+            if (missing > 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Output slots the drops need when every slot is empty: one per started stack of each item. */

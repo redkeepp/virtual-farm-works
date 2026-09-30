@@ -265,6 +265,10 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private boolean refilling;
     /** The filter changed or a player put an item in: remove from the output what the filter rejects next tick. */
     private boolean purgeRequested;
+    /** Something craftable may be in the output (see {@link #craftFromOutput}): run a crafting pass next tick. */
+    private boolean craftFromOutputRequested;
+    /** The last pass had no room for its results: try again once the output changes. */
+    private boolean craftFromOutputBlocked;
     /** Progress or energy changed without an immediate save: saved at most every {@link #SAVE_INTERVAL} ticks. */
     private boolean saveDue;
     private int exportCooldown;
@@ -346,6 +350,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
         if (refillRequested) {
             refillVisibleOutput();
+        }
+        if (craftFromOutputRequested && crafter != null) {
+            craftFromOutput(level);
         }
 
         boolean paid = false;
@@ -514,24 +521,33 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         // commits, so nothing is planted or crafted twice.
         List<Replanting> replanting = replant ? planReplant(pendingBatch) : List.of();
         List<DropTally.Entry<ItemResource>> toStore = withoutReplanted(pendingBatch, replanting);
+        // The crafter also uses what the output already holds (owner): its plan says what to take from there.
         MachineCrafter.Plan crafting = activeCrafter != null
-                ? activeCrafter.plan(toStore, level, crafterBufferLimit, inputs.getResource(layout.catalystSlot()))
+                ? activeCrafter.plan(toStore, outputStock(), level, crafterBufferLimit,
+                        inputs.getResource(layout.catalystSlot()))
                 : null;
+        Map<ItemResource, Long> fromOutput = Map.of();
         if (crafting != null) {
             toStore = crafting.output();
+            fromOutput = crafting.taken();
         }
         if (unfiltered) {
             toStore = withoutFiltered(toStore);
         }
 
         List<ResourceHandler<ItemResource>> targets = fillTargets();
-        if (!Harvester.tryStore(toStore, targets)) {
+        if (!Harvester.tryTakeAndStore(fromOutput, outputSources(), toStore, targets)) {
             if (Harvester.slotsNeeded(toStore) <= totalOutputSlots()) {
                 return false; // fits once space frees up: keep this roll and wait (OUTPUT FULL)
             }
             // Extreme case (owner: hold it): not even empty buffers could take this batch. Store what fits now and
             // hold the rest; it is stored before anything else and blocks the cycle until then.
-            heldDrops = Harvester.storeWhatFits(toStore, targets);
+            List<DropTally.Entry<ItemResource>> held = Harvester.takeAndStoreWhatFits(fromOutput, outputSources(), toStore,
+                    targets);
+            if (held == null) {
+                return false; // nothing changed (never expected in one tick): the batch waits
+            }
+            heldDrops = held;
         }
         if (crafting != null) {
             activeCrafter.commit(crafting); // same tick as the plan: its version always matches
@@ -700,7 +716,77 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         if (crafter != null) {
             holdReleased(crafter.resolve(level));
             harvestRetryRequested = true; // a batch waiting for space is planned again with the recipes as they are
+            craftFromOutputRequested = true; // the recipes (maybe new ones) may use what the output holds
         }
+    }
+
+    /**
+     * Owner (2026-09-29): the autocrafter uses whatever the output holds, even what it crafted itself. Harvests already
+     * do (their plan sees the output); this pass covers the other moments something craftable can appear there:
+     * recipes edited or loaded, CRAFT turned ON, items put in by hand. One transaction: the ingredients leave the
+     * output and the results come in, or nothing changes (no room: tried again once the output changes).
+     */
+    private void craftFromOutput(ServerLevel level) {
+        if (!heldDrops.isEmpty()) {
+            return; // held drops go out first; the request waits for them
+        }
+        craftFromOutputRequested = false;
+        craftFromOutputBlocked = false;
+        if (crafter == null || !crafter.isActive()) {
+            return;
+        }
+        MachineCrafter.Plan plan = crafter.plan(List.of(), outputStock(), level, crafterBufferLimit,
+                inputs.getResource(layout.catalystSlot()));
+        if (plan.taken().isEmpty() && plan.output().isEmpty()) {
+            return; // nothing to craft
+        }
+        if (Harvester.tryTakeAndStore(plan.taken(), outputSources(), withoutFiltered(plan.output()), fillTargets())) {
+            crafter.commit(plan);
+        } else {
+            craftFromOutputBlocked = true;
+        }
+    }
+
+    /**
+     * What the visible and hidden output hold, per item: the stock the autocrafter may use. Runs on every store attempt
+     * of a crafting machine, so slots are grouped by comparing items (a few distinct items fill many slots) instead of
+     * hashing each one: an item's hash covers all its components, which made this scan the crafter's main cost.
+     */
+    private Map<ItemResource, Long> outputStock() {
+        List<ItemResource> items = new ArrayList<>();
+        List<Long> amounts = new ArrayList<>();
+        for (ItemStacksResourceHandler handler : List.of(output, internal)) {
+            for (int i = 0; i < handler.size(); i++) {
+                long amount = handler.getAmountAsLong(i);
+                if (amount <= 0) {
+                    continue;
+                }
+                ItemResource resource = handler.getResource(i);
+                int known = -1;
+                for (int k = 0; k < items.size() && known < 0; k++) {
+                    ItemResource other = items.get(k);
+                    if (other.getItem() == resource.getItem() && other.equals(resource)) {
+                        known = k;
+                    }
+                }
+                if (known >= 0) {
+                    amounts.set(known, amounts.get(known) + amount);
+                } else {
+                    items.add(resource);
+                    amounts.add(amount);
+                }
+            }
+        }
+        Map<ItemResource, Long> stock = new LinkedHashMap<>();
+        for (int k = 0; k < items.size(); k++) {
+            stock.put(items.get(k), amounts.get(k));
+        }
+        return stock;
+    }
+
+    /** Where the autocrafter takes output items from: the visible slots first (what the player sees), then hidden. */
+    private List<ResourceHandler<ItemResource>> outputSources() {
+        return List.of(output, internal);
     }
 
     /** The yield sample of a unit for exactly this key; a key change (switch, filter, config) starts a fresh one. */
@@ -1096,18 +1182,22 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         if (!refilling) {
             refillRequested = true; // room may have appeared for the hidden buffer's items
         }
+        if (craftFromOutputBlocked) {
+            craftFromOutputRequested = true; // room may have appeared for the autocrafter's results
+        }
         markForSave();
     }
 
     /**
      * A player put an item in the visible output by hand (menu slot, server side): delete it on the next tick if the
-     * harvest filter rejects it. Only this, a filter change and loading can bring a rejected item into the output
-     * (harvests are filtered when rolled; exports, pipes and the refill only take out or move), so the cleanup never
-     * runs after ordinary output changes: measured, running it after every change cost +35% per tick with a pipe
-     * pulling from a filtered machine.
+     * harvest filter rejects it, and let the autocrafter use it (owner: it uses anything in the output). Only this, a
+     * filter change and loading can bring a rejected item into the output (harvests are filtered when rolled; exports,
+     * pipes and the refill only take out or move), so the cleanup never runs after ordinary output changes: measured,
+     * running it after every change cost +35% per tick with a pipe pulling from a filtered machine.
      */
     public void requestFilterPurge() {
         purgeRequested = true;
+        craftFromOutputRequested = true;
     }
 
     /**
@@ -1536,6 +1626,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         if (crafter != null) {
             holdReleased(crafter.setEnabled(on));
             harvestRetryRequested = true;
+            craftFromOutputRequested |= on; // turned ON: craft what already waits in the output
         }
     }
 

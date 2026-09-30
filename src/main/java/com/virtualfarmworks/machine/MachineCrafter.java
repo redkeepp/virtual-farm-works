@@ -57,6 +57,13 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  * rest of a recipe stays hidden, at most {@code machines.<tier>.crafterBufferLimit} of each item; the rest goes to the
  * output. Crafting costs no time and no energy.
  *
+ * <h2>Items already in the output (owner, 2026-09-29)</h2>
+ * "The autocrafter must pull any item in the output buffer, even what it crafted itself": every plan also sees what
+ * the machine's output (visible and hidden) holds, as a stock it may use after its own buffer. Only what a craft really
+ * uses leaves the output ({@link Plan#taken}); an item that waits for the rest of its recipe stays where it is, so
+ * nothing is moved back and forth. The one exception keeps circles still: a recipe never takes from the output what
+ * its own circle makes (ingots to block to ingots would otherwise turn forever).
+ *
  * <h2>Catalyst (owner, 2026-09-29)</h2>
  * The machine's tool slot may hold a catalyst ({@code #virtualfarmworks:crafter_catalysts}: Mystical Agriculture's
  * Master Infusion Crystal), so recipes that need it (Prudentium essence from Inferium, and the tiers above) can be
@@ -98,11 +105,16 @@ public final class MachineCrafter {
             .listOf();
 
     /**
-     * What a harvest batch becomes: the items to store, in order, and the buffer after crafting.
+     * What a harvest batch (or a pass over the output) becomes.
      *
+     * @param output  the items to store, in order
+     * @param buffer  the buffer after crafting
+     * @param taken   what the crafts use from the output's stock: the machine removes it in the same transaction that
+     *                stores {@code output}
      * @param version the crafter version it was planned for; {@link #commit} requires the same
      */
-    public record Plan(List<DropTally.Entry<ItemResource>> output, Map<ItemResource, Long> buffer, int version) {
+    public record Plan(List<DropTally.Entry<ItemResource>> output, Map<ItemResource, Long> buffer,
+                       Map<ItemResource, Long> taken, int version) {
     }
 
     private final Runnable onChange;
@@ -134,6 +146,8 @@ public final class MachineCrafter {
         final Map<ItemResource, Integer> cellMasks = new HashMap<>();
         /** The result stays in the buffer for a recipe further down the chain (see {@link #chainOrder}). */
         boolean chainsResult;
+        /** Results of the recipes of this one's circle, itself included: never taken back from the output. */
+        Set<ItemResource> circleResults = Set.of();
 
         Resolved(List<ItemStack> grid, @Nullable RecipeHolder<CraftingRecipe> holder, ItemStack result) {
             this.grid = grid;
@@ -338,12 +352,20 @@ public final class MachineCrafter {
             }
         }
         int[] group = StronglyConnected.groups(feeds);
+        Map<Integer, Set<ItemResource>> groupResults = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            Resolved recipe = recipes.get(i);
+            if (recipe.holder != null) {
+                groupResults.computeIfAbsent(group[i], g -> new HashSet<>()).add(ItemResource.of(recipe.result));
+            }
+        }
         for (int i = 0; i < count; i++) {
             boolean chains = false;
             for (int j = 0; j < count && !chains; j++) {
                 chains = feeds[i][j] && group[j] != group[i];
             }
             recipes.get(i).chainsResult = chains;
+            recipes.get(i).circleResults = groupResults.getOrDefault(group[i], Set.of());
         }
         // Tarjan numbers groups in reverse chain order (a group is numbered after every group it feeds).
         Integer[] indices = new Integer[count];
@@ -416,24 +438,33 @@ public final class MachineCrafter {
      * Crafts a harvest batch on a copy of the buffer (see the class doc); changes nothing. Call only while
      * {@link #isActive()} and resolved.
      *
-     * @param drops       the batch after the replant
+     * @param drops       the batch after the replant (empty for a pass over the output alone)
+     * @param stock       what the machine's output holds, per item: usable after the buffer, see the class doc
      * @param bufferLimit most items of one kind left waiting (config); the rest goes to the output
      * @param catalyst    what the machine's catalyst slot holds (may be empty or not a catalyst: then unused)
-     * @return the items to store and the buffer to {@link #commit} once they are stored
+     * @return the items to store, the buffer to {@link #commit} once they are stored, and what to take from the output
      */
-    public Plan plan(List<DropTally.Entry<ItemResource>> drops, ServerLevel level, long bufferLimit,
-                     ItemResource catalyst) {
+    public Plan plan(List<DropTally.Entry<ItemResource>> drops, Map<ItemResource, Long> stock, ServerLevel level,
+                     long bufferLimit, ItemResource catalyst) {
         Map<ItemResource, Long> work = new LinkedHashMap<>(buffer);
         Map<ItemResource, Long> out = new LinkedHashMap<>();
         for (DropTally.Entry<ItemResource> drop : drops) {
             (isIngredient(drop.key(), level) ? work : out).merge(drop.key(), drop.amount(), Long::sum);
         }
+        Map<ItemResource, Long> stockLeft = new LinkedHashMap<>();
+        stock.forEach((item, amount) -> {
+            if (amount > 0 && isIngredient(item, level)) {
+                stockLeft.put(item, amount);
+            }
+        });
+        Map<ItemResource, Long> taken = new LinkedHashMap<>();
         ItemResource usableCatalyst = !catalyst.isEmpty() && catalyst.toStack().is(VfwTags.CRAFTER_CATALYSTS)
                 ? catalyst : ItemResource.EMPTY;
         for (int index : order) {
             Resolved recipe = recipes.get(index);
-            if (recipe.holder != null && !work.isEmpty()) {
-                craft(recipe, recipe.holder.value(), work, out, usableCatalyst, level);
+            if (recipe.holder != null && (!work.isEmpty() || !stockLeft.isEmpty())) {
+                craft(recipe, recipe.holder.value(), new Stock(work, stockLeft, taken, recipe.circleResults), out,
+                        usableCatalyst, level);
             }
         }
         for (Iterator<Map.Entry<ItemResource, Long>> it = work.entrySet().iterator(); it.hasNext(); ) {
@@ -448,47 +479,116 @@ public final class MachineCrafter {
                 }
             }
         }
-        return new Plan(entries(out), work, version);
+        return new Plan(entries(out), work, taken, version);
     }
 
     /**
-     * Crafts one recipe as many times as {@code work} allows. Each round picks, for every cell, the waiting item with
-     * the most units left that the cell accepts (the catalyst when no waiting item fits), then crafts as often as those
-     * items allow; a round ends when one of them runs out, so a mixed stock (oak and birch planks) takes a few rounds.
+     * What one recipe may use: the plan's buffer first, then the output's stock (minus what its own circle makes); what
+     * a craft takes from the stock is recorded in {@code taken}.
      */
-    private static void craft(Resolved recipe, CraftingRecipe value, Map<ItemResource, Long> work,
-                              Map<ItemResource, Long> out, ItemResource catalyst, ServerLevel level) {
+    private record Stock(Map<ItemResource, Long> work, Map<ItemResource, Long> stock, Map<ItemResource, Long> taken,
+                         Set<ItemResource> circleResults) {
+        /**
+         * Every item this recipe may use now and how many: the buffer's, plus the stock's (the same item in both counts
+         * once). Built once per round, so the cell loop reads arrays instead of hashing items (an item's hash covers all
+         * its components).
+         */
+        void collect(List<ItemResource> items, List<Long> amounts) {
+            work.forEach((item, amount) -> {
+                items.add(item);
+                amounts.add(amount);
+            });
+            stock.forEach((item, amount) -> {
+                if (circleResults.contains(item)) {
+                    return;
+                }
+                for (int k = 0; k < items.size(); k++) {
+                    if (items.get(k).getItem() == item.getItem() && items.get(k).equals(item)) {
+                        amounts.set(k, amounts.get(k) + amount);
+                        return;
+                    }
+                }
+                items.add(item);
+                amounts.add(amount);
+            });
+        }
+
+        /** Uses {@code amount}: from the buffer first, then from the output. */
+        void use(ItemResource item, long amount) {
+            long fromWork = Math.min(amount, work.getOrDefault(item, 0L));
+            subtract(work, item, fromWork);
+            long fromStock = amount - fromWork;
+            if (fromStock > 0) {
+                subtract(stock, item, fromStock);
+                taken.merge(item, fromStock, Long::sum);
+            }
+        }
+
+        private static void subtract(Map<ItemResource, Long> map, ItemResource item, long amount) {
+            if (amount <= 0) {
+                return;
+            }
+            long left = map.getOrDefault(item, 0L) - amount;
+            if (left > 0) {
+                map.put(item, left);
+            } else {
+                map.remove(item);
+            }
+        }
+    }
+
+    /**
+     * Crafts one recipe as many times as its items allow (buffer, then output stock). Each round picks, for every cell,
+     * the item with the most units left that the cell accepts (the catalyst when no item fits), then crafts as often as
+     * those items allow; a round ends when one of them runs out, so a mixed stock (oak and birch planks) takes a few
+     * rounds.
+     */
+    private static void craft(Resolved recipe, CraftingRecipe value, Stock items, Map<ItemResource, Long> out,
+                              ItemResource catalyst, ServerLevel level) {
+        int catalystMask = catalyst.isEmpty() ? 0 : cellMask(recipe, catalyst, level);
         for (int round = 0; round < MAX_ROUNDS; round++) {
+            List<ItemResource> candidates = new ArrayList<>();
+            List<Long> amounts = new ArrayList<>();
+            items.collect(candidates, amounts);
+            int count = candidates.size();
+            long[] available = new long[count];
+            int[] masks = new int[count];
+            for (int k = 0; k < count; k++) {
+                available[k] = amounts.get(k);
+                masks[k] = cellMask(recipe, candidates.get(k), level);
+            }
+            int[] uses = new int[count];
             List<ItemStack> cells = new ArrayList<>(Collections.nCopies(GRID_SIZE, ItemStack.EMPTY));
-            Map<ItemResource, Integer> uses = new HashMap<>();
             int catalystCells = 0; // bit mask of the cells the catalyst serves
             for (int cell = 0; cell < GRID_SIZE; cell++) {
                 if (recipe.grid.get(cell).isEmpty()) {
                     continue;
                 }
-                ItemResource best = null;
+                int best = -1;
                 long bestLeft = 0;
-                for (Map.Entry<ItemResource, Long> waiting : work.entrySet()) {
-                    long left = waiting.getValue() - uses.getOrDefault(waiting.getKey(), 0);
-                    if (left > bestLeft && (cellMask(recipe, waiting.getKey(), level) & (1 << cell)) != 0) {
-                        best = waiting.getKey();
+                for (int k = 0; k < count; k++) {
+                    long left = available[k] - uses[k];
+                    if (left > bestLeft && (masks[k] & (1 << cell)) != 0) {
+                        best = k;
                         bestLeft = left;
                     }
                 }
-                if (best == null && !catalyst.isEmpty() && (cellMask(recipe, catalyst, level) & (1 << cell)) != 0) {
+                if (best < 0 && (catalystMask & (1 << cell)) != 0) {
                     cells.set(cell, catalyst.toStack(1));
                     catalystCells |= 1 << cell;
                     continue;
                 }
-                if (best == null) {
+                if (best < 0) {
                     return; // a cell has nothing left: no more crafts
                 }
-                cells.set(cell, best.toStack(1));
-                uses.merge(best, 1, Integer::sum);
+                cells.set(cell, candidates.get(best).toStack(1));
+                uses[best]++;
             }
             long crafts = Long.MAX_VALUE;
-            for (Map.Entry<ItemResource, Integer> use : uses.entrySet()) {
-                crafts = Math.min(crafts, work.get(use.getKey()) / use.getValue());
+            for (int k = 0; k < count; k++) {
+                if (uses[k] > 0) {
+                    crafts = Math.min(crafts, available[k] / uses[k]);
+                }
             }
             CraftingInput.Positioned positioned = CraftingInput.ofPositioned(3, 3, cells);
             CraftingInput input = positioned.input();
@@ -503,15 +603,13 @@ public final class MachineCrafter {
             if (catalystCells != 0 && !catalystComesBack(catalystCells, positioned, remainders, catalyst)) {
                 return; // this recipe would spend the catalyst: never (see the class doc)
             }
-            for (Map.Entry<ItemResource, Integer> use : uses.entrySet()) {
-                long left = work.get(use.getKey()) - crafts * use.getValue();
-                if (left > 0) {
-                    work.put(use.getKey(), left);
-                } else {
-                    work.remove(use.getKey());
+            for (int k = 0; k < count; k++) {
+                if (uses[k] > 0) {
+                    items.use(candidates.get(k), crafts * uses[k]);
                 }
             }
-            (recipe.chainsResult ? work : out).merge(ItemResource.of(result), crafts * result.getCount(), Long::sum);
+            (recipe.chainsResult ? items.work() : out).merge(ItemResource.of(result), crafts * result.getCount(),
+                    Long::sum);
             for (ItemStack remainder : remainders) {
                 if (!remainder.isEmpty()) {
                     out.merge(ItemResource.of(remainder), crafts * remainder.getCount(), Long::sum);
