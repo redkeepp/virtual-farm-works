@@ -71,7 +71,7 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
   unobfuscated, so production jars load in dev). `run/` and `run-gametest/` are git-ignored. CI (GitHub Actions)
   runs `gradlew build` only (JUnit, no game tests).
 
-## Current state (2026-09-29)
+## Current state (2026-09-30)
 
 **Starter Farm Matrix: DONE** (declared by the owner on 2026-09-29, after the plantables and the benchmark), tested in
 game by the owner (single player; dedicated server before the JEI packet was added). Features: one global growth
@@ -82,23 +82,24 @@ hand) plus 27 hidden slots; auto-export per face; Water Provider, 4 Growth Speed
 with optional time-based wear; Fertilized Essence switch; per-machine harvest filter (whitelist/blacklist, JEI
 drag-and-drop); smooth progress bar; Jade tooltip; JEI exclusion areas; recipes. Git tag `starter-complete`.
 
-**In progress: Entropic Farm Matrix** (owner, 2026-09-29: the strongest tier before the middle ones, to balance the
-midgame). Spec and every decision: `docs/specs/entropic-farm-matrix.md`. Done: stage 1 (multi-group machine, FE, face
-modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `EntropicLayout`,
-`EntropicFarmMatrixScreen`, shared `AbstractFarmMatrixMenu`), stage 3 (replant), stage 4 (autocrafter
-`machine/MachineCrafter`, its panel, JEI "+"), stage 5 (benchmark rows, docs), then the owner's answers and first
-in-game test (2026-09-29: all groups must be valid, no hoe, replant option (b) + button, 100 recipes, catalyst slot,
-FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 runs); the owner tested and approved
-every change in game (2026-09-30). Recipes of the machine and its Water Provider and Growth Speed Upgrades: owner's costs
-(2026-09-30, `docs/resources.md`). Voltaic,
-Ionic and Resonant come after (they will reuse `MachineLayout`).
+**Entropic Farm Matrix: DONE** (declared by the owner on 2026-09-30, after the in-game tests, a dedicated-server test
+and the final benchmark; the strongest tier, built before the middle ones to balance the midgame). Spec and every
+decision: `docs/specs/entropic-farm-matrix.md`; how it was built: `docs/history.md`. Features: 60 plot groups (two
+4x15 grids, up to 3,840 plots) on one growth bar, every group must be valid; FE (90 per active plot per tick, a
+buffer of 3 ticks that drains to 0; RUNNING WITH LOW FE, MISSING FE); five modes per face (NONE, OUTPUT, OUTPUT
+CRAFTED, OUTPUT ALL, INPUT) with pipe input and pulling from glued inventories; replant (option (b), per-machine
+button, config switch); autocrafter (up to 100 crafting-table recipes, chains in order, circles stop, uses what the
+output holds, Master Infusion Crystal catalyst, JEI "+", recipes kept on the broken machine's item); Water Provider,
+4 Growth Speed Upgrades, Crux Provider; Fertilized Essence switch; harvest filter; 24 visible + 72 hidden output
+slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; recipes. Git tag `entropic-complete`.
+
+**Next:** Voltaic, Ionic and Resonant (the middle tiers; they will reuse `MachineLayout`), when the owner specifies
+them.
 Tests: 45 game tests (44 VFW + 1 vanilla), 86 JUnit, load benchmark.
 
-The owner checked the GUI scale fit, RUNNING WITH LOW FE and the recipes kept on the item in game: working
-(2026-09-30); final clean benchmark done the same day (no regression). Open before the tag `entropic-complete`: the
-multiplayer re-test (custom packets were added since the last one; the owner is doing it). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
-"scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or
-with JEI.
+Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says "scaffolding"). Outside VFW:
+MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or with JEI; Trash Cans 1.1.1
+crashes when anything exports into its Item Trash Can (its own bug, see `docs/history.md`).
 
 ## Core design (owner's spec, source of truth)
 

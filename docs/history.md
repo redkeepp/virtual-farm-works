@@ -166,6 +166,9 @@ game tests passed:
   GUI (296x320) never fit at the automatic GUI scale (240-270 px high): while its screen is open the GUI scale now
   drops to the largest that fits (`client/GuiScaleFit`) and the player's own comes back on close. Growth Speed
   Upgrades keep one bonus for every tier (owner).
+- **Entropic declared done by the owner** (2026-09-30), after testing the last changes in game and on a dedicated
+  server (the custom packets included) and a final clean benchmark (no regression). The energy buffer's x 3 stays
+  in code (owner). Git tag `entropic-complete`.
 
 ## Benchmark results log
 

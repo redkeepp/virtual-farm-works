@@ -217,4 +217,5 @@ Entropic loses nothing. Game test `recipes_are_loaded` crafts every owner grid a
   tier (Claude offered a per-tier bonus; owner: leave it as it is, 2026-09-30).
 - The owner checked the two above and the recipes kept on the item in game: working (2026-09-30).
 - Final clean benchmark (2026-09-30, done): no regression, see `docs/history.md`.
-- Before the owner declares the Entropic done: multiplayer re-test (in progress).
+- Multiplayer re-test on a dedicated server (owner, 2026-09-30): OK.
+- **DONE**: declared by the owner on 2026-09-30. Git tag `entropic-complete`.
