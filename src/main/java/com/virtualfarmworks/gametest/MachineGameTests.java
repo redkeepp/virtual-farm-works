@@ -1,10 +1,16 @@
 /*
  * MachineGameTests — game tests of the placed Farm Matrix: a full growth cycle into the buffer, status reporting,
  * OUTPUT FULL holding the harvest, batched harvests bigger than the output, the hidden output slots, save/load,
- * auto-export per face, what drops on break, slot rules, and the server side of the GUI menu (buttons, shift-click,
- * output slots, synced data).
+ * auto-export per face, what drops on break, slot rules, the server side of the GUI menu (buttons, shift-click,
+ * output slots, synced data), and every crafting recipe of the mod crafted from the owner's grid.
  */
 package com.virtualfarmworks.gametest;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
 import com.virtualfarmworks.config.VfwServerConfig;
@@ -29,7 +35,11 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -498,15 +508,29 @@ final class MachineGameTests {
         helper.succeed();
     }
 
-    /** The four crafting recipes the owner specified are loaded (a JSON error would silently drop them). */
+    /**
+     * Every crafting recipe the owner specified is loaded (a JSON error would silently drop it) and crafts its item from
+     * the owner's grid, written here as the owner gave it: cells 1-9 left to right, top to bottom.
+     */
     static void recipesAreLoaded(GameTestHelper helper) {
-        var recipes = helper.getLevel().getServer().getRecipeManager();
-        for (String name : new String[] {"starter_farm_matrix", "starter_water_provider_upgrade", "starter_growth_upgrade",
-                "crux_provider_upgrade"}) {
-            ResourceKey<Recipe<?>> key = ResourceKey.create(Registries.RECIPE,
-                    Identifier.fromNamespaceAndPath("virtualfarmworks", name));
-            check(helper, recipes.byKey(key).isPresent(), "recipe missing: " + name);
-        }
+        Item seeds = Items.WHEAT_SEEDS;
+        expectCraft(helper, "starter_farm_matrix", ModItems.STARTER_FARM_MATRIX.get(),
+                Items.DIAMOND, seeds, Items.REDSTONE, seeds, Items.IRON_BLOCK, seeds, Items.REDSTONE, seeds, Items.DIAMOND);
+        expectCraft(helper, "starter_water_provider_upgrade", upgrade(ModItems.WATER_PROVIDER_UPGRADES, MachineTier.STARTER),
+                ring(Items.DIAMOND, Items.IRON_INGOT, Items.WATER_BUCKET));
+        expectCraft(helper, "starter_growth_upgrade", upgrade(ModItems.GROWTH_SPEED_UPGRADES, MachineTier.STARTER),
+                ring(Items.REDSTONE, Items.DIAMOND, Items.REDSTONE_BLOCK));
+        expectCraft(helper, "crux_provider_upgrade", ModItems.CRUX_PROVIDER_UPGRADE.get(),
+                ring(Items.NETHERITE_BLOCK, Items.NETHERITE_BLOCK, Items.NETHER_STAR));
+
+        Item starter = ModItems.STARTER_FARM_MATRIX.get();
+        expectCraft(helper, "entropic_farm_matrix", ModItems.ENTROPIC_FARM_MATRIX.get(),
+                Items.NETHERITE_INGOT, Items.REDSTONE, Items.DIAMOND, Items.REDSTONE, starter, Items.REDSTONE,
+                Items.DIAMOND, Items.REDSTONE, Items.NETHERITE_INGOT);
+        expectCraft(helper, "entropic_water_provider_upgrade", upgrade(ModItems.WATER_PROVIDER_UPGRADES, MachineTier.ENTROPIC),
+                ring(Items.DIAMOND, Items.IRON_INGOT, upgrade(ModItems.WATER_PROVIDER_UPGRADES, MachineTier.STARTER)));
+        expectCraft(helper, "entropic_growth_upgrade", upgrade(ModItems.GROWTH_SPEED_UPGRADES, MachineTier.ENTROPIC),
+                ring(Items.REDSTONE_BLOCK, Items.DIAMOND, upgrade(ModItems.GROWTH_SPEED_UPGRADES, MachineTier.STARTER)));
         helper.succeed();
     }
 
@@ -515,6 +539,31 @@ final class MachineGameTests {
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.STARTER_FARM_MATRIX.get().defaultBlockState());
         return helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+    }
+
+    /** Crafts {@code cells} (grid cells 1-9) in a crafting table: recipe {@code virtualfarmworks:<name>}, one {@code result}. */
+    private static void expectCraft(GameTestHelper helper, String name, Item result, Item... cells) {
+        ServerLevel level = helper.getLevel();
+        List<ItemStack> stacks = new ArrayList<>(cells.length);
+        for (Item item : cells) {
+            stacks.add(new ItemStack(item));
+        }
+        CraftingInput input = CraftingInput.of(3, 3, stacks);
+        Optional<RecipeHolder<CraftingRecipe>> recipe = level.recipeAccess().getRecipeFor(RecipeType.CRAFTING, input, level);
+        ResourceKey<Recipe<?>> key = ResourceKey.create(Registries.RECIPE,
+                Identifier.fromNamespaceAndPath("virtualfarmworks", name));
+        check(helper, recipe.isPresent() && recipe.get().id().equals(key), "the grid does not make recipe " + name);
+        ItemStack crafted = recipe.get().value().assemble(input);
+        check(helper, crafted.is(result) && crafted.getCount() == 1, name + " crafts " + crafted);
+    }
+
+    /** Cells 1-9 of a grid with the same item in the four corners, another on the four edges and one in the middle. */
+    private static Item[] ring(Item corners, Item edges, Item middle) {
+        return new Item[] {corners, edges, corners, edges, middle, edges, corners, edges, corners};
+    }
+
+    private static Item upgrade(Map<MachineTier, ? extends Supplier<? extends Item>> upgrades, MachineTier tier) {
+        return upgrades.get(tier).get();
     }
 
     private static void put(MachineInventory inputs, int slot, Item item, int count) {

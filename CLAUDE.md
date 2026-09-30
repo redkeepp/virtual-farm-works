@@ -89,7 +89,8 @@ modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `Entro
 `machine/MachineCrafter`, its panel, JEI "+"), stage 5 (benchmark rows, docs), then the owner's answers and first
 in-game test (2026-09-29: all groups must be valid, no hoe, replant option (b) + button, 100 recipes, catalyst slot,
 FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 runs). Waiting for the owner: in-game
-test of those changes. No machine recipe until the owner defines one. Voltaic,
+test of those changes. Recipes of the machine and its Water Provider and Growth Speed Upgrades: owner's costs
+(2026-09-30, `docs/resources.md`). Voltaic,
 Ionic and Resonant come after (they will reuse `MachineLayout`).
 Tests: 44 game tests (43 VFW + 1 vanilla), 81 JUnit, load benchmark.
 

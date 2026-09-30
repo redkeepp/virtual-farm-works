@@ -51,9 +51,13 @@ Crafting grid slots are numbered 1-9 left to right, top to bottom.
 | `virtualfarmworks/recipe/starter_water_provider_upgrade.json` | Claude (owner's cost) | 1, 3, 7, 9 diamond; 2, 4, 6, 8 iron ingot; 5 water bucket (the empty bucket is returned) |
 | `virtualfarmworks/recipe/starter_growth_upgrade.json` | Claude (owner's cost) | 1, 3, 7, 9 redstone; 2, 4, 6, 8 diamond; 5 redstone block |
 | `virtualfarmworks/recipe/crux_provider_upgrade.json` | Claude (owner's cost) | 1-4, 6-9 netherite block; 5 nether star (expensive on purpose: only very rare seeds need a crux) |
-| `virtualfarmworks/advancement/recipes/misc/*.json` | Claude | Unlock each recipe in the recipe book when the player gets a key item (wheat seeds, a Starter Farm Matrix, a nether star). Crafting works without them. |
+| `virtualfarmworks/recipe/entropic_farm_matrix.json` | Claude (owner's cost, 2026-09-30) | 1, 9 netherite ingot; 3, 7 diamond; 2, 4, 6, 8 redstone; 5 Starter Farm Matrix (the owner wrote "netherite": the ingot, since the owner names blocks as blocks) |
+| `virtualfarmworks/recipe/entropic_water_provider_upgrade.json` | Claude (owner's cost, 2026-09-30) | The Starter one with a Starter Water Provider Upgrade in the middle: 1, 3, 7, 9 diamond; 2, 4, 6, 8 iron ingot; 5 Starter Water Provider Upgrade |
+| `virtualfarmworks/recipe/entropic_growth_upgrade.json` | Claude (owner's cost, 2026-09-30) | 1, 3, 7, 9 redstone block; 2, 4, 6, 8 diamond; 5 Starter Growth Speed Upgrade |
+| `virtualfarmworks/advancement/recipes/misc/*.json` | Claude | Unlock each recipe in the recipe book when the player gets a key item (wheat seeds, a Starter Farm Matrix for its upgrades and for the Entropic Farm Matrix, an Entropic Farm Matrix for its upgrades, a nether star). Crafting works without them. |
 
-Other tiers have no recipes yet (owner: only Starter and Crux for now).
+Like every shaped recipe, each one also crafts from its mirror image (left and right swapped). Voltaic, Ionic and
+Resonant have no recipes yet (their machines and upgrades are not built).
 
 ## Other non-Java files
 

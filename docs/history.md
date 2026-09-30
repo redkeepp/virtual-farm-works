@@ -150,6 +150,12 @@ game tests passed:
   drawing was only an example color). Game test `entropic_energy_drains_to_zero`. A crash reported while exporting
   into a Trash Cans "Item Trash Can" was traced to Trash Cans 1.1.1 itself (its deleted-items codec returns a null
   component patch; reproduced with a plain handler insertion, no VFW machine), not to VFW.
+- **Config file layout (2026-09-30, owner).** A blank line before every setting of `virtualfarmworks-server.toml`
+  (`config/ConfigFileLayout`, applied after FML loads the file); the owner then tested the config values in game.
+- **Recipes (2026-09-30, owner's costs).** Entropic Farm Matrix (netherite ingots, diamonds and redstone around a
+  Starter Farm Matrix), Entropic Water Provider Upgrade (the Starter recipe around a Starter Water Provider Upgrade)
+  and Entropic Growth Speed Upgrade (redstone blocks and diamonds around a Starter Growth Speed Upgrade), each with
+  its recipe-book advancement. `recipes_are_loaded` now crafts every owner grid, Starter ones included.
 
 ## Benchmark results log
 

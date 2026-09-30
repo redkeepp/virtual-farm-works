@@ -122,7 +122,8 @@ button and the ON/OFF button (owner, 2026-09-29):
   most 8 recipes (config), incomplete ingredients wait hidden (back to the output when CRAFT turns off, deleted when
   the machine breaks); one click loads a recipe into the table, SET CRAFT replaces the selected recipe or adds a new
   one, double click deletes; groups with the same seed and soil are harvested together and a big harvest spreads over
-  a few ticks; no machine recipe until the owner defines one. (The "at most 8 recipes" of this list became 100, owner.)
+  a few ticks; no machine recipe until the owner defines one. (The "at most 8 recipes" of this list became 100, owner;
+  the owner defined the recipes on 2026-09-30, see below.)
 - "Crafted" items for OUTPUT / OUTPUT CRAFTED (Claude): an output item counts as crafted when it is the result of one
   of the machine's crafter recipes.
 
@@ -161,6 +162,19 @@ button and the ON/OFF button (owner, 2026-09-29):
   are).
 - The list shows five recipes at a time; the mouse wheel (or a click on the scrollbar) scrolls it.
 
+## Recipes (owner, 2026-09-30)
+
+Crafting grid cells 1-9, left to right, top to bottom (files and unlock advancements in `docs/resources.md`):
+
+- Entropic Farm Matrix: 1, 9 netherite ingot; 3, 7 diamond; 2, 4, 6, 8 redstone; 5 Starter Farm Matrix. The owner
+  wrote "netherite"; Claude read the ingot, since the owner names blocks as blocks ("bloco de redstone").
+- Entropic Water Provider Upgrade: the Starter one (1, 3, 7, 9 diamond; 2, 4, 6, 8 iron ingot) with a Starter Water
+  Provider Upgrade in 5 instead of the water bucket.
+- Entropic Growth Speed Upgrade: 1, 3, 7, 9 redstone block; 2, 4, 6, 8 diamond; 5 Starter Growth Speed Upgrade.
+
+A Starter Farm Matrix item holds nothing (the machine drops its contents when broken), so crafting it into an
+Entropic loses nothing. Game test `recipes_are_loaded` crafts every owner grid and checks the result.
+
 ## Implementation status
 
 - Stage 1 (done): multi-group machine (`machine/MachineLayout`), energy (`machine/MachineEnergy`), face modes
@@ -182,4 +196,5 @@ button and the ON/OFF button (owner, 2026-09-29):
   FE shown full while a source keeps up, lightning box, INPUT faces pull from glued inventories, smaller button text,
   info lines one pixel lower. Game tests `entropic_groups_must_all_be_valid`, `entropic_input_face_pulls_from_chests`,
   `crafter_uses_the_catalyst`; the replant test covers option (b), the switch and the config.
-- Waiting for the owner: in-game test of these changes and the machine's crafting recipe.
+- Recipes (2026-09-30, done): the machine, its Water Provider Upgrade and its Growth Speed Upgrade (above).
+- Waiting for the owner: in-game test of these changes.
