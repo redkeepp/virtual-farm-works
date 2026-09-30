@@ -216,4 +216,5 @@ Entropic loses nothing. Game test `recipes_are_loaded` crafts every owner grid a
   (`added`, `resize`, `removed`); `MachineStatus.RUNNING_LOW_FE`. Growth Speed Upgrades keep one bonus for every
   tier (Claude offered a per-tier bonus; owner: leave it as it is, 2026-09-30).
 - The owner checked the two above and the recipes kept on the item in game: working (2026-09-30).
-- Before the owner declares the Entropic done: multiplayer re-test (in progress), final clean benchmark.
+- Final clean benchmark (2026-09-30, done): no regression, see `docs/history.md`.
+- Before the owner declares the Entropic done: multiplayer re-test (in progress).

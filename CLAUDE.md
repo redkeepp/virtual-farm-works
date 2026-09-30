@@ -95,8 +95,8 @@ Ionic and Resonant come after (they will reuse `MachineLayout`).
 Tests: 45 game tests (44 VFW + 1 vanilla), 86 JUnit, load benchmark.
 
 The owner checked the GUI scale fit, RUNNING WITH LOW FE and the recipes kept on the item in game: working
-(2026-09-30). Open before the tag `entropic-complete`: the multiplayer re-test (custom packets were added since the
-last one; the owner is doing it) and a final clean benchmark (every game closed). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
+(2026-09-30); final clean benchmark done the same day (no regression). Open before the tag `entropic-complete`: the
+multiplayer re-test (custom packets were added since the last one; the owner is doing it). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
 "scaffolding"). Outside VFW: MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or
 with JEI.
 
@@ -357,7 +357,8 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
   plots 4.7 us (4.5 with the autocrafter), ~a quarter of 60 equivalent Starters; mixed 60 plants 2.2 us; revalidation
   of 60 groups ~12 us (median; one run 29), so a pipe feeding the grids every tick costs ~11 us per tick while it
   feeds (grids full = no change = no cost). The first row (growing, 1 plot) reads ~0.026 us only because it is
-  measured first, while the JIT still warms up the tick. History of results in `docs/history.md`.
+  measured first, while the JIT still warms up the tick. Confirmed on 2026-09-30 before closing the Entropic (3 clean
+  runs, every row within noise; Entropic growing 0.031 us). History of results in `docs/history.md`.
 - Close every Minecraft instance before benchmarking (dev clients AND the owner's modpack, e.g. ATM10): with them
   open every row came out ~2.5x slower.
 - Trees were accepted as they are (owner closed the Starter on 2026-09-29 without choosing an optimization). If tree

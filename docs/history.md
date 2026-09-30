@@ -206,3 +206,13 @@ game tests passed:
   measured right after, reads 0.011. Entropic: growing with 3,840 plots 0.036 us, busy 3,840 wheat plots 4.7 us
   (4.5 with the autocrafter), busy mixed farm of 60 plants 2.2 us, revalidation of 60 groups 10.8 / 29.0 / 12.1 us
   (one noisy run), an input change every tick 11.0 us.
+- 2026-09-30, final run before closing the Entropic (owner's PC, every game closed, average of 3 runs by Claude;
+  after the FE drain to 0, RUNNING WITH LOW FE, the autocrafter using the output and the recipes kept on the item):
+  Starter growing 0.011 us (64 plots), OUTPUT FULL 0.014 us, harvest tick 73 us (64 wheat; median 71) / 4.7 us
+  (1 wheat) / 4.5 us (64 MA) / 8.2 us (64 poppies) / 249 us (32 oak saplings) / 92 us (8 crimson fungi), busy wheat
+  farm 0.30 us, busy oak farm 1.23 us, pipe 0.33 / 0.35 us without / with a filter, revalidation 3.3 us, export
+  94 us (median 86; one run 111). Entropic: growing with 3,840 plots 0.031 us, busy 3,840 wheat plots 4.8 us (4.4
+  with the autocrafter), busy mixed farm of 60 plants 2.2 us, revalidation of 60 groups 12.9 us (median 12.2), an
+  input change every tick 11.3 us. No regression: every row is within the ~10-20% run-to-run noise of the
+  2026-09-29 reference (Starter revalidation read 3.3 us against 2.8, and 3.9 in another session of 2026-09-29;
+  it runs only on changes).
