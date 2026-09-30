@@ -91,7 +91,7 @@ in-game test (2026-09-29: all groups must be valid, no hoe, replant option (b) +
 FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 runs). Waiting for the owner: in-game
 test of those changes. No machine recipe until the owner defines one. Voltaic,
 Ionic and Resonant come after (they will reuse `MachineLayout`).
-Tests: 44 game tests (43 VFW + 1 vanilla), 77 JUnit, load benchmark.
+Tests: 44 game tests (43 VFW + 1 vanilla), 81 JUnit, load benchmark.
 
 Open on the owner's side: multiplayer re-test (custom packets were added since the last one; the owner planned to do
 it at the end). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
@@ -416,7 +416,10 @@ Breaking drops contents in `preRemoveSideEffects`.
   removes new keys: ask the owner to restart the client after code changes. When the owner edits the TOML by hand: a
   number with a leading zero (`05.0`) makes NeoForge back up the file and recreate it with DEFAULTS; an edited comment
   or out-of-range value gets rewritten. VS Code then refuses to save ("the content of the file is newer"): close the
-  tab without saving and reopen. Comments in the TOML come from `VfwServerConfig`; change them there.
+  tab without saving and reopen. Comments in the TOML come from `VfwServerConfig`; change them there (a changed
+  comment makes FML "correct" the file once, with a .bak backup). After every load `config/ConfigFileLayout` adds a
+  blank line before each setting (owner: readability); NightConfig cannot, FML's own rewrites drop them and the next
+  load puts them back; the formatted file stays "correct", so no reload loop.
 
 ## Code map
 
@@ -432,7 +435,7 @@ Breaking drops contents in `preRemoveSideEffects`.
 - `item/` — `TieredUpgradeItem` (+ `UpgradeType`), `CruxProviderUpgradeItem`; items carry no behavior.
 - `registry/` — `ModBlocks`, `ModItems`, `ModBlockEntities` (+ capabilities), `ModMenus`, `ModCreativeTabs`.
 - `config/` — `VfwServerConfig` (spec + comments pack makers read), `VfwConfig` (runtime: compiled filters,
-  generation), `ItemFilter`.
+  generation, file layout), `ConfigFileLayout` (blank line before each setting), `ItemFilter`.
 - `data/` — `ModDataMaps` with `SoilProperties` (soil growth bonus) and `FixedYield` (fixed harvests) data maps.
 - `plant/` — `PlantRules`, `SoilRules`, `PlantAnalysis`, `SoilView` (2-block BlockGetter for native rules),
   `VirtualLevel` (in-memory WorldGenLevel for generic rules and tree growth), `VfwTags`.
@@ -453,7 +456,7 @@ Breaking drops contents in `preRemoveSideEffects`.
   `MachineGameTests`, `FilterGameTests`, `PlantablesGameTests`, `EntropicGameTests`, `CrafterGameTests`,
   `MysticalHarvestTests`, `MysticalFarmlandTests`, `LoadBenchmark`.
   `FarmMatrixBlockEntity#setProgressForTesting` exists only for tests.
-- `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`).
+- `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`, `config/ConfigFileLayout`).
 - `src/main/resources/data/virtualfarmworks/` — tags, data maps, recipes, loot tables (see `docs/resources.md`).
 - `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata (Gradle expands it from `gradle.properties`).
 

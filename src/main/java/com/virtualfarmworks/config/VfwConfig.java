@@ -1,9 +1,12 @@
 /*
  * VfwConfig — runtime side of the config: registers the server config, rebuilds the compiled blacklists on
- * load/reload and bumps a generation counter that machines compare to know when to revalidate.
+ * load/reload, bumps a generation counter that machines compare to know when to revalidate, and lays the config file
+ * out with a blank line before every setting.
  */
 package com.virtualfarmworks.config;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -65,6 +68,17 @@ public final class VfwConfig {
         // sees the new filters.
         generation++;
         VirtualFarmWorks.LOGGER.debug("Virtual Farm Works config (re)loaded, generation {}", generation);
+
+        // A blank line before every setting (owner: the file was hard to read). The file is FML's; it is only
+        // reformatted after FML loaded it, and a failure never stops the game.
+        Path file = config.getFullPath();
+        if (file != null) {
+            try {
+                ConfigFileLayout.apply(file);
+            } catch (IOException | RuntimeException e) {
+                VirtualFarmWorks.LOGGER.warn("Could not add blank lines to {}", file, e);
+            }
+        }
     }
 
     /** Increments on every config load/reload. Machines compare it with their cached value to know when to revalidate. */

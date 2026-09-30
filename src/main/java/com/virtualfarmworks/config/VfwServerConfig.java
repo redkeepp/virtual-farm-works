@@ -105,11 +105,12 @@ public final class VfwServerConfig {
                     .comment("Yield multiplier for this tier (multiplied with the global one). Independent from speed:",
                             "changes how much each harvest produces, not how often it happens.")
                     .defineInRange("productionMultiplier", 1.0, 0.0, 1000.0);
-            // Owner design (step 8): a hidden buffer behind the 9 visible output slots, deleted when the machine breaks.
+            // Owner design (step 8): a hidden buffer behind the visible output slots, deleted when the machine breaks.
             internalBufferSlots = b
-                    .comment("Hidden output slots behind the 9 visible ones. Harvests fill the visible slots first,",
+                    .comment("Hidden output slots behind the " + layout.visibleOutputSlots() + " visible ones. "
+                                    + "Harvests fill the visible slots first,",
                             "then these; they refill the visible slots as those empty. Players and pipes cannot see or",
-                            "reach them, and their contents are DELETED when the machine is broken (only the 9 visible",
+                            "reach them, and their contents are DELETED when the machine is broken (only the visible",
                             "slots drop). When both are full, ripe plots simply wait to be harvested: nothing is lost.",
                             "0 = no hidden slots.")
                     .defineInRange("internalBufferSlots", defaultInternalBufferSlots, 0, 256);
@@ -139,10 +140,11 @@ public final class VfwServerConfig {
             }
             if (layout.usesEnergy()) {
                 energyPerPlot = b
-                        .comment("FE per tick each planted plot consumes while the machine grows (owner spec: 90).",
+                        .comment("FE per tick each planted plot consumes while the machine grows.",
                                 "The energy buffer is sized automatically: plot capacity x energyPerPlot x 3, so it",
                                 "always holds three ticks of the highest possible consumption.",
-                                "Without enough energy for a tick the machine shows MISSING FE and does not grow.")
+                                "Without enough energy for a whole tick the machine shows MISSING FE and spends what is",
+                                "left on part of a tick (it grows that much slower); at 0 FE it does not grow.")
                         .defineInRange("energyPerPlot", 90, 0, 1_000_000);
             } else {
                 energyPerPlot = null;
@@ -161,8 +163,8 @@ public final class VfwServerConfig {
             }
             if (layout.hasCrafter()) {
                 crafterRecipes = b
-                        .comment("Recipes the autocrafter can hold (owner: up to 100; the list only grows as recipes",
-                                "are added).")
+                        .comment("Recipes the autocrafter can hold, at most 100. The recipe list only grows as recipes",
+                                "are added.")
                         .defineInRange("crafterRecipes", 100, 1, 100);
                 crafterBufferLimit = b
                         .comment("Items of ONE kind the autocrafter keeps while it waits for the rest of a recipe",
