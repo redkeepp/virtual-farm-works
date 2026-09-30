@@ -150,18 +150,20 @@ public final class VfwServerConfig {
             if (layout.acceptsInput()) {
                 // Owner's Entropic spec: generated plantables look for free soil inside the machine.
                 replant = b
-                        .comment("If true, plantables produced by the harvest (extra seeds, saplings...) are not",
-                                "exported: they are planted in the machine, in plot groups that already hold the same",
-                                "plantable and still have free soil. What finds no free soil goes to the output.")
+                        .comment("If true, each machine's replant button works (on by default): plantables produced by",
+                                "the harvest (extra seeds, saplings...) are not exported but planted in the machine, in",
+                                "plot groups that already hold the same plantable and still have free soil, then in",
+                                "empty seed slots above a soil they grow on. What finds no such soil goes to the output.",
+                                "If false, replanting is off everywhere and the button shows DISABLED.")
                         .define("replant", true);
             } else {
                 replant = null;
             }
             if (layout.hasCrafter()) {
                 crafterRecipes = b
-                        .comment("Recipes the autocrafter can hold (RFTools' Crafter tier 3, the owner's inspiration,",
-                                "holds 8).")
-                        .defineInRange("crafterRecipes", 8, 1, 64);
+                        .comment("Recipes the autocrafter can hold (owner: up to 100; the list only grows as recipes",
+                                "are added).")
+                        .defineInRange("crafterRecipes", 100, 1, 100);
                 crafterBufferLimit = b
                         .comment("Items of ONE kind the autocrafter keeps while it waits for the rest of a recipe",
                                 "(e.g. 5 essences of a recipe that needs 8). Beyond this they go to the output, so an",
@@ -217,9 +219,10 @@ public final class VfwServerConfig {
 
         b.comment("Output buffer").push("output");
         AUTO_EXPORT_INTERVAL_TICKS = b
-                .comment("Ticks between auto-export attempts into adjacent inventories (5, 10, 20, 40...).",
-                        "0 disables auto-export on every machine. Higher values reduce the cost of capability lookups",
-                        "on servers with hundreds of machines.")
+                .comment("Ticks between auto-export attempts into adjacent inventories (5, 10, 20, 40...); faces set",
+                        "to INPUT pull from adjacent inventories on the same schedule. 0 disables both on every",
+                        "machine. Higher values reduce the cost of capability lookups on servers with hundreds of",
+                        "machines.")
                 .defineInRange("autoExportIntervalTicks", 20, 0, 1200);
         b.pop();
 

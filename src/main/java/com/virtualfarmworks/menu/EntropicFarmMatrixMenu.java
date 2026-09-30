@@ -1,8 +1,8 @@
 /*
  * EntropicFarmMatrixMenu — the Entropic Farm Matrix container menu (both sides): the two 4x15 grids, water provider,
- * side-column upgrades and hoe, 24 output slots, harvest filter ghost slots, the autocrafter (recipe grid, result,
- * recipe list, SET CRAFT, CRAFT ON/OFF) and the numbers only this tier shows (energy, plot capacity, waiting plots, face
- * modes, each plot group's status).
+ * side-column upgrades, 24 output slots, harvest filter ghost slots, the autocrafter (recipe grid, result, catalyst,
+ * recipe list, SET CRAFT, CRAFT ON/OFF), the replant switch and the numbers only this tier shows (energy and its use,
+ * plot capacity, waiting plots, face modes, each plot group's status).
  */
 package com.virtualfarmworks.menu;
 
@@ -24,11 +24,13 @@ import com.virtualfarmworks.machine.MachineSlots;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.machine.OutputBuffer;
 import com.virtualfarmworks.machine.RelativeSide;
+import com.virtualfarmworks.network.CrafterRecipesPayload;
 import com.virtualfarmworks.registry.ModMenus;
 import com.virtualfarmworks.sim.MachineStatus;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -39,6 +41,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.block.Block;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
 
 /**
@@ -46,22 +49,23 @@ import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
  *
  * <h2>Slot order (menu indices)</h2>
  * {@code [0, 127)} machine inputs in inventory order ({@link MachineLayout}: 60 seed slots, 60 soil slots, water
- * provider, hoe, 4 growth, crux), {@code [127, 151)} output buffer, {@code [151, 178)} player inventory,
- * {@code [178, 187)} hotbar, {@code [187, 196)} harvest filter ghost slots, {@code [196, 205)} autocrafter recipe grid
- * (ghost slots), {@code 205} its result, {@code [206, 270)} the recipe list's results (data only: never drawn or
- * clicked; vanilla slot sync carries them to the client).
+ * provider, the autocrafter's catalyst, 4 growth, crux), {@code [127, 151)} output buffer, {@code [151, 178)} player
+ * inventory, {@code [178, 187)} hotbar, {@code [187, 196)} harvest filter ghost slots, {@code [196, 205)} autocrafter
+ * recipe grid (ghost slots), {@code 205} its result.
  *
  * <h2>Autocrafter</h2>
  * The recipe grid belongs to this menu, not the machine (owner: "purely visual, the machine does not use it"): each
  * viewer arranges their own; the server shows the recipe's result in the result slot. Buttons: SET CRAFT (saves the
  * grid as a recipe, replacing the selected one), CRAFT ON/OFF, select a recipe (loads it into the grid), delete a
  * recipe, clear the selection. The panel is a client-side modal ({@link #setCrafterVisible}): while it is open its
- * slots are active and the two grids under it are not.
+ * slots (grid, result, catalyst) are active and the two grids under it are not. The recipe list is dynamic (owner: up to
+ * 100, "a slot is only created when the player needs it"): it travels as a {@link CrafterRecipesPayload} whenever it
+ * changes, not as menu slots.
  *
  * <h2>Synced numbers (after the shared ones)</h2>
- * Energy, capacity and use per tick; planted plots, plot capacity and waiting plots (two shorts each, up to 2^30);
- * the mode of each face; the status of each plot group (three groups per short, 4 bits each); the autocrafter's switch,
- * recipe count and limit and this viewer's selected recipe.
+ * Energy shown, capacity, use right now and use per plot; planted plots, plot capacity and waiting plots (two shorts
+ * each, up to 2^30); the mode of each face; the status of each plot group (three groups per short, 4 bits each); the
+ * autocrafter's switch and limit and this viewer's selected recipe; the replant switch.
  */
 public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
     private static final MachineLayout LAYOUT = MachineLayout.ENTROPIC;
@@ -76,11 +80,11 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
     public static final int FILTER_START = PLAYER_END;
     public static final int CRAFT_GRID_START = FILTER_START + MachineFilter.PAGE_SIZE;             // 196
     public static final int CRAFT_RESULT = CRAFT_GRID_START + MachineCrafter.GRID_SIZE;            // 205
-    public static final int CRAFT_LIST_START = CRAFT_RESULT + 1;                                   // 206
-    public static final int CRAFT_LIST_END = CRAFT_LIST_START + MachineCrafter.MAX_RECIPES;        // 270
 
-    /** Autocrafter buttons (after the shared ids). */
-    public static final int BUTTON_CRAFT_SET = BUTTON_TIER_FIRST;
+    /** Replant switch (owner, 2026-09-29). */
+    public static final int BUTTON_REPLANT = BUTTON_TIER_FIRST;
+    /** Autocrafter buttons. */
+    public static final int BUTTON_CRAFT_SET = BUTTON_REPLANT + 1;
     public static final int BUTTON_CRAFT_TOGGLE = BUTTON_CRAFT_SET + 1;
     public static final int BUTTON_CRAFT_DESELECT = BUTTON_CRAFT_TOGGLE + 1;
     /** Select recipe i: {@code BUTTON_CRAFT_SELECT_FIRST + i}. */
@@ -88,10 +92,11 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
     /** Delete recipe i: {@code BUTTON_CRAFT_DELETE_FIRST + i}. */
     public static final int BUTTON_CRAFT_DELETE_FIRST = BUTTON_CRAFT_SELECT_FIRST + MachineCrafter.MAX_RECIPES;
 
-    private static final int DATA_ENERGY = BASE_DATA_COUNT;          // 2 shorts
-    private static final int DATA_ENERGY_CAPACITY = DATA_ENERGY + 2;  // 2 shorts
+    private static final int DATA_ENERGY = BASE_DATA_COUNT;           // 2 shorts each from here
+    private static final int DATA_ENERGY_CAPACITY = DATA_ENERGY + 2;
     private static final int DATA_ENERGY_USE = DATA_ENERGY_CAPACITY + 2;
-    private static final int DATA_PLANTED = DATA_ENERGY_USE + 2;
+    private static final int DATA_ENERGY_PER_PLOT = DATA_ENERGY_USE + 2;
+    private static final int DATA_PLANTED = DATA_ENERGY_PER_PLOT + 2;
     private static final int DATA_CAPACITY = DATA_PLANTED + 2;
     private static final int DATA_WAITING = DATA_CAPACITY + 2;
     private static final int DATA_FACE_MODES = DATA_WAITING + 2;      // one per side
@@ -99,17 +104,21 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
     private static final int GROUPS_PER_SHORT = 3;
     private static final int DATA_CRAFTER_ENABLED = DATA_GROUP_STATUS
             + (LAYOUT.groups() + GROUPS_PER_SHORT - 1) / GROUPS_PER_SHORT;
-    private static final int DATA_CRAFTER_COUNT = DATA_CRAFTER_ENABLED + 1;
-    private static final int DATA_CRAFTER_LIMIT = DATA_CRAFTER_COUNT + 1;
+    private static final int DATA_CRAFTER_LIMIT = DATA_CRAFTER_ENABLED + 1;
     private static final int DATA_CRAFTER_SELECTED = DATA_CRAFTER_LIMIT + 1; // selected recipe + 1 (0 = none)
-    private static final int DATA_COUNT = DATA_CRAFTER_SELECTED + 1;
+    private static final int DATA_REPLANT = DATA_CRAFTER_SELECTED + 1;       // FarmMatrixBlockEntity.ReplantState
+    private static final int DATA_COUNT = DATA_REPLANT + 1;
 
+    /** Server side: the viewer, to send the recipe list to. Null on the client. */
+    private final @Nullable ServerPlayer viewer;
     /** This viewer's recipe grid (item types only). */
     private final Container craftGrid;
     /** The grid's result, computed by the server. */
     private final SimpleContainer craftResult = new SimpleContainer(1);
-    /** Result of each recipe of the machine (server: refreshed with the synced numbers). */
-    private final SimpleContainer recipeList = new SimpleContainer(MachineCrafter.MAX_RECIPES);
+    /** What each recipe makes. Server: the machine's list as of the last refresh; client: the last list received. */
+    private List<ItemStack> recipeResults = List.of();
+    /** Server side: the list the client has (to send changes only). */
+    private @Nullable List<ItemStack> sentResults;
     /** Server side: the grid changed, recompute its result before the next sync. */
     private boolean previewDirty;
     /** Server side: this viewer's selected recipe (SET CRAFT replaces it), -1 for none. */
@@ -137,6 +146,7 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
                                    OutputBuffer output, @Nullable FarmMatrixBlockEntity machine,
                                    ContainerLevelAccess access, @Nullable Block block) {
         super(ModMenus.ENTROPIC_FARM_MATRIX.get(), containerId, tier, machine, access, block, DATA_COUNT);
+        this.viewer = machine != null && playerInventory.player instanceof ServerPlayer player ? player : null;
         this.craftGrid = machine == null ? new SimpleContainer(MachineCrafter.GRID_SIZE)
                 : new SimpleContainer(MachineCrafter.GRID_SIZE) {
                     @Override
@@ -156,9 +166,9 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
         }
         addSlot(new ResourceHandlerSlot(inputs, inputs::set, LAYOUT.waterSlot(), EntropicLayout.WATER_X,
                 EntropicLayout.WATER_Y));
-        // Side column cells: 4 growth (0..3), crux (4), hoe (5). Inventory order is water, hoe, growth, crux.
-        addSlot(new ResourceHandlerSlot(inputs, inputs::set, LAYOUT.hoeSlot(), FarmMatrixLayout.PANEL_INTERIOR_X,
-                EntropicLayout.upgradeCellY(5)));
+        // Inventory order is water, tool (here the catalyst, shown in the crafter panel), growth, crux.
+        addSlot(new CatalystSlot(inputs, LAYOUT.catalystSlot(), EntropicLayout.CRAFTER_CATALYST_X,
+                EntropicLayout.CRAFTER_CATALYST_Y));
         for (int i = 0; i < MachineSlots.GROWTH_COUNT; i++) {
             addSlot(new ResourceHandlerSlot(inputs, inputs::set, LAYOUT.growthSlot(i), FarmMatrixLayout.PANEL_INTERIOR_X,
                     EntropicLayout.upgradeCellY(i)));
@@ -178,15 +188,12 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
             addSlot(new CraftGridSlot(craftGrid, i, EntropicLayout.crafterGridX(i), EntropicLayout.crafterGridY(i)));
         }
         addSlot(new CraftResultSlot(craftResult, EntropicLayout.CRAFTER_RESULT_X, EntropicLayout.CRAFTER_RESULT_Y));
-        for (int i = 0; i < MachineCrafter.MAX_RECIPES; i++) {
-            addSlot(new RecipeListSlot(recipeList, i));
-        }
         addDataSlots(data);
     }
 
     // --- sync -------------------------------------------------------------------------------------------------------
 
-    /** Server: recomputes the grid's result before vanilla sends the slot changes. */
+    /** Server: recomputes the grid's result, and sends the recipe list if it changed, before vanilla's sync. */
     @Override
     public void broadcastChanges() {
         if (previewDirty && machine != null && machine.getLevel() instanceof ServerLevel level) {
@@ -194,14 +201,35 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
             craftResult.setItem(0, MachineCrafter.preview(gridStacks(), level));
         }
         super.broadcastChanges();
+        if (sentResults != null && !ItemStack.listMatches(sentResults, recipeResults)) {
+            sendRecipeList();
+        }
+    }
+
+    /** Server: vanilla sends everything when the menu opens (after the open-screen packet); the recipe list goes too. */
+    @Override
+    public void sendAllDataToRemote() {
+        super.sendAllDataToRemote();
+        if (viewer != null) {
+            sendRecipeList();
+        }
+    }
+
+    private void sendRecipeList() {
+        if (viewer == null) {
+            return;
+        }
+        sentResults = recipeResults;
+        PacketDistributor.sendToPlayer(viewer, new CrafterRecipesPayload(containerId, recipeResults));
     }
 
     @Override
     protected void refreshTierData(FarmMatrixBlockEntity machine) {
         MachineEnergy energy = machine.energy();
-        setLong(DATA_ENERGY, energy == null ? 0 : energy.getAmountAsLong());
+        setLong(DATA_ENERGY, energy == null ? 0 : energy.shownAmount());
         setLong(DATA_ENERGY_CAPACITY, energy == null ? 0 : energy.getCapacityAsLong());
-        setLong(DATA_ENERGY_USE, machine.energyPerTick());
+        setLong(DATA_ENERGY_USE, energy == null ? 0 : energy.lastUse());
+        setLong(DATA_ENERGY_PER_PLOT, machine.energyPerPlot());
         setLong(DATA_PLANTED, machine.totalPlots());
         setLong(DATA_CAPACITY, VfwServerConfig.machine(tier).plotCapacity(LAYOUT));
         setLong(DATA_WAITING, machine.waitingPlots());
@@ -218,25 +246,20 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
             }
             data.set(DATA_GROUP_STATUS + slot, packed);
         }
+        data.set(DATA_REPLANT, machine.replantState().ordinal());
 
         machine.ensureCrafterResolved();
         MachineCrafter crafter = machine.crafter();
-        int count = crafter == null ? 0 : crafter.size();
-        for (int i = 0; i < MachineCrafter.MAX_RECIPES; i++) {
-            ItemStack shown = i < count ? crafter.result(i) : ItemStack.EMPTY;
-            if (!ItemStack.matches(recipeList.getItem(i), shown)) {
-                recipeList.setItem(i, shown);
-            }
-        }
-        if (selectedRecipe >= count) {
+        recipeResults = crafter == null ? List.of() : List.copyOf(crafter.results());
+        if (selectedRecipe >= recipeResults.size()) {
             selectedRecipe = -1;
         }
         data.set(DATA_CRAFTER_ENABLED, crafter != null && crafter.isEnabled() ? 1 : 0);
-        data.set(DATA_CRAFTER_COUNT, count);
         data.set(DATA_CRAFTER_LIMIT, machine.crafterRecipeLimit());
         data.set(DATA_CRAFTER_SELECTED, selectedRecipe + 1);
     }
 
+    /** FE the GUI shows: the level before the machine's payment of its last tick (see {@code MachineEnergy}). */
     public long energy() {
         return getLong(DATA_ENERGY);
     }
@@ -245,8 +268,14 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
         return getLong(DATA_ENERGY_CAPACITY);
     }
 
+    /** FE per tick the machine uses right now: 0 while it does not grow. */
     public long energyUse() {
         return getLong(DATA_ENERGY_USE);
+    }
+
+    /** FE per active plot per tick (config). */
+    public long energyPerPlot() {
+        return getLong(DATA_ENERGY_PER_PLOT);
     }
 
     /** Planted plots (the owner's "active plots"). */
@@ -272,6 +301,11 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
         return MachineStatus.byOrdinal((packed >> (4 * (group % GROUPS_PER_SHORT))) & 0xF);
     }
 
+    /** The replant button's look: ON, OFF, or DISABLED by the config. */
+    public FarmMatrixBlockEntity.ReplantState replantState() {
+        return FarmMatrixBlockEntity.ReplantState.byOrdinal(data.get(DATA_REPLANT));
+    }
+
     // --- autocrafter ------------------------------------------------------------------------------------------------
 
     /** CRAFT: ON/OFF. */
@@ -280,7 +314,7 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
     }
 
     public int crafterRecipeCount() {
-        return Math.clamp(data.get(DATA_CRAFTER_COUNT), 0, MachineCrafter.MAX_RECIPES);
+        return recipeResults.size();
     }
 
     /** Recipes the machine may hold (config). */
@@ -295,7 +329,12 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
 
     /** What recipe {@code index} makes; empty when it no longer exists in the loaded data. */
     public ItemStack crafterResult(int index) {
-        return slots.get(CRAFT_LIST_START + index).getItem();
+        return index >= 0 && index < recipeResults.size() ? recipeResults.get(index) : ItemStack.EMPTY;
+    }
+
+    /** Client side: the recipe list sent by the server ({@link CrafterRecipesPayload}). */
+    public void setRecipeResults(List<ItemStack> results) {
+        recipeResults = List.copyOf(results);
     }
 
     /** What the recipe grid makes; empty when it holds no accepted recipe. */
@@ -338,10 +377,17 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
 
     @Override
     protected boolean clickTierButton(Player player, int id) {
-        if (machine == null || machine.crafter() == null) {
+        if (machine == null) {
             return false;
         }
+        if (id == BUTTON_REPLANT) {
+            machine.toggleReplant();
+            return true;
+        }
         MachineCrafter crafter = machine.crafter();
+        if (crafter == null) {
+            return false;
+        }
         if (id == BUTTON_CRAFT_SET) {
             setCraft();
         } else if (id == BUTTON_CRAFT_TOGGLE) {
@@ -402,8 +448,8 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
 
     /**
      * Shift-click. Machine slots go to the player's inventory. Player items go into the machine where their slot rules
-     * accept them — plantables into the seed grid, soils into the soil grid, upgrades and the hoe into their slots —
-     * completing slots of the same item first; otherwise between inventory and hotbar. Never into the output buffer.
+     * accept them — plantables into the seed grid, soils into the soil grid, upgrades and the catalyst into their slots
+     * — completing slots of the same item first; otherwise between inventory and hotbar. Never into the output buffer.
      */
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
@@ -452,6 +498,18 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
         }
     }
 
+    /** The autocrafter's catalyst (a real item, e.g. the Master Infusion Crystal), shown in the crafter panel. */
+    private final class CatalystSlot extends ResourceHandlerSlot {
+        CatalystSlot(MachineInventory inputs, int index, int x, int y) {
+            super(inputs, inputs::set, index, x, y);
+        }
+
+        @Override
+        public boolean isActive() {
+            return crafterVisible;
+        }
+    }
+
     /** A cell of the recipe grid (item type only); active while the panel is open. */
     private final class CraftGridSlot extends GhostSlot {
         CraftGridSlot(Container container, int index, int x, int y) {
@@ -473,18 +531,6 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
         @Override
         public boolean isActive() {
             return crafterVisible;
-        }
-    }
-
-    /** One recipe's result, carried to the client for the list the screen draws itself; never active. */
-    private static final class RecipeListSlot extends DisplaySlot {
-        RecipeListSlot(Container container, int index) {
-            super(container, index, 0, 0);
-        }
-
-        @Override
-        public boolean isActive() {
-            return false;
         }
     }
 }

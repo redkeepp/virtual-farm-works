@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.machine.FaceMode;
+import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineCrafter;
 import com.virtualfarmworks.machine.MachineFilter;
 import com.virtualfarmworks.machine.MachineLayout;
@@ -25,6 +26,7 @@ import com.virtualfarmworks.menu.EntropicLayout;
 import com.virtualfarmworks.menu.FarmMatrixLayout;
 import com.virtualfarmworks.network.SetCrafterGridPayload;
 import com.virtualfarmworks.network.SetFilterGhostPayload;
+import com.virtualfarmworks.plant.VfwTags;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.MachineStatus;
 
@@ -34,6 +36,8 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
@@ -43,6 +47,7 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
@@ -75,8 +80,10 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     private final ItemStack waterGhost;
     private final ItemStack growthGhost;
     private final ItemStack cruxGhost;
-    private final ItemStack hoeGhost;
+    /** Placeholder of the catalyst slot: the first catalyst of the tag (the Master Infusion Crystal), or none. */
+    private final ItemStack catalystGhost;
     private final ItemStack crafterIcon = new ItemStack(Items.CRAFTING_TABLE);
+    private final ItemStack replantIcon = new ItemStack(Items.WHEAT_SEEDS);
     private boolean faceBoxOpen;
     private boolean filterBoxOpen;
     /** Smooths the 5-tick progress syncs into continuous movement (owner request, Starter step 8). */
@@ -101,7 +108,15 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         this.waterGhost = new ItemStack(ModItems.WATER_PROVIDER_UPGRADES.get(tier).get());
         this.growthGhost = new ItemStack(ModItems.GROWTH_SPEED_UPGRADES.get(tier).get());
         this.cruxGhost = new ItemStack(ModItems.CRUX_PROVIDER_UPGRADE.get());
-        this.hoeGhost = new ItemStack(Items.STONE_HOE);
+        this.catalystGhost = firstCatalyst();
+    }
+
+    /** The first item of {@code #virtualfarmworks:crafter_catalysts} (tags are synced to clients), or empty. */
+    private static ItemStack firstCatalyst() {
+        for (Holder<Item> item : BuiltInRegistries.ITEM.getTagOrEmpty(VfwTags.CRAFTER_CATALYSTS)) {
+            return new ItemStack(item);
+        }
+        return ItemStack.EMPTY;
     }
 
     // =================================================================================================================
@@ -174,8 +189,10 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     }
 
     /**
-     * The side column glued to the texture: "O" (face modes), the 6-cell upgrade block (4 Growth Speed, Crux, hoe),
-     * Fertilized Essence ON/OFF, harvest filter (half white, half black), autocrafter (crafting table icon), ON/OFF.
+     * The side column glued to the texture: "O" (face modes), the lightning box (energy use, tooltip only), the 5-cell
+     * upgrade block (4 Growth Speed, Crux), Fertilized Essence ON/OFF, replant (wheat seeds on green ON / red OFF, all
+     * grey when the config disables it), harvest filter (half white, half black), autocrafter (crafting table icon),
+     * ON/OFF.
      */
     private void extractSidePanel(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
         int outputTop = y0 + EntropicLayout.OUTPUT_BOX_TOP;
@@ -183,6 +200,15 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         extractPanelBox(graphics, x0, outputTop, 1,
                 outputActive ? FarmMatrixLayout.COLOR_BUTTON_ACTIVE : FarmMatrixLayout.COLOR_BACKGROUND);
         extractCellLabel(graphics, Component.literal("O"), x0, FarmMatrixLayout.cellY(outputTop, 0), themeColor);
+
+        int cellX = x0 + FarmMatrixLayout.PANEL_INTERIOR_X;
+        int energyTop = y0 + EntropicLayout.ENERGY_BOX_TOP;
+        extractPanelBox(graphics, x0, energyTop, 1, FarmMatrixLayout.COLOR_BACKGROUND);
+        int boltY = FarmMatrixLayout.cellY(energyTop, 0);
+        for (int[] row : EntropicLayout.BOLT_PIXELS) {
+            graphics.fill(cellX + row[1], boltY + row[0], cellX + row[2] + 1, boltY + row[0] + 1,
+                    EntropicLayout.COLOR_BOLT);
+        }
 
         extractPanelBox(graphics, x0, y0 + EntropicLayout.UPGRADE_BOX_TOP, EntropicLayout.UPGRADE_CELLS,
                 FarmMatrixLayout.COLOR_BACKGROUND);
@@ -193,9 +219,22 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
                 fertilized ? FarmMatrixLayout.COLOR_FERTILIZED_ON : FarmMatrixLayout.COLOR_FERTILIZED_OFF);
         extractCellLabel(graphics, onOff(fertilized), x0, FarmMatrixLayout.cellY(fertilizedTop, 0), 0xFFFFFFFF);
 
+        int replantTop = y0 + EntropicLayout.REPLANT_BUTTON_TOP;
+        int replantCellY = FarmMatrixLayout.cellY(replantTop, 0);
+        FarmMatrixBlockEntity.ReplantState replant = menu.replantState();
+        extractPanelBox(graphics, x0, replantTop, 1, switch (replant) {
+            case ON -> FarmMatrixLayout.COLOR_ON;
+            case OFF -> FarmMatrixLayout.COLOR_OFF;
+            case DISABLED -> EntropicLayout.COLOR_DISABLED;
+        });
+        graphics.fakeItem(replantIcon, cellX, replantCellY);
+        if (replant == FarmMatrixBlockEntity.ReplantState.DISABLED) {
+            graphics.fill(cellX, replantCellY, cellX + FarmMatrixLayout.CELL, replantCellY + FarmMatrixLayout.CELL,
+                    EntropicLayout.COLOR_DISABLED_COVER);
+        }
+
         int filterTop = y0 + EntropicLayout.FILTER_BUTTON_TOP;
         extractPanelBox(graphics, x0, filterTop, 1, FarmMatrixLayout.COLOR_BLACK);
-        int cellX = x0 + FarmMatrixLayout.PANEL_INTERIOR_X;
         int filterCellY = FarmMatrixLayout.cellY(filterTop, 0);
         graphics.fill(cellX, filterCellY, cellX + FarmMatrixLayout.CELL / 2, filterCellY + FarmMatrixLayout.CELL,
                 FarmMatrixLayout.COLOR_WHITE);
@@ -326,8 +365,9 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     // =================================================================================================================
 
     /**
-     * The panel over the dimmed grids (see the class doc): owner texture, SET CRAFT and CRAFT: ON/OFF, recipe list.
-     * The recipe grid and its result are menu slots, drawn by vanilla on top.
+     * The panel over the dimmed grids (see the class doc): owner texture, the catalyst slot's frame (drawn here, it is
+     * not on the texture) with its placeholder, SET CRAFT and CRAFT: ON/OFF, recipe list. The recipe grid, its result
+     * and the catalyst are menu slots, drawn by vanilla on top.
      */
     private void extractCrafter(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
         graphics.fill(x0 + EntropicLayout.GRIDS_X0, y0 + EntropicLayout.GRIDS_Y0, x0 + EntropicLayout.GRIDS_X1,
@@ -335,15 +375,15 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         graphics.blit(RenderPipelines.GUI_TEXTURED, crafterTexture, x0 + EntropicLayout.CRAFTER_X,
                 y0 + EntropicLayout.CRAFTER_Y, 0.0F, 0.0F, EntropicLayout.CRAFTER_WIDTH, EntropicLayout.CRAFTER_HEIGHT,
                 EntropicLayout.CRAFTER_TEXTURE_WIDTH, EntropicLayout.CRAFTER_TEXTURE_HEIGHT);
+        // Catalyst slot, glued below the result (owner): an 18x18 frame like the texture's slots, 1 px around the item.
+        graphics.outline(x0 + EntropicLayout.CRAFTER_CATALYST_X - 1, y0 + EntropicLayout.CRAFTER_CATALYST_Y - 1,
+                FarmMatrixLayout.CELL + 2, FarmMatrixLayout.CELL + 2, EntropicLayout.COLOR_CRAFTER_FRAME);
+        extractGhost(graphics, x0, y0, LAYOUT.catalystSlot(), catalystGhost);
 
         Component set = Component.translatable("gui.virtualfarmworks.crafter.set");
         boolean on = menu.isCrafterEnabled();
         Component toggle = Component.translatable("gui.virtualfarmworks.crafter.toggle", onOff(on));
-        // One text scale for both buttons, from the widest label they can show, so they always look alike.
-        int widest = Math.max(font.width(set), Math.max(font.width(Component.translatable(
-                "gui.virtualfarmworks.crafter.toggle", onOff(true))), font.width(Component.translatable(
-                "gui.virtualfarmworks.crafter.toggle", onOff(false)))));
-        float scale = Math.min(1.0F, (EntropicLayout.CRAFTER_BUTTON_WIDTH - 2.0F) / widest);
+        float scale = EntropicLayout.CRAFTER_BUTTON_TEXT_SCALE;
         extractCrafterButton(graphics, x0, y0 + EntropicLayout.CRAFTER_SET_Y, set, canSetCraft()
                 ? EntropicLayout.COLOR_CRAFTER_TEXT : EntropicLayout.COLOR_CRAFTER_TEXT_DISABLED, scale, mouseX, mouseY);
         extractCrafterButton(graphics, x0, y0 + EntropicLayout.CRAFTER_TOGGLE_Y, toggle, on
@@ -444,12 +484,12 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     }
 
     /**
-     * 40% placeholders in the empty upgrade, crux, hoe and water slots, like the Starter. The 120 grid slots get none:
+     * 40% placeholders in the empty upgrade, crux and water slots, like the Starter (the catalyst gets its own in the
+     * crafter panel). The 120 grid slots get none:
      * a full grid of faded seeds and farmland would hide what is really planted.
      */
     private void extractGhosts(GuiGraphicsExtractor graphics, int x0, int y0) {
         extractGhost(graphics, x0, y0, LAYOUT.waterSlot(), waterGhost);
-        extractGhost(graphics, x0, y0, LAYOUT.hoeSlot(), hoeGhost);
         for (int i = 0; i < 4; i++) {
             extractGhost(graphics, x0, y0, LAYOUT.growthSlot(i), growthGhost);
         }
@@ -458,7 +498,7 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
 
     private void extractGhost(GuiGraphicsExtractor graphics, int x0, int y0, int menuIndex, ItemStack ghost) {
         Slot slot = menu.slots.get(menuIndex);
-        if (slot.hasItem() || !slot.isActive()) {
+        if (ghost.isEmpty() || slot.hasItem() || !slot.isActive()) {
             return;
         }
         int x = x0 + slot.x;
@@ -631,6 +671,20 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
             crafterTooltip(mouseX, mouseY, lines);
         } else if (isOverBox(EntropicLayout.OUTPUT_BOX_TOP, mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.output_sides"));
+        } else if (isOverBox(EntropicLayout.ENERGY_BOX_TOP, mouseX, mouseY)) {
+            lines.add(Component.translatable("gui.virtualfarmworks.energy_per_plot", menu.energyPerPlot()));
+            lines.add(Component.translatable("gui.virtualfarmworks.energy_using", menu.energyUse()));
+        } else if (isOverBox(EntropicLayout.REPLANT_BUTTON_TOP, mouseX, mouseY)) {
+            FarmMatrixBlockEntity.ReplantState replant = menu.replantState();
+            lines.add(Component.translatable("gui.virtualfarmworks.replant",
+                    replant == FarmMatrixBlockEntity.ReplantState.DISABLED
+                            ? Component.translatable("gui.virtualfarmworks.disabled")
+                            : onOff(replant == FarmMatrixBlockEntity.ReplantState.ON)));
+            lines.add(Component.translatable("gui.virtualfarmworks.replant.hint"));
+            if (replant == FarmMatrixBlockEntity.ReplantState.DISABLED) {
+                lines.add(Component.translatable("gui.virtualfarmworks.replant.disabled")
+                        .withColor(0xFF000000 | EntropicLayout.COLOR_CRAFTER_OFF));
+            }
         } else if (isOverBox(EntropicLayout.POWER_BOX_TOP, mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.power", onOff(menu.isEnabled())));
         } else if (isOverBox(EntropicLayout.FERTILIZED_BOX_TOP, mouseX, mouseY)) {
@@ -662,7 +716,6 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
             lines.add(Component.translatable("gui.virtualfarmworks.filter.next"));
         } else if (isOverEnergyBar(mouseX, mouseY)) {
             lines.add(Component.translatable("gui.virtualfarmworks.energy", menu.energy(), menu.energyCapacity()));
-            lines.add(Component.translatable("gui.virtualfarmworks.energy_use", menu.energyUse()));
         } else if (hoveredSlot != null && menu.isFilterSlotIndex(hoveredSlot.index)) {
             lines.add(Component.translatable("gui.virtualfarmworks.filter.slot"));
             lines.add(Component.translatable("gui.virtualfarmworks.filter.slot_remove"));
@@ -698,6 +751,9 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
         } else if (hoveredSlot != null && isCraftGridSlot(hoveredSlot.index) && menu.getCarried().isEmpty()) {
             lines.add(Component.translatable("gui.virtualfarmworks.crafter.grid"));
             lines.add(Component.translatable("gui.virtualfarmworks.crafter.grid.jei"));
+        } else if (hoveredSlot != null && hoveredSlot.index == LAYOUT.catalystSlot() && menu.getCarried().isEmpty()) {
+            lines.add(Component.translatable("gui.virtualfarmworks.slot.catalyst"));
+            lines.add(Component.translatable("gui.virtualfarmworks.slot.catalyst.hint").withColor(0xFFAAAAAA));
         }
     }
 
@@ -713,8 +769,8 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
             lines.add(Component.translatable("gui.virtualfarmworks.slot.soil_grid", slotLimit(index)));
         } else if (index == LAYOUT.waterSlot()) {
             lines.add(Component.translatable("gui.virtualfarmworks.slot.water_provider"));
-        } else if (index == LAYOUT.hoeSlot()) {
-            lines.add(Component.translatable("gui.virtualfarmworks.slot.hoe"));
+        } else if (index == LAYOUT.catalystSlot()) {
+            lines.add(Component.translatable("gui.virtualfarmworks.slot.catalyst"));
         } else if (index == LAYOUT.cruxSlot()) {
             lines.add(Component.translatable("gui.virtualfarmworks.slot.crux"));
         } else {
@@ -787,6 +843,15 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
             if (isOverBox(EntropicLayout.FERTILIZED_BOX_TOP, mouseX, mouseY)) {
                 sendButton(AbstractFarmMatrixMenu.BUTTON_FERTILIZED);
                 return true;
+            }
+            if (isOverBox(EntropicLayout.REPLANT_BUTTON_TOP, mouseX, mouseY)) {
+                if (menu.replantState() != FarmMatrixBlockEntity.ReplantState.DISABLED) {
+                    sendButton(EntropicFarmMatrixMenu.BUTTON_REPLANT);
+                }
+                return true;
+            }
+            if (isOverBox(EntropicLayout.ENERGY_BOX_TOP, mouseX, mouseY)) {
+                return true; // information only (owner: "not a button")
             }
             if (faceBoxOpen) {
                 RelativeSide side = faceAt(mouseX, mouseY);

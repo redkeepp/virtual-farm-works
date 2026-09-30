@@ -74,20 +74,36 @@ button and the ON/OFF button (owner, 2026-09-29):
 | CRAFT: ON/OFF button | (7,84)-(58,92) |
 | Recipe list | (85,7)-(189,93) |
 
-## Decisions (owner answers and Claude's recommendations the owner did not change)
+## Decisions (owner answers of 2026-09-29, and Claude's recommendations the owner accepted)
 
-- Plot groups with a problem (Claude, owner silent): the status line shows RUNNING while at least one group grows
-  (otherwise the problem of the first group holding a seed); each group's own problem shows on its seed slot (red
-  tint, tooltip). A group that cannot grow holds no plots meanwhile and rejoins as PENDING (next cycle) once fixed, so
-  it never rides a cycle it did not grow in.
-- Soil speed bonus with many soils and one bar (Claude, owner silent): the plot-weighted average of the groups' soil
-  bonuses (all Supremium Farmland = +35%, half of it = +17.5%).
-- Hoe (Claude, owner silent): a hoe slot in the side column; one hoe serves every group, as on the Starter.
-- Replant (Claude, owner silent): a produced plantable is planted only in plot groups that already hold that plantable
-  and still have free soil (predictable: 1 Diamond Seed + 64 Supremium Farmland fills itself); the rest is output.
-- Crafter ingredients (Claude, owner silent): only from the harvest, with chains (a result that is an ingredient of
-  another recipe goes on crafting, e.g. essence tiers).
-- GUI size: kept as drawn (296x320); at the automatic GUI scale on a 1080p screen the machine needs GUI scale 3.
+- Plot groups with a problem (owner): "the machine only runs when all soils are valid; if one is not valid, it does
+  not run". Every group holding a plantable must be able to grow: one invalid soil, a plantable without its soil or a
+  missing crux stops the whole machine with that problem as its status, and the bar freezes (every group keeps its
+  plots, as on the Starter). A soil alone is not a problem (waiting plots). Each group's own problem still shows on
+  its seed slot (red tint, tooltip).
+- Soil speed bonus with many soils and one bar (Claude; owner: "it can be"): the plot-weighted average of the groups'
+  soil bonuses (all Supremium Farmland = +35%, half of it = +17.5%).
+- Hoe (owner): "there is no hoe here; it does not matter if the plantable only grows on tilled soil, in this machine
+  the hoe is unnecessary, ignore it completely". A plant that needs farmland grows on tillable soil (dirt, grass...)
+  without a hoe; no hoe slot.
+- Replant (owner, option (b)): "the seed simply looks for a soil that works for it; if none works or none is free, it
+  is output". A produced plantable fills the free soil of the groups already holding it, then empty seed slots above a
+  soil it grows on (it never starts a group that could not grow at once). Each machine has a replant button (owner:
+  wheat seeds on green ON / red OFF, like ON/OFF); with `machines.entropic.replant = false` in the config the button is
+  grey, DISABLED.
+- Crafter ingredients (owner: "only from the harvest"), with chains (a result that is an ingredient of another recipe
+  goes on crafting, e.g. essence tiers). Exception (owner): the catalyst slot below the result holds the Master
+  Infusion Crystal, which recipes use without spending it (see "Autocrafter details").
+- Crafter panel (owner): a modal over the machine GUI, opened by the crafting-table button between the filter and
+  ON/OFF.
+- Recipes (owner): up to 100 (config `crafterRecipes`, default 100), the list growing only as recipes are added.
+- GUI size: kept as drawn (296x320) for now (owner: "let's test it like this and you change it later"); at the
+  automatic GUI scale on a 1080p screen the machine needs GUI scale 3.
+- Owner's changes after the first in-game test (2026-09-29): SET CRAFT and CRAFT: ON/OFF in smaller letters; the FE
+  bar's tooltip only "current/total" (a source keeping up shows the buffer full); a lightning box right below the "O"
+  (not a button) whose tooltip says "Uses X FE/t per active plot" and "Using X FE/t" (0 while the machine does not
+  grow); an INPUT face also pulls from an inventory glued to it (a chest of dirt feeds the machine, like the output
+  pushes); the five info lines one pixel lower.
 - Assumptions announced to the owner (not objected to): same cycle as the Starter (30 s), production x1, Water
   Provider, 4 Growth Speed Upgrades and Crux Provider in the side column, Fertilized Essence switch, harvest filter,
   on/off; theme color red (the texture's border); capacity = 60 x min(seeds per slot, soils per slot); every planted
@@ -101,11 +117,17 @@ button and the ON/OFF button (owner, 2026-09-29):
   most 8 recipes (config), incomplete ingredients wait hidden (back to the output when CRAFT turns off, deleted when
   the machine breaks); one click loads a recipe into the table, SET CRAFT replaces the selected recipe or adds a new
   one, double click deletes; groups with the same seed and soil are harvested together and a big harvest spreads over
-  a few ticks; no machine recipe until the owner defines one.
+  a few ticks; no machine recipe until the owner defines one. (The "at most 8 recipes" of this list became 100, owner.)
 - "Crafted" items for OUTPUT / OUTPUT CRAFTED (Claude): an output item counts as crafted when it is the result of one
   of the machine's crafter recipes.
 
-### Autocrafter details (Claude, 2026-09-29, while building stage 4; not yet seen by the owner)
+### Autocrafter details (Claude, 2026-09-29, while building stage 4; the owner tested them in game)
+
+- Catalyst slot (owner): below and glued to the result slot, accepting only what
+  `#virtualfarmworks:crafter_catalysts` lists (Mystical Agriculture's Master Infusion Crystal), so Prudentium,
+  Tertium... essences craft from harvested Inferium. A cell no harvested item fits takes the catalyst; a craft that
+  would not give it back whole never happens, so it is never spent, worn or output. It is a real item of the machine
+  (drops when the machine breaks); the slot sits where the Starter keeps its hoe, so saves stay compatible.
 
 - CRAFT is ON by default: a recipe set with SET CRAFT works at once (the switch sits right under SET CRAFT).
 - The grid decides WHICH recipe; each cell then accepts any item that recipe accepts there, like a real crafting table
@@ -150,4 +172,9 @@ button and the ON/OFF button (owner, 2026-09-29):
 - Stage 5 (done): six Entropic rows in `gametest/LoadBenchmark`; results in `docs/history.md` (provisional: measured
   with games open). Growing with 3,840 plots costs 0.029 us per tick (the plot count does not matter); a busy
   3,840-plot farm, harvests included, costs about a quarter of the 60 equivalent Starters.
-- Waiting for the owner: in-game test, a clean benchmark run, and the machine's crafting recipe.
+- Owner's answers and first in-game test (2026-09-29, done): all groups must be valid, no hoe, replant option (b)
+  with a button per machine, up to 100 recipes sent as a dynamic list (`network/CrafterRecipesPayload`), catalyst slot,
+  FE shown full while a source keeps up, lightning box, INPUT faces pull from glued inventories, smaller button text,
+  info lines one pixel lower. Game tests `entropic_groups_must_all_be_valid`, `entropic_input_face_pulls_from_chests`,
+  `crafter_uses_the_catalyst`; the replant test covers option (b), the switch and the config.
+- Waiting for the owner: in-game test of these changes, a clean benchmark run, and the machine's crafting recipe.

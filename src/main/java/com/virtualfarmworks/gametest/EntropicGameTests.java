@@ -1,7 +1,7 @@
 /*
- * EntropicGameTests — game tests of the Entropic Farm Matrix (owner spec 2026-09-29): 60 plot groups with their own
- * problems, waiting plots, FE consumption and MISSING FE, face modes with pipe input into the grids, and groups with
- * the same plant harvested together.
+ * EntropicGameTests — game tests of the Entropic Farm Matrix (owner spec 2026-09-29): 60 plot groups that must all be
+ * valid, waiting plots, FE consumption and MISSING FE, face modes with pipe and chest input into the grids, replant,
+ * the menu, and groups with the same plant harvested together.
  */
 package com.virtualfarmworks.gametest;
 
@@ -25,6 +25,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.energy.EnergyHandler;
@@ -39,11 +41,13 @@ final class EntropicGameTests {
     }
 
     /**
-     * Each group has its own problem while the others grow: wheat on farmland grows, wheat on dirt waits for a hoe (and
-     * holds no plots meanwhile), a sapling grows on dirt, a soil alone is waiting. Plots, waiting plots and FE per tick
-     * follow; the missing hoe fixed, that group joins as PENDING.
+     * Owner (2026-09-29): the Entropic runs only while every group holding a plantable can grow, and it needs no hoe.
+     * Wheat on farmland, wheat on dirt (tilled for free) and a sapling on dirt grow; a soil alone is waiting plots.
+     * One group with an invalid soil, or a plantable without its soil, stops the whole machine with that problem (the
+     * bar freezes); fixed, it runs again.
      */
-    static void groupsHaveTheirOwnProblems(GameTestHelper helper) {
+    static void groupsMustAllBeValid(GameTestHelper helper) {
+        var level = helper.getLevel();
         FarmMatrixBlockEntity machine = placeMachine(helper);
         MachineInventory inputs = machine.inputs();
         put(inputs, LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
@@ -56,21 +60,70 @@ final class EntropicGameTests {
         machine.revalidate();
 
         check(helper, machine.groupStatus(0) == MachineStatus.RUNNING, "group 0 must grow: " + machine.groupStatus(0));
-        check(helper, machine.groupStatus(1) == MachineStatus.MISSING_HOE, "group 1 needs a hoe: " + machine.groupStatus(1));
+        check(helper, machine.groupStatus(1) == MachineStatus.RUNNING, "wheat on dirt needs no hoe here: "
+                + machine.groupStatus(1));
         check(helper, machine.groupStatus(2) == MachineStatus.RUNNING, "group 2 must grow: " + machine.groupStatus(2));
         check(helper, machine.groupStatus(3) == MachineStatus.MISSING_SEED, "group 3 is only soil");
-        check(helper, machine.totalPlots() == 13, "10 wheat + 3 saplings, the blocked group holds none: "
-                + machine.totalPlots());
-        check(helper, machine.waitingPlots() == 29, "5 + 17 + 7 soils wait: " + machine.waitingPlots());
+        check(helper, machine.totalPlots() == 18, "10 + 5 wheat + 3 saplings: " + machine.totalPlots());
+        check(helper, machine.waitingPlots() == 24, "17 + 7 soils wait: " + machine.waitingPlots());
         check(helper, machine.status() == MachineStatus.MISSING_FE, "no energy yet: " + machine.status());
-        check(helper, machine.energyPerTick() == 13L * 90, "90 FE per plot per tick: " + machine.energyPerTick());
+        check(helper, machine.energyPerTick() == 18L * 90, "90 FE per plot per tick: " + machine.energyPerTick());
+        fillEnergy(machine);
+        machine.serverTick(level);
+        check(helper, machine.status() == MachineStatus.RUNNING && machine.progress() > 0.0, "with energy it runs: "
+                + machine.status());
 
-        put(inputs, LAYOUT.hoeSlot(), Items.IRON_HOE, 1);
-        machine.revalidate();
-        check(helper, machine.groupStatus(1) == MachineStatus.RUNNING, "the hoe fixes group 1");
-        check(helper, machine.totalPlots() == 18 && machine.pendingPlots() == 5,
-                "group 1 joins for the next cycle: " + machine.totalPlots() + " plots, " + machine.pendingPlots()
-                        + " pending");
+        // One invalid group stops everything.
+        put(inputs, LAYOUT.seedSlot(4), Items.WHEAT_SEEDS, 4);
+        put(inputs, LAYOUT.soilSlot(4), Items.SOUL_SAND, 4);
+        double before = machine.progress();
+        fillEnergy(machine);
+        machine.serverTick(level);
+        machine.serverTick(level);
+        check(helper, machine.groupStatus(4) == MachineStatus.INVALID_SOIL
+                && machine.status() == MachineStatus.INVALID_SOIL, "one invalid group stops the machine: "
+                + machine.status());
+        check(helper, machine.progress() == before, "the bar freezes meanwhile");
+
+        // Fixed: runs again. A plantable without its soil stops it as well.
+        put(inputs, LAYOUT.soilSlot(4), Items.FARMLAND, 4);
+        put(inputs, LAYOUT.seedSlot(5), Items.CARROT, 3);
+        machine.serverTick(level);
+        check(helper, machine.status() == MachineStatus.MISSING_SOIL, "a plantable without soil stops it: "
+                + machine.status());
+        inputs.set(LAYOUT.seedSlot(5), ItemResource.EMPTY, 0);
+        fillEnergy(machine);
+        machine.serverTick(level);
+        check(helper, machine.status() == MachineStatus.RUNNING && machine.progress() > before,
+                "all groups valid again: it runs, got " + machine.status());
+        helper.succeed();
+    }
+
+    /**
+     * Owner (2026-09-29): an INPUT face also pulls from an inventory glued to it, like the output pushes. A chest of
+     * seeds, soils and a diamond above the machine: seeds and soils go in, paired; the diamond stays.
+     */
+    static void inputFacePullsFromChests(GameTestHelper helper) {
+        var level = helper.getLevel();
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        helper.setBlock(MACHINE.above(), Blocks.CHEST);
+        ChestBlockEntity chest = helper.getBlockEntity(MACHINE.above(), ChestBlockEntity.class);
+        chest.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 30));
+        chest.setItem(1, new ItemStack(Items.FARMLAND, 30));
+        chest.setItem(2, new ItemStack(Items.DIAMOND, 5));
+        while (machine.faceMode(RelativeSide.TOP) != FaceMode.INPUT) {
+            machine.cycleFaceMode(RelativeSide.TOP, true);
+        }
+        for (int tick = 0; tick < 25; tick++) { // one transfer window (output.autoExportIntervalTicks, 20)
+            machine.serverTick(level);
+        }
+        MachineInventory inputs = machine.inputs();
+        check(helper, inputs.getResource(LAYOUT.seedSlot(0)).is(Items.WHEAT_SEEDS)
+                && inputs.getAmountAsInt(LAYOUT.seedSlot(0)) == 30, "the seeds are pulled into the seed grid");
+        check(helper, inputs.getResource(LAYOUT.soilSlot(0)).is(Items.FARMLAND)
+                && inputs.getAmountAsInt(LAYOUT.soilSlot(0)) == 30, "the soils are pulled under them");
+        check(helper, chest.getItem(0).isEmpty() && chest.getItem(1).isEmpty() && chest.getItem(2).is(Items.DIAMOND)
+                && chest.getItem(2).getCount() == 5, "only what the grids accept leaves the chest");
         helper.succeed();
     }
 
@@ -185,7 +238,7 @@ final class EntropicGameTests {
         FarmMatrixBlockEntity machine = placeMachine(helper);
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         EntropicFarmMatrixMenu menu = new EntropicFarmMatrixMenu(1, player.getInventory(), machine);
-        check(helper, menu.slots.size() == 270, "127 inputs + 24 outputs + 36 player + 9 filter + 74 crafter = 270, got "
+        check(helper, menu.slots.size() == 206, "127 inputs + 24 outputs + 36 player + 9 filter + 10 crafter = 206, got "
                 + menu.slots.size());
 
         // Shift-click from the player: seeds to the seed grid, soils to the soil grid.
@@ -212,27 +265,36 @@ final class EntropicGameTests {
         menu.broadcastChanges();
         menu.clickMenuButton(player, AbstractFarmMatrixMenu.BUTTON_FERTILIZED); // refresh
         check(helper, menu.plotCapacity() == 60L * 64, "capacity 3840, got " + menu.plotCapacity());
-        check(helper, menu.groupStatus(0) == MachineStatus.MISSING_HOE, "wheat on dirt needs a hoe: "
+        check(helper, menu.groupStatus(0) == MachineStatus.RUNNING, "wheat on dirt grows here without a hoe: "
                 + menu.groupStatus(0));
-        check(helper, menu.waitingPlots() == 20, "20 dirt wait for the hoe: " + menu.waitingPlots());
+        check(helper, menu.waitingPlots() == 0 && menu.plantedPlots() == 20, "20 plots, no soil waiting: "
+                + menu.plantedPlots() + " / " + menu.waitingPlots());
+        check(helper, menu.energyPerPlot() == 90, "FE per plot synced: " + menu.energyPerPlot());
+        check(helper, menu.replantState() == FarmMatrixBlockEntity.ReplantState.ON, "replant ON by default");
+        menu.clickMenuButton(player, EntropicFarmMatrixMenu.BUTTON_REPLANT);
+        check(helper, !machine.isReplanting() && menu.replantState() == FarmMatrixBlockEntity.ReplantState.OFF,
+                "the replant button switches it off");
         check(helper, menu.energyCapacity() == 60L * 64 * 90 * 3, "energy capacity synced: " + menu.energyCapacity());
         check(helper, menu.faceMode(RelativeSide.LEFT) == FaceMode.OUTPUT_ALL, "face mode synced");
         helper.succeed();
     }
 
     /**
-     * Replant (owner's spec): the extra seeds of a harvest are planted into the free soil of the groups that hold that
-     * seed, even when the filter blacklists them, and they grow from the next cycle; a group without free soil takes
-     * none. With replant off in the config the seeds go to the output.
+     * Replant (owner's spec; option (b), 2026-09-29): the extra seeds of a harvest go first to the free soil of the
+     * groups holding that seed, then to empty seed slots above a soil they grow on (group 3's soul sand is never used),
+     * even when the filter blacklists them, and they grow from the next cycle. Each machine has a switch; with it off,
+     * or with replanting off in the config (button DISABLED), the seeds go to the output.
      */
     static void replantsExtraSeeds(GameTestHelper helper) {
         var level = helper.getLevel();
         FarmMatrixBlockEntity machine = placeMachine(helper);
         MachineInventory inputs = machine.inputs();
         put(inputs, LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
-        put(inputs, LAYOUT.soilSlot(0), Items.FARMLAND, 64);
+        put(inputs, LAYOUT.soilSlot(0), Items.FARMLAND, 12);
         put(inputs, LAYOUT.seedSlot(1), Items.WHEAT_SEEDS, 5);
         put(inputs, LAYOUT.soilSlot(1), Items.FARMLAND, 5);
+        put(inputs, LAYOUT.soilSlot(2), Items.FARMLAND, 64);
+        put(inputs, LAYOUT.soilSlot(3), Items.SOUL_SAND, 64);
         noFaces(machine);
         machine.filter().set(0, Items.WHEAT_SEEDS); // blacklist: replanting still comes first (owner)
         machine.revalidate();
@@ -241,33 +303,55 @@ final class EntropicGameTests {
         harvestNow(machine, level); // several batches: the first ones measure the yield
 
         int group0 = inputs.getAmountAsInt(LAYOUT.seedSlot(0));
+        int group2 = inputs.getAmountAsInt(LAYOUT.seedSlot(2));
         check(helper, count(machine, Items.WHEAT) == 15, "15 wheat plots give 15 wheat: " + count(machine, Items.WHEAT));
-        check(helper, group0 > 10, "extra seeds are replanted into group 0's free soil: " + group0);
+        check(helper, group0 == 12, "group 0's 2 free soils are filled first: " + group0);
         check(helper, inputs.getAmountAsInt(LAYOUT.seedSlot(1)) == 5, "group 1 has no free soil");
+        check(helper, group2 > 0 && inputs.getResource(LAYOUT.seedSlot(2)).is(Items.WHEAT_SEEDS),
+                "the rest starts a group on the empty seed slot above farmland: " + group2);
+        check(helper, inputs.getResource(LAYOUT.seedSlot(3)).isEmpty(), "wheat never goes above soul sand");
         check(helper, count(machine, Items.WHEAT_SEEDS) == 0, "no seed reaches the output (all found free soil)");
-        check(helper, machine.activePlots() == group0 + 5 && machine.pendingPlots() == 0,
+        check(helper, machine.status() != MachineStatus.INVALID_SOIL, "replanting never stops the machine");
+        check(helper, machine.activePlots() == 12 + 5 + group2 && machine.pendingPlots() == 0,
                 "replanted seeds grow from the next cycle: " + machine.activePlots() + " active, "
                         + machine.pendingPlots() + " pending");
 
-        // Replant off (config restored in the same tick: tests of a batch run together).
+        // The machine's switch off: the seeds go to the output.
         FarmMatrixBlockEntity other = placeMachineAt(helper, new BlockPos(2, 0, 0));
         MachineInventory otherInputs = other.inputs();
         put(otherInputs, LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
         put(otherInputs, LAYOUT.soilSlot(0), Items.FARMLAND, 64);
         noFaces(other);
-        var replant = com.virtualfarmworks.config.VfwServerConfig.machine(other.tier()).replant;
+        other.revalidate();
+        other.toggleReplant();
+        check(helper, other.replantState() == FarmMatrixBlockEntity.ReplantState.OFF, "the switch turns it off");
+        fillEnergy(other);
+        other.setProgressForTesting(1.0);
+        harvestNow(other, level);
+        check(helper, otherInputs.getAmountAsInt(LAYOUT.seedSlot(0)) == 10, "switch off: nothing is planted");
+        check(helper, count(other, Items.WHEAT_SEEDS) > 0, "switch off: extra seeds go to the output");
+
+        // Replanting off in the config: DISABLED, and the switch cannot turn it on (config restored in the same tick:
+        // tests of a batch run together).
+        FarmMatrixBlockEntity third = placeMachineAt(helper, new BlockPos(4, 0, 0));
+        put(third.inputs(), LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
+        put(third.inputs(), LAYOUT.soilSlot(0), Items.FARMLAND, 64);
+        noFaces(third);
+        var replant = com.virtualfarmworks.config.VfwServerConfig.machine(third.tier()).replant;
         boolean configured = replant.get();
         try {
             replant.set(false);
-            other.revalidate();
-            fillEnergy(other);
-            other.setProgressForTesting(1.0);
-            harvestNow(other, level);
+            third.revalidate();
+            check(helper, third.replantState() == FarmMatrixBlockEntity.ReplantState.DISABLED, "config off: DISABLED");
+            third.toggleReplant();
+            fillEnergy(third);
+            third.setProgressForTesting(1.0);
+            harvestNow(third, level);
         } finally {
             replant.set(configured);
         }
-        check(helper, otherInputs.getAmountAsInt(LAYOUT.seedSlot(0)) == 10, "replant off: nothing is planted");
-        check(helper, count(other, Items.WHEAT_SEEDS) > 0, "replant off: extra seeds go to the output");
+        check(helper, third.inputs().getAmountAsInt(LAYOUT.seedSlot(0)) == 10, "config off: nothing is planted");
+        check(helper, count(third, Items.WHEAT_SEEDS) > 0, "config off: extra seeds go to the output");
         helper.succeed();
     }
 

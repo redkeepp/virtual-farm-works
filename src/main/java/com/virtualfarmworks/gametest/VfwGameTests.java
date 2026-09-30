@@ -101,7 +101,8 @@ public final class VfwGameTests {
             test("plantables_machine_without_soil", PlantablesGameTests::machineWithoutSoil, 40),
             test("plantables_machine_grows_trees", PlantablesGameTests::machineGrowsTrees, 40),
             // Entropic Farm Matrix (owner spec 2026-09-29)
-            test("entropic_groups_have_their_own_problems", EntropicGameTests::groupsHaveTheirOwnProblems, 20),
+            test("entropic_groups_must_all_be_valid", EntropicGameTests::groupsMustAllBeValid, 20),
+            test("entropic_input_face_pulls_from_chests", EntropicGameTests::inputFacePullsFromChests, 20),
             test("entropic_energy_runs_the_machine", EntropicGameTests::energyRunsTheMachine, 20),
             test("entropic_faces_and_pipe_input", EntropicGameTests::facesAndPipeInput, 20),
             test("entropic_groups_harvest_together", EntropicGameTests::groupsHarvestTogether, 40),
@@ -110,7 +111,8 @@ public final class VfwGameTests {
             // Entropic autocrafter (owner spec 2026-09-29)
             test("crafter_plans", CrafterGameTests::crafterPlans, 20),
             test("crafter_crafts_the_harvest", CrafterGameTests::crafterCraftsTheHarvest, 20),
-            test("crafter_menu_works", CrafterGameTests::crafterMenuWorks, 20));
+            test("crafter_menu_works", CrafterGameTests::crafterMenuWorks, 20),
+            test("crafter_uses_the_catalyst", CrafterGameTests::crafterUsesTheCatalyst, 20));
 
     /**
      * Load benchmark: registered as a test ONLY in the {@code benchmark} run ({@code gradlew runBenchmark}, which sets

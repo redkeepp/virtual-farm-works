@@ -9,6 +9,7 @@ package com.virtualfarmworks.gametest;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
 import com.virtualfarmworks.machine.FaceMode;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineCrafter;
@@ -22,9 +23,11 @@ import com.virtualfarmworks.sim.DropTally;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerInput;
@@ -59,7 +62,7 @@ final class CrafterGameTests {
         // Chain, listed backwards: ladders (7 sticks -> 3) first, sticks from bamboo (2 -> 1) second.
         setRecipes(helper, machine, grid(Items.STICK, NONE, Items.STICK, Items.STICK, Items.STICK, Items.STICK,
                 Items.STICK, NONE, Items.STICK), grid(Items.BAMBOO, NONE, NONE, Items.BAMBOO));
-        MachineCrafter.Plan plan = crafter.plan(drops(Items.BAMBOO, 90), level, 1024);
+        MachineCrafter.Plan plan = crafter.plan(drops(Items.BAMBOO, 90), level, 1024, ItemResource.EMPTY);
         check(helper, amount(plan.output(), Items.LADDER) == 18, "90 bamboo -> 45 sticks -> 18 ladders, got "
                 + amount(plan.output(), Items.LADDER));
         check(helper, amount(plan.output(), Items.STICK) == 0 && waiting(plan, Items.STICK) == 3,
@@ -70,7 +73,7 @@ final class CrafterGameTests {
 
         // A recipe set with oak planks also takes birch planks, like a crafting table.
         setRecipes(helper, machine, grid(Items.OAK_PLANKS, NONE, NONE, Items.OAK_PLANKS));
-        plan = crafter.plan(drops(Items.BIRCH_PLANKS, 4), level, 1024);
+        plan = crafter.plan(drops(Items.BIRCH_PLANKS, 4), level, 1024, ItemResource.EMPTY);
         check(helper, amount(plan.output(), Items.STICK) == 8, "4 birch planks -> 8 sticks, got "
                 + amount(plan.output(), Items.STICK));
 
@@ -78,21 +81,21 @@ final class CrafterGameTests {
         List<ItemStack> nineIngots = grid(Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT,
                 Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT, Items.IRON_INGOT);
         setRecipes(helper, machine, nineIngots, grid(Items.IRON_BLOCK));
-        plan = crafter.plan(drops(Items.IRON_INGOT, 20), level, 1024);
+        plan = crafter.plan(drops(Items.IRON_INGOT, 20), level, 1024, ItemResource.EMPTY);
         check(helper, amount(plan.output(), Items.IRON_BLOCK) == 2 && amount(plan.output(), Items.IRON_INGOT) == 0
                 && waiting(plan, Items.IRON_INGOT) == 2, "20 ingots -> 2 blocks out, 2 ingots wait; got "
                 + plan.output() + " / " + plan.buffer());
 
         // Remainders go out with the result.
         setRecipes(helper, machine, grid(Items.HONEY_BOTTLE));
-        plan = crafter.plan(drops(Items.HONEY_BOTTLE, 2), level, 1024);
+        plan = crafter.plan(drops(Items.HONEY_BOTTLE, 2), level, 1024, ItemResource.EMPTY);
         check(helper, amount(plan.output(), Items.SUGAR) == 6 && amount(plan.output(), Items.GLASS_BOTTLE) == 2,
                 "2 honey bottles -> 6 sugar + 2 glass bottles, got " + plan.output());
 
         // An ingredient whose partner never comes waits up to the limit; items no recipe uses pass through.
         setRecipes(helper, machine, grid(Items.WHEAT, Items.COCOA_BEANS, Items.WHEAT));
         List<DropTally.Entry<ItemResource>> harvest = List.of(entry(Items.WHEAT, 20), entry(Items.WHEAT_SEEDS, 5));
-        plan = crafter.plan(harvest, level, 5);
+        plan = crafter.plan(harvest, level, 5, ItemResource.EMPTY);
         check(helper, waiting(plan, Items.WHEAT) == 5 && amount(plan.output(), Items.WHEAT) == 15
                 && amount(plan.output(), Items.WHEAT_SEEDS) == 5, "5 wheat wait (limit), 15 go out, seeds pass; got "
                 + plan.output() + " / " + plan.buffer());
@@ -173,7 +176,8 @@ final class CrafterGameTests {
         MachineCrafter crafter = machine.crafter();
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         EntropicFarmMatrixMenu menu = new EntropicFarmMatrixMenu(1, player.getInventory(), machine);
-        check(helper, menu.slots.size() == 270, "196 + 9 grid + 1 result + 64 list = 270, got " + menu.slots.size());
+        check(helper, menu.slots.size() == 206, "196 + 9 grid + 1 result = 206 (the list is not slots), got "
+                + menu.slots.size());
 
         menu.setCraftGrid(nine(Items.WHEAT));
         check(helper, menu.craftPreview().is(Items.HAY_BLOCK), "the grid shows its result");
@@ -229,7 +233,47 @@ final class CrafterGameTests {
         helper.succeed();
     }
 
+    /**
+     * Owner (2026-09-29): the catalyst slot takes Mystical Agriculture's Master Infusion Crystal only; with it, the
+     * Prudentium recipe (4 Inferium around an infusion crystal) crafts from harvested Inferium, and the crystal is never
+     * spent nor output. Without it the essences wait. Skipped without Mystical Agriculture.
+     */
+    static void crafterUsesTheCatalyst(GameTestHelper helper) {
+        if (!MysticalCompat.isLoaded()) {
+            helper.succeed();
+            return;
+        }
+        ServerLevel level = helper.getLevel();
+        Item inferium = item("mysticalagriculture:inferium_essence");
+        Item prudentium = item("mysticalagriculture:prudentium_essence");
+        Item master = item("mysticalagriculture:master_infusion_crystal");
+        Item crystal = item("mysticalagriculture:infusion_crystal");
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        MachineCrafter crafter = machine.crafter();
+        MachineInventory inputs = machine.inputs();
+        int slot = LAYOUT.catalystSlot();
+        check(helper, inputs.isValid(slot, ItemResource.of(master)) && !inputs.isValid(slot, ItemResource.of(crystal))
+                && !inputs.isValid(slot, ItemResource.of(Items.IRON_HOE)), "the catalyst slot takes the Master "
+                + "Infusion Crystal only");
+
+        setRecipes(helper, machine, grid(NONE, inferium, NONE, inferium, master, inferium, NONE, inferium, NONE));
+        check(helper, crafter.result(0).is(prudentium), "the grid makes Prudentium: " + crafter.result(0));
+        MachineCrafter.Plan without = crafter.plan(drops(inferium, 8), level, 1024, ItemResource.EMPTY);
+        check(helper, amount(without.output(), prudentium) == 0 && waiting(without, inferium) == 8,
+                "without the crystal the essences wait: " + without.output());
+
+        inputs.set(slot, ItemResource.of(master), 1);
+        MachineCrafter.Plan with = crafter.plan(drops(inferium, 8), level, 1024, inputs.getResource(slot));
+        check(helper, amount(with.output(), prudentium) == 2 && amount(with.output(), master) == 0
+                && with.buffer().isEmpty(), "with it, 8 Inferium -> 2 Prudentium and no crystal out: " + with.output());
+        helper.succeed();
+    }
+
     // --- helpers ----------------------------------------------------------------------------------------------------
+
+    private static Item item(String id) {
+        return BuiltInRegistries.ITEM.getValue(Identifier.parse(id));
+    }
 
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.ENTROPIC_FARM_MATRIX.get().defaultBlockState());

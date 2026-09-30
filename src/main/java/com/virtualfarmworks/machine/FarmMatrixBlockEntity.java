@@ -27,6 +27,7 @@ import com.virtualfarmworks.harvest.Harvester;
 import com.virtualfarmworks.menu.EntropicFarmMatrixMenu;
 import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.plant.PlantAnalysis;
+import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.registry.ModBlockEntities;
 import com.virtualfarmworks.sim.DropTally;
@@ -82,16 +83,17 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  *   <li>RUNNING and bar below 100%: pay the energy, {@code cycle.advance(progressPerTick)} — one addition.</li>
  *   <li>Bar at 100%: harvest (see below). Otherwise the bar simply waits.</li>
  *   <li>Every {@code output.autoExportIntervalTicks}: push the visible output to adjacent inventories on the faces
- *       whose {@link FaceMode} exports.</li>
+ *       whose {@link FaceMode} exports, and pull from adjacent inventories on INPUT faces into the grids.</li>
  * </ol>
  *
  * <h2>Plot groups (multi-group tiers)</h2>
- * Each group is analyzed on its own (seed/soil pairing, hoe, crux). A group that cannot grow holds no plots and shows
- * its problem in the GUI, while the other groups keep growing; once fixed it rejoins as PENDING (next cycle), so a
- * blocked group can never ride a cycle it did not grow in. The Starter keeps its original behavior instead
- * ({@link MachineLayout#freezesWhenBlocked()}): a blocked pair keeps its plots and the bar freezes. The soil speed bonus
- * of a machine is the plot-weighted average of its groups' soils (owner decision: one bar, many soils). Groups with the
- * same seed and soil are harvested together (one drop source, one roll): 60 identical groups cost like one.
+ * Each group is analyzed on its own (seed/soil pairing, hoe, crux) and shows its own problem in the GUI. The machine
+ * runs only while EVERY group holding a plantable can grow (owner, 2026-09-29: "it only runs when all soils are
+ * valid"): the status is the most important problem of any group, and the bar freezes like the Starter's, every group
+ * keeping its plots meanwhile, so no group can ride a cycle it did not grow in. The soil speed bonus of a machine is
+ * the plot-weighted average of its groups' soils (owner decision: one bar, many soils). Groups with the same seed and
+ * soil are harvested together (one drop source, one roll): 60 identical groups cost like one. Tiers without a hoe
+ * ({@link MachineLayout#usesHoe()}, the Entropic) till for free: a plant that needs farmland grows on tillable soil.
  *
  * <h2>Output: visible buffer, hidden buffer, plants (owner design, step 8)</h2>
  * Harvests fill the visible slots ({@link OutputBuffer}) first, then the hidden ones ({@link InternalBuffer}, size from
@@ -120,10 +122,12 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  * kept in {@link #heldDrops}, which is saved, stored before anything else, and blocks the cycle until empty.
  *
  * <h2>Replant and autocrafter (tiers that have them)</h2>
- * Owner's order for every batch: replant (produced plantables planted into free soil), then the autocrafter
- * ({@link MachineCrafter}, CRAFT ON: what its recipes use is crafted), then the harvest filter (never on crafted items),
- * then the output. Both are planned on every store attempt and applied only after the store commits, like the plots.
- * Items leaving the crafter's buffer (CRAFT turned OFF, recipes edited) join the held drops.
+ * Owner's order for every batch: replant (produced plantables planted into free soil that suits them: groups already
+ * holding them first, then empty seed slots above a suitable soil; switch per machine, allowed by the config), then the
+ * autocrafter ({@link MachineCrafter}, CRAFT ON: what its recipes use is crafted, with the catalyst in the tool slot),
+ * then the harvest filter (never on crafted items), then the output. Both are planned on every store attempt and
+ * applied only after the store commits, like the plots. Items leaving the crafter's buffer (CRAFT turned OFF, recipes
+ * edited) join the held drops.
  *
  * <h2>Energy (tiers that use it)</h2>
  * Each planted plot costs {@code machines.<tier>.energyPerPlot} FE per tick while the bar advances (owner spec: 90);
@@ -132,8 +136,8 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  *
  * <h2>Persistence</h2>
  * Saved: inventories (inputs, visible and hidden output), held drops, energy, progress, active/pending/harvested
- * counters per group, on/off switch, face modes, Fertilized Essence switch, harvest filter, autocrafter (recipes,
- * switch, waiting ingredients). NOT saved (rebuilt by {@link #revalidate()} or relearned): analyses, speed, status, drop
+ * counters per group, on/off switch, face modes, Fertilized Essence switch, replant switch, harvest filter, autocrafter
+ * (recipes, switch, waiting ingredients). NOT saved (rebuilt by {@link #revalidate()} or relearned): analyses, speed, status, drop
  * sources, pending batch, yield samples, resolved recipes. Slot changes and harvests mark the chunk for saving
  * immediately; plain progress and energy at most once per {@link #SAVE_INTERVAL} ticks.
  *
@@ -179,6 +183,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     /** GUI switch (owner spec): whether Mystical Agriculture crops produce Fertilized Essence. On by default. */
     private boolean fertilizedEssence = true;
     /**
+     * GUI switch (owner, 2026-09-29): whether this machine replants what it produces. On by default; only takes effect
+     * while the config allows replanting ({@link #replantAllowed}).
+     */
+    private boolean replantOn = true;
+    /**
      * Completed cycles since this block entity was loaded. Only its CHANGES matter (the GUI sees a cycle wrap and runs
      * the bar to the end before restarting it), so it is not saved.
      */
@@ -201,10 +210,18 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private final @Nullable DropSource[] dropSources;
     /** Groups harvested together (same seed and soil), in slot order of their first group. */
     private List<HarvestUnit> harvestUnits = List.of();
-    private int runnableGroups;
-    /** Status shown when no group can grow: the problem of the first group holding a seed. */
-    private MachineStatus idleProblem = MachineStatus.MISSING_SEED;
+    /** A group needs the hoe the tool slot holds (tiers that use a hoe): the hoe wears while the machine runs. */
     private boolean anyGroupNeedsHoe;
+    /** A hoe is in the tool slot, or the tier tills for free; a Crux Provider is installed. */
+    private boolean hasHoe;
+    private boolean hasCrux;
+    // What the status needs from the groups holding a plantable (see updateStatus).
+    private boolean anySeed;
+    private boolean everySoilPresent = true;
+    private boolean everySoilValid = true;
+    private boolean anyGroupNeedsCrux;
+    /** Per plantable: empty seed slots it could start a plot group in (see {@link #planReplant}); per revalidation. */
+    private final Map<ItemResource, int[]> replantTargetCache = new HashMap<>();
     private GrowthSpeed speed = GrowthSpeed.BASELINE;
     private double progressPerTick;
     private MachineStatus status = MachineStatus.MISSING_SEED;
@@ -220,8 +237,10 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private int internalSlots;
     private boolean hoeWears;
     private int hoeWearInterval;
-    /** Config {@code machines.<tier>.replant} (tiers that have it). */
-    private boolean replantEnabled;
+    /** Config {@code machines.<tier>.replant} (tiers that have it): whether the machine's replant switch may work. */
+    private boolean replantAllowed;
+    /** Config {@code machines.<tier>.energyPerPlot} (tiers with energy), for the GUI. */
+    private long energyPerPlot;
     /** Config {@code machines.<tier>.crafterBufferLimit} (tiers with an autocrafter). */
     private long crafterBufferLimit;
     /** Ticks of RUNNING-with-a-needed-hoe since the hoe last lost durability (not saved: at most one interval lost). */
@@ -329,6 +348,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             refillVisibleOutput();
         }
 
+        boolean paid = false;
         if (hasOutputToStore()) {
             if (canStoreOutput()) {
                 storeOutput(level);
@@ -340,10 +360,14 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             if (status.isRunning()) {
                 if (energy != null) {
                     energy.consume(energyPerTick);
+                    paid = true;
                 }
                 cycle.advance(progressPerTick);
                 saveDue = true;
             }
+        }
+        if (energy != null && !paid) {
+            energy.idle(); // the GUI's "Using X FE/t" drops to 0 while the bar does not move
         }
 
         if (hoeWears && status.isRunning() && anyGroupNeedsHoe && ++hoeWearTicks >= hoeWearInterval) {
@@ -351,7 +375,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             wearHoe(level);
         }
 
-        autoExport(level);
+        autoTransfer(level);
 
         if (saveDue && ++ticksSinceSave >= SAVE_INTERVAL) {
             markForSave();
@@ -468,7 +492,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         // With replanting or the autocrafter the roll ignores the harvest filter: produced plantables are planted
         // first ("instead of being output or blacklisted", owner) and the crafter takes its ingredients before the
         // filter (owner order); the filter then applies to what is left (see below).
-        boolean unfiltered = replantEnabled || activeCrafter != null;
+        boolean replant = isReplanting();
+        boolean unfiltered = replant || activeCrafter != null;
         HarvestKey key = new HarvestKey(unit.key(), fertilizedEssence, filter.version(), unfiltered);
         YieldSample sample = sampleFor(key);
         if (pendingBatch == null || !key.equals(pendingBatchKey) || pendingBatchPlots > plotsLeft) {
@@ -487,10 +512,10 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         // Owner's harvest order: replant, then the autocrafter, then the filter, then the output. Planned on every
         // attempt (free soil and the crafter may change while the batch waits) and applied only after the store
         // commits, so nothing is planted or crafted twice.
-        List<Replanting> replanting = replantEnabled ? planReplant(pendingBatch) : List.of();
+        List<Replanting> replanting = replant ? planReplant(pendingBatch) : List.of();
         List<DropTally.Entry<ItemResource>> toStore = withoutReplanted(pendingBatch, replanting);
         MachineCrafter.Plan crafting = activeCrafter != null
-                ? activeCrafter.plan(toStore, level, crafterBufferLimit)
+                ? activeCrafter.plan(toStore, level, crafterBufferLimit, inputs.getResource(layout.catalystSlot()))
                 : null;
         if (crafting != null) {
             toStore = crafting.output();
@@ -524,7 +549,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         if (!replanting.isEmpty()) {
             for (Replanting planted : replanting) {
                 int slot = layout.seedSlot(planted.group());
-                inputs.set(slot, inputs.getResource(slot), inputs.getAmountAsInt(slot) + planted.amount());
+                inputs.set(slot, planted.seed(), inputs.getAmountAsInt(slot) + planted.amount()); // may be an empty slot
             }
             // Right away, while the harvest is still due: the new plots enter as PENDING and become ACTIVE when this
             // cycle completes, so replanted seeds grow from the next cycle (not one later).
@@ -539,13 +564,16 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * Replant plan (owner: produced plantables look for free soil inside the machine; decision: only in plot groups
-     * that already hold that plantable, so a player's free soil is never taken by another plant). A group takes as many
-     * as it has free soil ({@code soils - seeds}) and seed-slot room; plants that need no soil do not replant. Groups
-     * whose pairing is not valid are skipped. What finds no room stays in the drops and goes to the output.
+     * Replant plan (owner: produced plantables look for free soil inside the machine; owner's choice (b), 2026-09-29:
+     * "the seed simply looks for a soil that works for it; if none works or none is free, it is output"). A plantable
+     * goes first to the groups already holding it, as far as they have free soil ({@code soils - seeds}) and seed-slot
+     * room, then to empty seed slots whose soil it grows on (the whole soil stack becomes its plot group). A new group is
+     * only started where it would grow at once ({@link #replantTargets}), so replanting never stops the machine. Plants
+     * that need no soil do not replant. What finds no room stays in the drops and goes to the output.
      */
     private List<Replanting> planReplant(List<DropTally.Entry<ItemResource>> drops) {
         List<Replanting> plan = new ArrayList<>();
+        boolean[] claimed = null; // empty seed slots this plan already gives to a plantable
         for (DropTally.Entry<ItemResource> drop : drops) {
             long left = drop.amount();
             for (int g = 0; g < layout.groups() && left > 0; g++) {
@@ -563,8 +591,59 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
                     left -= take;
                 }
             }
+            if (left <= 0) {
+                continue;
+            }
+            for (int g : replantTargets(drop.key())) {
+                if (left <= 0) {
+                    break;
+                }
+                if (claimed == null) {
+                    claimed = new boolean[layout.groups()];
+                }
+                if (claimed[g]) {
+                    continue;
+                }
+                int seedSlot = layout.seedSlot(g);
+                long take = Math.min(left, Math.min(inputs.getAmountAsLong(layout.soilSlot(g)),
+                        inputs.getCapacityAsLong(seedSlot, drop.key())));
+                if (take > 0) {
+                    plan.add(new Replanting(g, drop.key(), (int) take));
+                    claimed[g] = true;
+                    left -= take;
+                }
+            }
         }
         return plan;
+    }
+
+    /**
+     * Empty seed slots (in slot order) whose soil a plantable would grow on right away: a valid pairing that needs a
+     * soil, and nothing else missing (hoe, crux). Cached per item until the next revalidation (the slots may change).
+     */
+    private int[] replantTargets(ItemResource plantable) {
+        int[] cached = replantTargetCache.get(plantable);
+        if (cached != null) {
+            return cached;
+        }
+        ItemStack seed = plantable.toStack(1);
+        List<Integer> targets = new ArrayList<>();
+        if (PlantRules.isPlantable(seed)) {
+            for (int g = 0; g < layout.groups(); g++) {
+                if (!inputs.getResource(layout.seedSlot(g)).isEmpty()
+                        || inputs.getResource(layout.soilSlot(g)).isEmpty()) {
+                    continue;
+                }
+                PlantAnalysis analysis = PlantAnalysis.analyze(seed, inputs.stackInSlot(layout.soilSlot(g)), tier);
+                if (analysis.isValid() && analysis.needsSoil()
+                        && groupStatusOf(analysis, hasHoe, hasCrux) == MachineStatus.RUNNING) {
+                    targets.add(g);
+                }
+            }
+        }
+        cached = targets.stream().mapToInt(Integer::intValue).toArray();
+        replantTargetCache.put(plantable, cached);
+        return cached;
     }
 
     /** The drops minus what the replant plants. */
@@ -707,36 +786,48 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         validatedTagGeneration = SoilRules.cacheGeneration();
         VfwServerConfig.MachineSettings settings = VfwServerConfig.machine(tier);
 
-        boolean hasHoe = SoilRules.isHoe(inputs.stackInSlot(layout.hoeSlot()));
-        boolean hasCrux = !inputs.getResource(layout.cruxSlot()).isEmpty();
+        hasHoe = !layout.usesHoe() || SoilRules.isHoe(inputs.stackInSlot(layout.hoeSlot()));
+        hasCrux = !inputs.getResource(layout.cruxSlot()).isEmpty();
         int groups = layout.groups();
         int[] plots = new int[groups];
         boolean[] plantChanged = new boolean[groups];
         Item[] seedItems = new Item[groups];
-        runnableGroups = 0;
         anyGroupNeedsHoe = false;
-        idleProblem = MachineStatus.MISSING_SEED;
+        anySeed = false;
+        everySoilPresent = true;
+        everySoilValid = true;
+        anyGroupNeedsCrux = false;
+        replantTargetCache.clear();
         for (int g = 0; g < groups; g++) {
             ItemStack seed = inputs.stackInSlot(layout.seedSlot(g));
             ItemStack soil = inputs.stackInSlot(layout.soilSlot(g));
             PlantAnalysis analysis = PlantAnalysis.analyze(seed, soil, tier);
-            MachineStatus groupStatus = groupStatusOf(analysis, hasHoe, hasCrux);
             analyses[g] = analysis;
-            groupStatuses[g] = groupStatus;
-            if (groupStatus == MachineStatus.RUNNING) {
-                runnableGroups++;
-                anyGroupNeedsHoe |= analysis.needsHoe();
-            } else if (idleProblem == MachineStatus.MISSING_SEED && groupStatus != MachineStatus.MISSING_SEED) {
-                idleProblem = groupStatus; // the first group holding a seed speaks for an idle machine
+            groupStatuses[g] = groupStatusOf(analysis, hasHoe, hasCrux);
+            switch (analysis.status()) {
+                case MISSING_SEED -> {
+                    // An empty group, or soil alone: waiting plots, never a problem.
+                }
+                case MISSING_SOIL -> {
+                    anySeed = true;
+                    everySoilPresent = false;
+                }
+                case INVALID_SOIL -> {
+                    anySeed = true;
+                    everySoilValid = false;
+                }
+                case VALID -> {
+                    anySeed = true;
+                    anyGroupNeedsHoe |= layout.usesHoe() && analysis.needsHoe();
+                    anyGroupNeedsCrux |= analysis.needsCrux();
+                }
             }
 
             // Plots = min(seeds, soils) (owner rule), or the seeds for plants that need no soil (owner, 2026-09-28).
-            // Starter: plots exist whenever both slots hold usable items, even if the pair is blocked (the bar just
-            // freezes). Multi-group tiers: only groups that can grow hold plots (see the class doc).
-            boolean plotsPossible = layout.freezesWhenBlocked()
-                    ? analysis.status() != PlantAnalysis.Status.MISSING_SEED
-                            && analysis.status() != PlantAnalysis.Status.MISSING_SOIL
-                    : groupStatus == MachineStatus.RUNNING;
+            // They exist whenever both slots hold usable items, even while a group is blocked: the whole bar freezes
+            // then (see the class doc), so no group can ride a cycle it did not grow in.
+            boolean plotsPossible = analysis.status() != PlantAnalysis.Status.MISSING_SEED
+                    && analysis.status() != PlantAnalysis.Status.MISSING_SOIL;
             plots[g] = !plotsPossible ? 0
                     : analysis.needsSoil() ? Math.min(seed.getCount(), soil.getCount())
                     : seed.getCount();
@@ -764,15 +855,15 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         maxLootRolls = VfwServerConfig.MAX_LOOT_ROLLS_PER_HARVEST.get();
         hoeWears = VfwServerConfig.HOE_CONSUMES_DURABILITY.get();
         hoeWearInterval = VfwServerConfig.HOE_WEAR_INTERVAL_TICKS.get();
-        replantEnabled = settings.replant != null && settings.replant.get();
+        replantAllowed = settings.replant != null && settings.replant.get();
         crafterBufferLimit = settings.crafterBufferLimit != null ? settings.crafterBufferLimit.get() : 0;
         internalSlots = settings.internalBufferSlots.get();
         internal.setUsableSlots(internalSlots); // a lowered value never deletes items, see InternalBuffer
         refillRequested = true;                 // a raised or lowered size may change what can move
         if (energy != null && settings.energyPerPlot != null) {
-            long perPlot = settings.energyPerPlot.get();
-            energy.setCapacity(settings.plotCapacity(layout) * perPlot * ENERGY_BUFFER_TICKS);
-            energyPerTick = perPlot * cycle.totalPlots();
+            energyPerPlot = settings.energyPerPlot.get();
+            energy.setCapacity(settings.plotCapacity(layout) * energyPerPlot * ENERGY_BUFFER_TICKS);
+            energyPerTick = energyPerPlot * cycle.totalPlots();
             hasEnergy = energy.canPay(energyPerTick);
         }
 
@@ -861,35 +952,23 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         yieldSamples.keySet().retainAll(unitGroups.keySet()); // forget samples of plants no longer planted
     }
 
+    /**
+     * The owner's priority list over every plot group: the machine needs a plantable somewhere, and every group holding
+     * one must have its soil, a valid pairing and what it needs (hoe on tiers that use one, crux). One group short of
+     * that stops the whole machine with that problem (owner, 2026-09-29); with one group this is the Starter's rule.
+     */
     private void updateStatus() {
         boolean energyMissing = layout.usesEnergy() && !hasEnergy && cycle.totalPlots() > 0;
-        if (layout.freezesWhenBlocked()) {
-            // One group (Starter): the owner's priority list, exactly as before.
-            PlantAnalysis analysis = analyses[0];
-            MachineConditions conditions = new MachineConditions()
-                    .enabled(enabled)
-                    .hasSeed(analysis.status() != PlantAnalysis.Status.MISSING_SEED)
-                    .hasSoil(analysis.status() != PlantAnalysis.Status.MISSING_SOIL)
-                    .soilCompatible(analysis.status() != PlantAnalysis.Status.INVALID_SOIL)
-                    .hoe(analysis.needsHoe(), SoilRules.isHoe(inputs.stackInSlot(layout.hoeSlot())))
-                    .crux(analysis.needsCrux(), !inputs.getResource(layout.cruxSlot()).isEmpty())
-                    .energy(layout.usesEnergy(), !energyMissing)
-                    .outputBlocked(harvestBlocked);
-            status = MachineStatus.resolve(conditions);
-            return;
-        }
-        // Several groups: the machine runs while at least one group can grow; the others show their own problem.
-        if (!enabled) {
-            status = MachineStatus.SHUTDOWN;
-        } else if (runnableGroups == 0) {
-            status = idleProblem;
-        } else if (energyMissing) {
-            status = MachineStatus.MISSING_FE;
-        } else if (harvestBlocked) {
-            status = MachineStatus.OUTPUT_FULL;
-        } else {
-            status = MachineStatus.RUNNING;
-        }
+        MachineConditions conditions = new MachineConditions()
+                .enabled(enabled)
+                .hasSeed(anySeed)
+                .hasSoil(everySoilPresent)
+                .soilCompatible(everySoilValid)
+                .hoe(anyGroupNeedsHoe, hasHoe)
+                .crux(anyGroupNeedsCrux, hasCrux)
+                .energy(layout.usesEnergy(), !energyMissing)
+                .outputBlocked(harvestBlocked);
+        status = MachineStatus.resolve(conditions);
     }
 
     // =================================================================================================================
@@ -897,11 +976,13 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     // =================================================================================================================
 
     /**
-     * Pushes the output buffer into adjacent inventories on every face whose mode exports, every
-     * {@link #exportInterval} ticks (config, 0 = never). Uses NeoForge capability caches, so a lookup is a field read
-     * until a neighbour changes. Exporting into another Farm Matrix does nothing: its buffer refuses insertion.
+     * Every {@link #exportInterval} ticks (config, 0 = never): pushes the output buffer into adjacent inventories on
+     * every face whose mode exports, and pulls from adjacent inventories on INPUT faces into the grids (owner: "a chest
+     * full of dirt glued to the machine must feed it too", like the output). Uses NeoForge capability caches, so a
+     * lookup is a field read until a neighbour changes. Exporting into another Farm Matrix does nothing (its buffer
+     * refuses insertion); pulling from one takes what its face gives (its output), never its inputs.
      */
-    private void autoExport(ServerLevel level) {
+    private void autoTransfer(ServerLevel level) {
         if (exportInterval <= 0) {
             return;
         }
@@ -909,22 +990,28 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             return;
         }
         exportCooldown = 0;
-        if (output.isEmpty()) {
-            return;
-        }
-        Direction facing = getBlockState().getValue(FarmMatrixBlock.FACING);
+        boolean exporting = !output.isEmpty();
+        Direction facing = null;
         for (RelativeSide side : RelativeSide.all()) {
             FaceMode mode = faceModes[side.ordinal()];
-            if (!mode.exports()) {
+            boolean pulls = mode == FaceMode.INPUT && gridInput != null;
+            if (!pulls && !(exporting && mode.exports())) {
                 continue;
             }
-            ResourceHandler<ItemResource> target = exportTarget(level, side.toWorld(facing));
-            if (target != null) {
-                ResourceHandlerUtil.moveStacking(output, target, resource -> mode.exports(isCrafted(resource)),
+            if (facing == null) {
+                facing = getBlockState().getValue(FarmMatrixBlock.FACING);
+            }
+            ResourceHandler<ItemResource> neighbour = exportTarget(level, side.toWorld(facing));
+            if (neighbour == null) {
+                continue;
+            }
+            if (pulls) {
+                // Index-less insertion, so the grid's routing pairs seeds and soils (see GridInput).
+                ResourceHandlerUtil.move(neighbour, gridInput, resource -> true, Integer.MAX_VALUE, null);
+            } else {
+                ResourceHandlerUtil.moveStacking(output, neighbour, resource -> mode.exports(isCrafted(resource)),
                         Integer.MAX_VALUE, null);
-                if (output.isEmpty()) {
-                    return;
-                }
+                exporting = !output.isEmpty();
             }
         }
     }
@@ -1090,6 +1177,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         out.putBoolean("enabled", enabled);
         out.putIntArray("face_modes", Arrays.stream(faceModes).mapToInt(FaceMode::ordinal).toArray());
         out.putBoolean("fertilized_essence", fertilizedEssence);
+        out.putBoolean("replant", replantOn);
         filter.save(out.child("filter"));
         if (crafter != null) {
             crafter.save(out.child("crafter"));
@@ -1114,6 +1202,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         enabled = in.getBooleanOr("enabled", true);
         loadFaceModes(in);
         fertilizedEssence = in.getBooleanOr("fertilized_essence", true);
+        replantOn = in.getBooleanOr("replant", true);
         in.child("filter").ifPresent(filter::load);
         if (crafter != null) {
             in.child("crafter").ifPresent(crafter::load); // its recipes are matched again on the next tick
@@ -1236,6 +1325,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     /** FE per tick while growing (energy per plot x planted plots); 0 on tiers without energy. */
     public long energyPerTick() {
         return energy == null ? 0 : energyPerTick;
+    }
+
+    /** FE per active plot per tick (config {@code machines.<tier>.energyPerPlot}); 0 on tiers without energy. */
+    public long energyPerPlot() {
+        return energy == null ? 0 : energyPerPlot;
     }
 
     /** Items held in the extreme case (see class doc); empty in normal play. Read-only. */
@@ -1368,6 +1462,37 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         fertilizedEssence = !fertilizedEssence;
         harvestRetryRequested = true;
         markForSave();
+    }
+
+    /** Whether produced plantables are replanted now: the config allows it and this machine's switch is on. */
+    public boolean isReplanting() {
+        return replantAllowed && replantOn;
+    }
+
+    /** The replant switch as the GUI shows it (owner: green ON, red OFF, grey DISABLED when the config forbids it). */
+    public ReplantState replantState() {
+        return !replantAllowed ? ReplantState.DISABLED : replantOn ? ReplantState.ON : ReplantState.OFF;
+    }
+
+    /** Replant switch of this machine; nothing while the config forbids replanting. Server side only. */
+    public void toggleReplant() {
+        if (!replantAllowed) {
+            return;
+        }
+        replantOn = !replantOn;
+        harvestRetryRequested = true; // a batch waiting for space is planned again with the new switch
+        markForSave();
+    }
+
+    /** The replant button's three looks. Ordinal synced to the GUI. */
+    public enum ReplantState {
+        OFF,
+        ON,
+        DISABLED;
+
+        public static ReplantState byOrdinal(int ordinal) {
+            return ordinal >= 0 && ordinal < values().length ? values()[ordinal] : DISABLED;
+        }
     }
 
     /** The autocrafter (read it; change it through the methods below), or null on tiers without one. */

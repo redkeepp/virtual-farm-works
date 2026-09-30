@@ -127,6 +127,15 @@ game tests passed:
   the owner's crafter panel as a modal over the dimmed grids; JEI "+" and drag-and-drop (`SetCrafterGridPayload`);
   crafted items are what OUTPUT CRAFTED exports and what the harvest filter never removes. 3 game tests.
 - **Stage 5 — benchmark and docs.** Six Entropic rows in `LoadBenchmark` (see the log below).
+- **Owner's answers and first in-game test (same day).** The owner answered the seven stage questions late: the
+  machine runs only when EVERY group is valid (Claude had recommended "runs while one group grows"; now a blocked
+  group freezes the whole bar, the Starter's rule generalized: `updateStatus` aggregates the groups), no hoe at all in
+  this tier (tools slot reused for the catalyst, saves compatible), replant option (b) (also empty seed slots above a
+  suitable soil) with a button per machine (the config only allows it). After playing: up to 100 recipes with a
+  dynamic list (a server-to-client payload instead of 64 fixed display slots), a catalyst slot for the Master
+  Infusion Crystal (MA essence tiers), smaller button text, the FE tooltip reduced to "current/total" and shown full
+  while a source keeps up (it read one tick of use short), a lightning box with "Uses X FE/t per active plot" /
+  "Using X FE/t", INPUT faces pulling from glued inventories, info lines one pixel lower. 3 new game tests.
 
 ## Benchmark results log
 

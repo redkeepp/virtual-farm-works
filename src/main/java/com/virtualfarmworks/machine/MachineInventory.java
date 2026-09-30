@@ -1,6 +1,6 @@
 /*
  * MachineInventory — the input inventory of a Farm Matrix (seed and soil slots of every plot group, water provider,
- * hoe, growth upgrades, crux): what each slot accepts and how many items it holds. Validation runs on both client
+ * tool slot, growth upgrades, crux): what each slot accepts and how many items it holds. Validation runs on both client
  * (menu) and server.
  */
 package com.virtualfarmworks.machine;
@@ -12,6 +12,7 @@ import com.virtualfarmworks.item.TieredUpgradeItem;
 import com.virtualfarmworks.item.UpgradeType;
 import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.plant.SoilRules;
+import com.virtualfarmworks.plant.VfwTags;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
@@ -29,7 +30,8 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
  *   <li>soil slots: a soil (see {@code SoilRules}) and not blacklisted for this tier; same limits with
  *       {@code soilsPerSlot};</li>
  *   <li>water provider: a Water Provider Upgrade that fits this tier; 1;</li>
- *   <li>hoe: any hoe, any tier, damaged or not; 1;</li>
+ *   <li>tool slot: a hoe (any hoe, any tier, damaged or not) on tiers that use one; the autocrafter catalyst
+ *       ({@code #virtualfarmworks:crafter_catalysts}) on tiers with an autocrafter; 1;</li>
  *   <li>growth x4: Growth Speed Upgrades that fit this tier; {@code growth.upgradesPerSlot} each (default 1);</li>
  *   <li>crux: the Crux Provider Upgrade; 1.</li>
  * </ul>
@@ -70,8 +72,9 @@ public final class MachineInventory extends ItemStacksResourceHandler {
         if (index == layout.waterSlot()) {
             return isUpgrade(stack, UpgradeType.WATER_PROVIDER);
         }
-        if (index == layout.hoeSlot()) {
-            return SoilRules.isHoe(stack);
+        if (index == layout.hoeSlot()) { // the tool slot: a hoe, or the autocrafter's catalyst (see MachineLayout)
+            return layout.usesHoe() ? SoilRules.isHoe(stack)
+                    : layout.hasCrafter() && stack.is(VfwTags.CRAFTER_CATALYSTS);
         }
         if (layout.isGrowthSlot(index)) {
             return isUpgrade(stack, UpgradeType.GROWTH_SPEED);

@@ -86,10 +86,12 @@ drag-and-drop); smooth progress bar; Jade tooltip; JEI exclusion areas; recipes.
 midgame). Spec and every decision: `docs/specs/entropic-farm-matrix.md`. Done: stage 1 (multi-group machine, FE, face
 modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `EntropicLayout`,
 `EntropicFarmMatrixScreen`, shared `AbstractFarmMatrixMenu`), stage 3 (replant), stage 4 (autocrafter
-`machine/MachineCrafter`, its panel, JEI "+"), stage 5 (benchmark rows, docs). Waiting for the owner: in-game test
-(not yet seen in game) and a clean benchmark run (the first was measured with games open). No machine recipe until
-the owner defines one. Voltaic, Ionic and Resonant come after (they will reuse `MachineLayout`).
-Tests: 40 game tests (39 VFW + 1 vanilla), 77 JUnit, load benchmark.
+`machine/MachineCrafter`, its panel, JEI "+"), stage 5 (benchmark rows, docs), then the owner's answers and first
+in-game test (2026-09-29: all groups must be valid, no hoe, replant option (b) + button, 100 recipes, catalyst slot,
+FE display, lightning box, INPUT pulls from chests). Waiting for the owner: in-game test of those changes and a clean
+benchmark run (the first was measured with games open). No machine recipe until the owner defines one. Voltaic,
+Ionic and Resonant come after (they will reuse `MachineLayout`).
+Tests: 42 game tests (41 VFW + 1 vanilla), 77 JUnit, load benchmark.
 
 Open on the owner's side: multiplayer re-test (custom packets were added since the last one; the owner planned to do
 it at the end). Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says
@@ -181,14 +183,30 @@ Breaking drops contents in `preRemoveSideEffects`.
   first two the roll is unfiltered and the filter runs after them (`HarvestKey#unfiltered`); the filter and its purge
   never remove crafted items (`FarmMatrixBlockEntity#isCrafted` = result of a crafter recipe). Replant and crafting
   are planned per store attempt and applied only after the commit (`MachineCrafter#plan` / `#commit`).
+- Replant (Entropic, owner option (b)): groups already holding the plantable (free soil = soils - seeds), then empty
+  seed slots above a soil it grows on at once (`replantTargets`, cached per revalidation); soil-less plants never
+  replant. Effective only when the config allows it (`machines.<tier>.replant`) AND the machine's switch is on
+  (`replantOn`, saved, GUI button).
+
+### Plot groups and status (every tier)
+- The machine runs only while EVERY group holding a plantable can grow (owner, 2026-09-29): `updateStatus` feeds the
+  aggregated facts (any seed, every soil present, every soil valid, hoe, crux) to `MachineStatus.resolve`; with one
+  group this is exactly the Starter's rule. A blocked group keeps its plots and the whole bar freezes. A soil alone is
+  waiting plots, never a problem. The per-group status only drives the GUI (red tint + tooltip).
+- Tiers without a hoe (`MachineLayout#usesHoe` false: Entropic) till for free: `hasHoe` is always true. Their tool
+  slot (index 2g+1, the Starter's hoe slot) holds the autocrafter's catalyst instead.
 
 ### Autocrafter (`machine/MachineCrafter`, Entropic)
-- Recipes = 3x3 grids + the recipe id they made (a hint). Crafting-table recipes only; special ones (`isSpecial`,
-  NOT_PLACEABLE) refused. A cell accepts any item the recipe accepts there (tested once per item by substituting it
-  into the grid and calling `matches`, cached): sticks set with oak planks take birch planks.
+- Recipes = 3x3 grids + the recipe id they made (a hint); up to 100 (config `crafterRecipes`). Crafting-table recipes
+  only; special ones (`isSpecial`, NOT_PLACEABLE) refused. A cell accepts any item the recipe accepts there (tested
+  once per item by substituting it into the grid and calling `matches`, cached): sticks set with oak planks take
+  birch planks.
 - Per batch: ingredients join a hidden buffer, recipes craft in chain order (Tarjan SCCs over "B uses A's result");
   a result stays in the buffer only for a recipe of ANOTHER SCC, so circles (ingots <-> block) end in the output.
   Leftovers wait up to `crafterBufferLimit` per item (the rest goes out). Remainders go out. No FE, no time.
+- Catalyst (tool slot, `#virtualfarmworks:crafter_catalysts` = MA's Master Infusion Crystal): serves the cells no
+  harvested item fits, never consumed; a craft whose remainder would not give it back whole is skipped
+  (`catalystComesBack`, remainders indexed by the TRIMMED `CraftingInput.Positioned`).
 - CRAFT OFF (and recipe edits) release the buffer into `heldDrops` (filtered like the harvest). Recipes, switch and
   buffer are saved; the buffer is deleted when the machine breaks. Re-resolved after edits and datapack reloads
   (`SoilRules#cacheGeneration`).
@@ -219,11 +237,18 @@ Breaking drops contents in `preRemoveSideEffects`.
   frame; a harvest-counter change runs the bar through 100%).
 - JEI ghost drop -> `network/SetFilterGhostPayload` -> `AbstractFarmMatrixMenu#setFilterGhost`.
 - Entropic (`EntropicFarmMatrixMenu`, `EntropicLayout`, `EntropicFarmMatrixScreen`; shared logic in
-  `AbstractFarmMatrixMenu`): slots `[0,127)` inputs, `[127,151)` output, `[151,187)` player, `[187,196)` filter,
-  `[196,205)` crafter grid (ghosts), 205 its result, `[206,270)` recipe results (inactive display slots: data only).
-  Buttons 17+ are the crafter's (SET, toggle, deselect, select i, delete i). The crafter panel is a client-side
-  modal (`setCrafterVisible`): while open, the 120 grid slots are inactive and dimmed. JEI "+" (crafting recipes) ->
-  `network/SetCrafterGridPayload` -> `EntropicFarmMatrixMenu#setCraftGrid`; the grid is per viewer, not saved.
+  `AbstractFarmMatrixMenu`): slots `[0,127)` inputs (121 = the catalyst, shown in the crafter panel), `[127,151)`
+  output, `[151,187)` player, `[187,196)` filter, `[196,205)` crafter grid (ghosts), 205 its result. Buttons 17+:
+  replant, then the crafter's (SET, toggle, deselect, select i, delete i; ids travel as VarInt). The recipe list is
+  NOT slots: `network/CrafterRecipesPayload` (server -> client) when it changes and on open (`sendAllDataToRemote`).
+  The crafter panel is a client-side modal (`setCrafterVisible`): while open, the 120 grid slots are inactive and
+  dimmed. JEI "+" (crafting recipes) -> `network/SetCrafterGridPayload` -> `EntropicFarmMatrixMenu#setCraftGrid`; the
+  grid is per viewer, not saved. Side column: O, lightning (energy use tooltip), 5 upgrade cells, Fertilized
+  Essence, replant, filter, crafter, ON/OFF. The FE shown is `MachineEnergy#shownAmount` (level before the machine's
+  own payment of its last tick, so a buffer a source keeps up with reads full).
+- INPUT faces pull from glued inventories every `output.autoExportIntervalTicks` (`autoTransfer`), through
+  `ResourceHandlerUtil.move` (index-less insertion, so `GridInput` routing pairs seeds and soils; `moveStacking`
+  would insert slot by slot and skip the routing).
 
 ### Plants and soils (`plant/`)
 - Seed slot (`PlantRules#isPlantable`): the item places a NATIVE plant (`isSupportedPlantBlock`: CropBlock, StemBlock,
@@ -406,7 +431,8 @@ Breaking drops contents in `preRemoveSideEffects`.
 - `menu/` — `AbstractFarmMatrixMenu` (shared: sync, ghost/display slots, common buttons), `FarmMatrixMenu` +
   `FarmMatrixLayout` (Starter), `EntropicFarmMatrixMenu` + `EntropicLayout` (Entropic), `FilterPageView`,
   `DisplayFormats`.
-- `network/` — `SetFilterGhostPayload`, `SetCrafterGridPayload`.
+- `network/` — `SetFilterGhostPayload`, `SetCrafterGridPayload` (client -> server), `CrafterRecipesPayload` (server ->
+  client).
 - `client/` — CLIENT ONLY: `VirtualFarmWorksClient` (second `@Mod`, dist CLIENT), `FarmMatrixScreen`,
   `EntropicFarmMatrixScreen`, `FarmMatrixJeiTargets`, `SmoothProgress`, `compat/VfwJeiPlugin`. Never reference
   `client/` from common code (a dedicated server crashes).

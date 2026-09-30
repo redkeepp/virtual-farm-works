@@ -12,9 +12,11 @@ import com.virtualfarmworks.machine.MachineLayout;
  * checked on the pixels: slot interiors 16 px on an 18 px pitch, a 1 px red border left, 3 px on top.
  *
  * <p>The side column is drawn by code like the Starter's ({@link FarmMatrixLayout}: same x columns, same box drawing,
- * 3 px gaps), glued to the texture's left border, with this tier's boxes: "O" (face modes), the upgrade block (4 Growth
- * Speed Upgrades, Crux Provider, hoe), Fertilized Essence, harvest filter, autocrafter (owner: between the filter and
- * the ON/OFF button) and ON/OFF. Its "O" interior lines up with the first grid row.
+ * 3 px gaps), glued to the texture's left border, with this tier's boxes: "O" (face modes), the lightning box (energy
+ * use on hover, owner 2026-09-29: right below the "O"), the upgrade block (4 Growth Speed Upgrades, Crux Provider; no
+ * hoe: the owner removed it from this tier), Fertilized Essence, replant (owner 2026-09-29), harvest filter,
+ * autocrafter (owner: between the filter and the ON/OFF button) and ON/OFF. Its "O" interior lines up with the first
+ * grid row.
  *
  * <p>Slot positions are the top-left pixel of the 16x16 item, as Minecraft expects.
  */
@@ -58,11 +60,12 @@ public final class EntropicLayout {
     public static final int COLOR_ENERGY_DARK = 0xFF9E0E0E;
 
     /**
-     * Info text area (18,173)-(206,219): five lines 9 px apart (status, hydration, plots, waiting plots, growth), 1 px
-     * inside the area. {@link #INFO_WIDTH} ends before the Water Provider slot; longer texts are scaled down.
+     * Info text area (18,173)-(206,219): five lines 9 px apart (status, hydration, plots, waiting plots, growth), 2 px
+     * below the area's top (owner, 2026-09-29: one pixel lower than first drawn). {@link #INFO_WIDTH} ends before the
+     * Water Provider slot; longer texts are scaled down.
      */
     public static final int INFO_X = 19;
-    public static final int[] INFO_LINE_Y = {174, 183, 192, 201, 210};
+    public static final int[] INFO_LINE_Y = {175, 184, 193, 202, 211};
     public static final int INFO_WIDTH = 187;
 
     /** Title, centered in the band between the 3 px top border and the first grid frame (y 19). */
@@ -72,16 +75,28 @@ public final class EntropicLayout {
     public static final int COLOR_GROUP_PROBLEM = 0x80D02020;
 
     // --- side column (drawn by code; x columns and box drawing from FarmMatrixLayout) ------------------------------
-    /** Cells of the upgrade block: 4 Growth Speed Upgrades, the Crux Provider, the hoe. */
-    public static final int UPGRADE_CELLS = 6;
+    /** Cells of the upgrade block: 4 Growth Speed Upgrades, the Crux Provider. */
+    public static final int UPGRADE_CELLS = 5;
     public static final int OUTPUT_BOX_TOP = SEED_GRID_Y - 2;                                                     // 18
-    public static final int UPGRADE_BOX_TOP = OUTPUT_BOX_TOP + FarmMatrixLayout.boxHeight(1) + FarmMatrixLayout.PANEL_BOX_GAP;       // 41
-    public static final int FERTILIZED_BOX_TOP = UPGRADE_BOX_TOP + FarmMatrixLayout.boxHeight(UPGRADE_CELLS) + FarmMatrixLayout.PANEL_BOX_GAP; // 149
-    public static final int FILTER_BUTTON_TOP = FERTILIZED_BOX_TOP + FarmMatrixLayout.boxHeight(1) + FarmMatrixLayout.PANEL_BOX_GAP; // 172
+    /** Lightning box (owner, 2026-09-29): not a button; its tooltip tells the energy use. */
+    public static final int ENERGY_BOX_TOP = nextBox(OUTPUT_BOX_TOP, 1);                                          // 41
+    public static final int UPGRADE_BOX_TOP = nextBox(ENERGY_BOX_TOP, 1);                                         // 64
+    public static final int FERTILIZED_BOX_TOP = nextBox(UPGRADE_BOX_TOP, UPGRADE_CELLS);                         // 155
+    /** Replant switch (owner, 2026-09-29): green ON, red OFF, grey DISABLED by the config. */
+    public static final int REPLANT_BUTTON_TOP = nextBox(FERTILIZED_BOX_TOP, 1);                                  // 178
+    public static final int FILTER_BUTTON_TOP = nextBox(REPLANT_BUTTON_TOP, 1);                                   // 201
     /** Autocrafter button (owner, 2026-09-29): between the harvest filter button and ON/OFF. */
-    public static final int CRAFTER_BUTTON_TOP = FILTER_BUTTON_TOP + FarmMatrixLayout.boxHeight(1) + FarmMatrixLayout.PANEL_BOX_GAP; // 195
-    public static final int POWER_BOX_TOP = CRAFTER_BUTTON_TOP + FarmMatrixLayout.boxHeight(1) + FarmMatrixLayout.PANEL_BOX_GAP;   // 218
-    public static final int PANEL_BOTTOM = POWER_BOX_TOP + FarmMatrixLayout.boxHeight(1);                          // 238
+    public static final int CRAFTER_BUTTON_TOP = nextBox(FILTER_BUTTON_TOP, 1);                                   // 224
+    public static final int POWER_BOX_TOP = nextBox(CRAFTER_BUTTON_TOP, 1);                                       // 247
+    public static final int PANEL_BOTTOM = POWER_BOX_TOP + FarmMatrixLayout.boxHeight(1);                         // 267
+    /** Lightning bolt drawn in the energy box: rows {y, first x, last x} inside the 16x16 cell. */
+    public static final int[][] BOLT_PIXELS = {
+            {1, 9, 11}, {2, 8, 10}, {3, 7, 9}, {4, 6, 8}, {5, 5, 7}, {6, 4, 11}, {7, 8, 10}, {8, 7, 9}, {9, 6, 8},
+            {10, 5, 7}, {11, 4, 6}, {12, 4, 5}, {13, 4, 4}};
+    public static final int COLOR_BOLT = 0xFFFFD23F;
+    /** Replant button look while the config disables replanting: grey box, greyed seed. */
+    public static final int COLOR_DISABLED = 0xFF5E5E5E;
+    public static final int COLOR_DISABLED_COVER = 0xA0555555;
 
     /** Face box ("O"): left of the column like the Starter's, its top next to the "O" box. */
     public static final int FACE_BOX_X = FarmMatrixLayout.FACE_BOX_X;
@@ -108,12 +123,20 @@ public final class EntropicLayout {
     public static final int CRAFTER_GRID_Y = CRAFTER_Y + 7;
     public static final int CRAFTER_RESULT_X = CRAFTER_X + 64;
     public static final int CRAFTER_RESULT_Y = CRAFTER_Y + 25;
+    /**
+     * Catalyst slot (owner, 2026-09-29: "below and glued to the result slot", for the Master Infusion Crystal): not on
+     * the owner's texture, so its 18x18 frame is drawn by code, one pitch below the result, like the grid's cells.
+     */
+    public static final int CRAFTER_CATALYST_X = CRAFTER_RESULT_X;
+    public static final int CRAFTER_CATALYST_Y = CRAFTER_RESULT_Y + SLOT_PITCH;
     /** Buttons SET CRAFT (7,67)-(58,75) and CRAFT: ON/OFF (7,84)-(58,92). */
     public static final int CRAFTER_BUTTON_X = CRAFTER_X + 7;
     public static final int CRAFTER_BUTTON_WIDTH = 52;
     public static final int CRAFTER_BUTTON_HEIGHT = 9;
     public static final int CRAFTER_SET_Y = CRAFTER_Y + 67;
     public static final int CRAFTER_TOGGLE_Y = CRAFTER_Y + 84;
+    /** Button text size (owner, 2026-09-29: the labels were too big at full size). */
+    public static final float CRAFTER_BUTTON_TEXT_SCALE = 0.75F;
     /** Recipe list (85,7)-(189,93). */
     public static final int CRAFTER_LIST_X = CRAFTER_X + 85;
     public static final int CRAFTER_LIST_Y = CRAFTER_Y + 7;
@@ -131,6 +154,7 @@ public final class EntropicLayout {
     public static final int GRIDS_X1 = GRID_X + MachineLayout.GRID_COLUMNS * SLOT_PITCH - 1;
     public static final int GRIDS_Y1 = SOIL_GRID_Y + MachineLayout.GRID_ROWS * SLOT_PITCH - 1;
     // Panel colors: the texture's frame (0x34586B) and background (0x0F1A26), and shades of them.
+    public static final int COLOR_CRAFTER_FRAME = 0xFF34586B;
     public static final int COLOR_CRAFTER_BACKDROP = 0xB0000000;
     public static final int COLOR_CRAFTER_HOVER_TOP = 0xFF4E829C;
     public static final int COLOR_CRAFTER_HOVER_BOTTOM = 0xFF1B3242;
@@ -142,6 +166,11 @@ public final class EntropicLayout {
     public static final int COLOR_CRAFTER_OFF = 0xFFFF5C5C;
 
     private EntropicLayout() {
+    }
+
+    /** Top of the side-column box after the one starting at {@code top} with {@code cells} cells (3 px gap). */
+    private static int nextBox(int top, int cells) {
+        return top + FarmMatrixLayout.boxHeight(cells) + FarmMatrixLayout.PANEL_BOX_GAP;
     }
 
     public static int seedSlotX(int group) {
@@ -164,7 +193,7 @@ public final class EntropicLayout {
         return OUTPUT_Y + (index / OUTPUT_COLUMNS) * SLOT_PITCH;
     }
 
-    /** Item y of upgrade cell {@code i} (0..3 growth, 4 crux, 5 hoe). */
+    /** Item y of upgrade cell {@code i} (0..3 growth, 4 crux). */
     public static int upgradeCellY(int i) {
         return FarmMatrixLayout.cellY(UPGRADE_BOX_TOP, i);
     }

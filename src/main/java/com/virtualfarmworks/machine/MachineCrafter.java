@@ -22,8 +22,10 @@ import org.jspecify.annotations.Nullable;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.virtualfarmworks.plant.SoilRules;
+import com.virtualfarmworks.plant.VfwTags;
 import com.virtualfarmworks.sim.DropTally;
 
+import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -55,6 +57,13 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  * rest of a recipe stays hidden, at most {@code machines.<tier>.crafterBufferLimit} of each item; the rest goes to the
  * output. Crafting costs no time and no energy.
  *
+ * <h2>Catalyst (owner, 2026-09-29)</h2>
+ * The machine's tool slot may hold a catalyst ({@code #virtualfarmworks:crafter_catalysts}: Mystical Agriculture's
+ * Master Infusion Crystal), so recipes that need it (Prudentium essence from Inferium, and the tiers above) can be
+ * crafted from the harvest. A cell no harvested item fits takes the catalyst; it is never spent: a craft that would not
+ * give it back whole (its crafting remainder) does not happen, so a breakable crystal could never be worn out or
+ * duplicated. A recipe made of catalysts alone never crafts.
+ *
  * <h2>Transactions</h2>
  * {@link #plan} changes nothing: it works on a copy of the buffer. The machine stores the plan's output all-or-nothing
  * and only then {@link #commit commits} the new buffer, so a batch that does not fit leaves the crafter as it was.
@@ -65,8 +74,8 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  * buffer (owner rule for hidden items).
  */
 public final class MachineCrafter {
-    /** Most recipes a machine can hold, whatever the config says (its upper bound); the menu syncs this many. */
-    public static final int MAX_RECIPES = 64;
+    /** Most recipes a machine can hold, whatever the config says (its upper bound; owner, 2026-09-29: up to 100). */
+    public static final int MAX_RECIPES = 100;
     public static final int GRID_SIZE = 9;
     /** Item choices tried per recipe and batch; each round uses an item up, so ordinary recipes need one or two. */
     private static final int MAX_ROUNDS = 16;
@@ -154,6 +163,15 @@ public final class MachineCrafter {
     /** What a recipe makes (a copy with its count), or empty while it is not resolved or no longer exists. */
     public ItemStack result(int index) {
         return resolved && index < recipes.size() ? recipes.get(index).result.copy() : ItemStack.EMPTY;
+    }
+
+    /** What every recipe makes, in list order (see {@link #result}): the list the GUI shows. */
+    public List<ItemStack> results() {
+        List<ItemStack> list = new ArrayList<>(patterns.size());
+        for (int i = 0; i < patterns.size(); i++) {
+            list.add(result(i));
+        }
+        return list;
     }
 
     public boolean isEnabled() {
@@ -400,18 +418,22 @@ public final class MachineCrafter {
      *
      * @param drops       the batch after the replant
      * @param bufferLimit most items of one kind left waiting (config); the rest goes to the output
+     * @param catalyst    what the machine's catalyst slot holds (may be empty or not a catalyst: then unused)
      * @return the items to store and the buffer to {@link #commit} once they are stored
      */
-    public Plan plan(List<DropTally.Entry<ItemResource>> drops, ServerLevel level, long bufferLimit) {
+    public Plan plan(List<DropTally.Entry<ItemResource>> drops, ServerLevel level, long bufferLimit,
+                     ItemResource catalyst) {
         Map<ItemResource, Long> work = new LinkedHashMap<>(buffer);
         Map<ItemResource, Long> out = new LinkedHashMap<>();
         for (DropTally.Entry<ItemResource> drop : drops) {
             (isIngredient(drop.key(), level) ? work : out).merge(drop.key(), drop.amount(), Long::sum);
         }
+        ItemResource usableCatalyst = !catalyst.isEmpty() && catalyst.toStack().is(VfwTags.CRAFTER_CATALYSTS)
+                ? catalyst : ItemResource.EMPTY;
         for (int index : order) {
             Resolved recipe = recipes.get(index);
             if (recipe.holder != null && !work.isEmpty()) {
-                craft(recipe, recipe.holder.value(), work, out, level);
+                craft(recipe, recipe.holder.value(), work, out, usableCatalyst, level);
             }
         }
         for (Iterator<Map.Entry<ItemResource, Long>> it = work.entrySet().iterator(); it.hasNext(); ) {
@@ -431,14 +453,15 @@ public final class MachineCrafter {
 
     /**
      * Crafts one recipe as many times as {@code work} allows. Each round picks, for every cell, the waiting item with
-     * the most units left that the cell accepts, then crafts as often as those items allow; a round ends when one of
-     * them runs out, so a mixed stock (oak and birch planks) takes a few rounds.
+     * the most units left that the cell accepts (the catalyst when no waiting item fits), then crafts as often as those
+     * items allow; a round ends when one of them runs out, so a mixed stock (oak and birch planks) takes a few rounds.
      */
     private static void craft(Resolved recipe, CraftingRecipe value, Map<ItemResource, Long> work,
-                              Map<ItemResource, Long> out, ServerLevel level) {
+                              Map<ItemResource, Long> out, ItemResource catalyst, ServerLevel level) {
         for (int round = 0; round < MAX_ROUNDS; round++) {
             List<ItemStack> cells = new ArrayList<>(Collections.nCopies(GRID_SIZE, ItemStack.EMPTY));
             Map<ItemResource, Integer> uses = new HashMap<>();
+            int catalystCells = 0; // bit mask of the cells the catalyst serves
             for (int cell = 0; cell < GRID_SIZE; cell++) {
                 if (recipe.grid.get(cell).isEmpty()) {
                     continue;
@@ -452,6 +475,11 @@ public final class MachineCrafter {
                         bestLeft = left;
                     }
                 }
+                if (best == null && !catalyst.isEmpty() && (cellMask(recipe, catalyst, level) & (1 << cell)) != 0) {
+                    cells.set(cell, catalyst.toStack(1));
+                    catalystCells |= 1 << cell;
+                    continue;
+                }
                 if (best == null) {
                     return; // a cell has nothing left: no more crafts
                 }
@@ -462,13 +490,18 @@ public final class MachineCrafter {
             for (Map.Entry<ItemResource, Integer> use : uses.entrySet()) {
                 crafts = Math.min(crafts, work.get(use.getKey()) / use.getValue());
             }
-            CraftingInput input = input(cells);
+            CraftingInput.Positioned positioned = CraftingInput.ofPositioned(3, 3, cells);
+            CraftingInput input = positioned.input();
             if (crafts <= 0 || crafts == Long.MAX_VALUE || !value.matches(input, level)) {
-                return; // a mix of items the recipe refuses as a whole (rare shapeless recipes): wait for more
+                return; // a mix the recipe refuses as a whole (rare shapeless recipes), or catalysts only: no craft
             }
             ItemStack result = value.assemble(input);
             if (result.isEmpty()) {
                 return;
+            }
+            NonNullList<ItemStack> remainders = value.getRemainingItems(input);
+            if (catalystCells != 0 && !catalystComesBack(catalystCells, positioned, remainders, catalyst)) {
+                return; // this recipe would spend the catalyst: never (see the class doc)
             }
             for (Map.Entry<ItemResource, Integer> use : uses.entrySet()) {
                 long left = work.get(use.getKey()) - crafts * use.getValue();
@@ -479,12 +512,33 @@ public final class MachineCrafter {
                 }
             }
             (recipe.chainsResult ? work : out).merge(ItemResource.of(result), crafts * result.getCount(), Long::sum);
-            for (ItemStack remainder : value.getRemainingItems(input)) {
+            for (ItemStack remainder : remainders) {
                 if (!remainder.isEmpty()) {
                     out.merge(ItemResource.of(remainder), crafts * remainder.getCount(), Long::sum);
                 }
             }
         }
+    }
+
+    /**
+     * Whether every cell the catalyst serves gives it back as its remainder (the Master Infusion Crystal does). Those
+     * remainders are then cleared: the catalyst stays in its slot, it is not output. Remainders are indexed by the
+     * trimmed recipe input, hence the offset of {@code positioned}.
+     */
+    private static boolean catalystComesBack(int catalystCells, CraftingInput.Positioned positioned,
+                                             NonNullList<ItemStack> remainders, ItemResource catalyst) {
+        int width = positioned.input().width();
+        for (int cell = 0; cell < GRID_SIZE; cell++) {
+            if ((catalystCells & (1 << cell)) == 0) {
+                continue;
+            }
+            int index = (cell / 3 - positioned.top()) * width + (cell % 3 - positioned.left());
+            if (index < 0 || index >= remainders.size() || !remainders.get(index).is(catalyst.getItem())) {
+                return false;
+            }
+            remainders.set(index, ItemStack.EMPTY);
+        }
+        return true;
     }
 
     /**

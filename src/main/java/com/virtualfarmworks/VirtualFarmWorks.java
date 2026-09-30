@@ -10,6 +10,7 @@ import com.mojang.logging.LogUtils;
 import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.data.ModDataMaps;
 import com.virtualfarmworks.gametest.VfwGameTests;
+import com.virtualfarmworks.network.CrafterRecipesPayload;
 import com.virtualfarmworks.network.SetCrafterGridPayload;
 import com.virtualfarmworks.network.SetFilterGhostPayload;
 import com.virtualfarmworks.plant.SoilRules;
@@ -45,6 +46,7 @@ public class VirtualFarmWorks {
         VfwConfig.register(modEventBus, modContainer);
         SetFilterGhostPayload.register(modEventBus); // JEI drag-and-drop onto the harvest filter
         SetCrafterGridPayload.register(modEventBus); // JEI "+" and drag-and-drop onto the autocrafter grid
+        CrafterRecipesPayload.register(modEventBus); // the autocrafter recipe list, to viewers
         VfwGameTests.register(modEventBus); // no-op in production
 
         // Game (not mod) bus listeners.

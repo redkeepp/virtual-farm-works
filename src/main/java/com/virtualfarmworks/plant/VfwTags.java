@@ -1,6 +1,6 @@
 /*
  * VfwTags — TagKeys of VFW's datapack-editable tags (tillable soils, unplantable seeds, extra plantables, universal
- * soils, mushroom soils, glow berry supports, harvest by-products). Default contents:
+ * soils, mushroom soils, glow berry supports, harvest by-products, crafter catalysts). Default contents:
  * src/main/resources/data/virtualfarmworks/tags/.
  */
 package com.virtualfarmworks.plant;
@@ -65,6 +65,14 @@ public final class VfwTags {
      * nearly everything; VFW narrows it to cave-ceiling blocks (default: overworld stone, moss, dirt).
      */
     public static final TagKey<Block> SUPPORTS_GLOW_BERRIES = block("supports_glow_berries");
+
+    /**
+     * What the autocrafter's catalyst slot accepts (owner, 2026-09-29: the Master Infusion Crystal, so Mystical
+     * Agriculture's essence tiers can be crafted). A recipe uses the catalyst without spending it, and only if the
+     * recipe gives it back whole: list only items that survive crafting (unbreakable tools). Default: Mystical
+     * Agriculture's Master Infusion Crystal.
+     */
+    public static final TagKey<Item> CRAFTER_CATALYSTS = item("crafter_catalysts");
 
     private VfwTags() {
     }
