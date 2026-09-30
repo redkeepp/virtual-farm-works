@@ -169,12 +169,12 @@ button and the ON/OFF button (owner, 2026-09-29):
   `FarmMatrixBlockEntity#harvestNextBatch`), its panel in the GUI (modal over the grids, `EntropicFarmMatrixMenu` crafter
   slots and buttons), JEI "+" and drag-and-drop (`client/compat/VfwJeiPlugin`, `network/SetCrafterGridPayload`), game
   tests `CrafterGameTests`.
-- Stage 5 (done): six Entropic rows in `gametest/LoadBenchmark`; results in `docs/history.md` (provisional: measured
-  with games open). Growing with 3,840 plots costs 0.029 us per tick (the plot count does not matter); a busy
+- Stage 5 (done): six Entropic rows in `gametest/LoadBenchmark`; results in `docs/history.md` (first run with games
+  open, then 3 clean runs). Growing with 3,840 plots costs 0.036 us per tick (the plot count does not matter); a busy
   3,840-plot farm, harvests included, costs about a quarter of the 60 equivalent Starters.
 - Owner's answers and first in-game test (2026-09-29, done): all groups must be valid, no hoe, replant option (b)
   with a button per machine, up to 100 recipes sent as a dynamic list (`network/CrafterRecipesPayload`), catalyst slot,
   FE shown full while a source keeps up, lightning box, INPUT faces pull from glued inventories, smaller button text,
   info lines one pixel lower. Game tests `entropic_groups_must_all_be_valid`, `entropic_input_face_pulls_from_chests`,
   `crafter_uses_the_catalyst`; the replant test covers option (b), the switch and the config.
-- Waiting for the owner: in-game test of these changes, a clean benchmark run, and the machine's crafting recipe.
+- Waiting for the owner: in-game test of these changes and the machine's crafting recipe.

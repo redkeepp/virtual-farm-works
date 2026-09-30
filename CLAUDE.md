@@ -88,8 +88,8 @@ modes, pipe input, registration), stage 2 (GUI: `EntropicFarmMatrixMenu`, `Entro
 `EntropicFarmMatrixScreen`, shared `AbstractFarmMatrixMenu`), stage 3 (replant), stage 4 (autocrafter
 `machine/MachineCrafter`, its panel, JEI "+"), stage 5 (benchmark rows, docs), then the owner's answers and first
 in-game test (2026-09-29: all groups must be valid, no hoe, replant option (b) + button, 100 recipes, catalyst slot,
-FE display, lightning box, INPUT pulls from chests). Waiting for the owner: in-game test of those changes and a clean
-benchmark run (the first was measured with games open). No machine recipe until the owner defines one. Voltaic,
+FE display, lightning box, INPUT pulls from chests) and a clean benchmark (3 runs). Waiting for the owner: in-game
+test of those changes. No machine recipe until the owner defines one. Voltaic,
 Ionic and Resonant come after (they will reuse `MachineLayout`).
 Tests: 42 game tests (41 VFW + 1 vanilla), 77 JUnit, load benchmark.
 
@@ -324,15 +324,15 @@ Breaking drops contents in `preRemoveSideEffects`.
   Entropic rows (energy refilled and outputs emptied between ticks, untimed): growing (1,000 machines, like the
   Starter's rows: fewer machines left the JIT cold and read 5x too high), busy 3,840 wheat plots with and without the
   autocrafter, busy mixed farm (60 different plant/soil pairs), 60-group revalidation, an input change every tick.
-- Entropic, provisional (2026-09-29, two games of the owner open): growing 0.029 us per machine per tick with 3,840
-  plots (Starter 0.011: the FE check and payment); busy 3,840 wheat plots 5.1 us (4.8 with the autocrafter), i.e.
-  ~a quarter of 60 equivalent Starters; mixed 60 plants 2.3 us; revalidation 13 us (60 groups), so a pipe feeding the
-  grids every tick costs ~12 us per tick while it feeds (grids full = no change = no cost). Rerun with every game
-  closed for the reference.
-- Reference (2026-09-29, owner's PC, every game closed, 3 runs): busy wheat farm 0.28 us per machine per tick
-  (~3,500 busy machines per ms; 1,000 = 0.56% of a 50 ms tick); growing ~0.01 us; harvest tick 71 us (64 wheat) /
-  4.8 us (64 MA) / 7.2 us (64 poppies) / 245 us (32 oak saplings, 4 trees grown); busy oak farm 1.2 us (~4x wheat).
-  A tree harvest is ~80% growth (~44 us per tree grown). History of results in `docs/history.md`.
+- Reference (2026-09-29, after the Entropic and the owner's changes; owner's PC, every game closed, average of 3
+  runs): Starter busy wheat farm 0.29 us per machine per tick (~3,500 busy machines per ms; 1,000 = 0.6% of a 50 ms
+  tick); growing 0.011 us; harvest tick 67 us (64 wheat) / 4.5 us (64 MA) / 7.5 us (64 poppies) / 250 us (32 oak
+  saplings, 4 trees grown); busy oak farm 1.27 us (~4x wheat); revalidation 2.8 us. A tree harvest is ~80% growth
+  (~44 us per tree grown). Entropic: growing 0.036 us with 3,840 plots (the FE check and payment); busy 3,840 wheat
+  plots 4.7 us (4.5 with the autocrafter), ~a quarter of 60 equivalent Starters; mixed 60 plants 2.2 us; revalidation
+  of 60 groups ~12 us (median; one run 29), so a pipe feeding the grids every tick costs ~11 us per tick while it
+  feeds (grids full = no change = no cost). The first row (growing, 1 plot) reads ~0.026 us only because it is
+  measured first, while the JIT still warms up the tick. History of results in `docs/history.md`.
 - Close every Minecraft instance before benchmarking (dev clients AND the owner's modpack, e.g. ATM10): with them
   open every row came out ~2.5x slower.
 - Trees were accepted as they are (owner closed the Starter on 2026-09-29 without choosing an optimization). If tree

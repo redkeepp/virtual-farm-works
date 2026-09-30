@@ -167,3 +167,12 @@ game tests passed:
   multi-group generalization; it runs only on changes). A first run measured the growing Entropic with 100 machines
   and 100 warm-up ticks and got 0.144 us: not enough JIT warm-up (the energy branch was new to the compiled code), so
   the row now uses the Starter's 1,000 machines.
+- 2026-09-29, after the owner's changes to the Entropic (owner's PC, every game closed, average of 3 runs by Claude):
+  Starter growing 0.011 us (64 plots), OUTPUT FULL 0.015 us, harvest tick 67 us (64 wheat) / 4.4 us (1 wheat) /
+  4.5 us (64 MA) / 7.5 us (64 poppies) / 250 us (32 oak saplings) / 89 us (8 crimson fungi), busy wheat farm 0.29 us,
+  busy oak farm 1.27 us, pipe 0.32 us with and without a filter, export 78 us: no regression. Revalidation 2.8 us
+  (1.4 before the multi-group generalization; only on changes). The first row (growing, 1 plot) read 0.021-0.029 us:
+  it is measured first, while the JIT still warms up the tick (a little longer now); the same path at 64 plots,
+  measured right after, reads 0.011. Entropic: growing with 3,840 plots 0.036 us, busy 3,840 wheat plots 4.7 us
+  (4.5 with the autocrafter), busy mixed farm of 60 plants 2.2 us, revalidation of 60 groups 10.8 / 29.0 / 12.1 us
+  (one noisy run), an input change every tick 11.0 us.
