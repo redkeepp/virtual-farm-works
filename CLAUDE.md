@@ -18,7 +18,8 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
 - Build: ModDevGradle 2.0.147 (official NeoForge MDK), Gradle wrapper 9.2.1.
 - License: **MIT** for code and assets (all art is the owner's). `LICENSE` is VFW's; `TEMPLATE_LICENSE.txt` is the
   NeoForged MDK notice and must be kept. Never copy code or assets from other mods without checking their license.
-- Git: the GitHub repository (remote `origin`), branch `main`. Claude commits; the OWNER pushes.
+- Git: `https://github.com/redkeepp/virtual-farm-works` (Redkeep's account; moved there on 2026-09-30), branch
+  `main`. Claude commits (this repository's git identity is Redkeep, set in `.git/config`); the OWNER pushes.
 
 ## Working rules (owner requirements)
 
@@ -50,9 +51,10 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
 8. **Modpack mindset** (owner): the mod will run in big packs — support ANY seed, ANY sapling, ANY plant through its
    block class, tags and the game's own rules. Never hard-code vanilla item lists in Java; exceptions go in tags or
    data maps that pack makers can edit.
-9. **Presented as Redkeep's** (owner, 2026-09-30): the author is Redkeep (`mod_authors`, LICENSE copyright). Never
-   write the owner's personal name, GitHub username or e-mail in any file, doc or metadata. Links to the home page
-   and issue tracker stay empty until a Redkeep home exists (`mod_url`, `mod_issues_url` in gradle.properties).
+9. **Presented as Redkeep's** (owner, 2026-09-30): the author is Redkeep (`mod_authors`, LICENSE copyright). Write
+   "Redkeep" wherever a name is shown; the GitHub account is `redkeepp` (two p: `redkeep` was taken), used only
+   where the account itself is needed (URLs). The owner's previous personal account is not used any more: never
+   write the owner's personal name, old username or e-mail in any file, doc, metadata or commit.
 
 ## Commands
 

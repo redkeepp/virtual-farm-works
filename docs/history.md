@@ -186,8 +186,9 @@ Delight, Mystical Agriculture, JEI; checked through the GitHub API) and approved
   (`gradle.properties`), JEI, Jade and Mystical Agriculture as optional dependencies with the built-against versions as
   minimums. The logo line waits for the owner's logo.
 - **Version 1.0.0**, file `virtualfarmworks-26.1.2-1.0.0.jar` (Minecraft version in the name, like large mods).
-- **Presented as Redkeep's** (owner): author Redkeep in the metadata and the LICENSE; the home page and issue
-  links (which named the owner's GitHub account) are left out until a Redkeep home exists.
+- **Presented as Redkeep's** (owner): author Redkeep in the metadata and the LICENSE. The owner then moved the
+  repository to Redkeep's GitHub account (`redkeepp/virtual-farm-works`; `redkeep` was taken): home page and
+  issue links point there, and new commits are made as Redkeep.
 - Left for the owner: logo, CurseForge/Modrinth projects, GitHub description and topics, the art license decision.
   Proposed next: player README, CHANGELOG, issue templates, the platform page texts, then an automatic release
   workflow.
