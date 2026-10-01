@@ -190,8 +190,9 @@ Delight, Mystical Agriculture, JEI; checked through the GitHub API) and approved
   repository to Redkeep's GitHub account (`redkeepp/virtual-farm-works`; `redkeep` was taken): home page and
   issue links point there, and new commits are made as Redkeep.
 - **History rewritten as Redkeep** (owner OK): every commit's author and committer and both tags
-  (`starter-complete`, `entropic-complete`) now name Redkeep; content, messages and dates are unchanged (checked
-  commit by commit). Every commit hash before this point changed.
+  (`starter-complete`, `entropic-complete`) now name Redkeep, and old versions of LICENSE, CLAUDE.md and
+  gradle.properties name Redkeep and the new repository instead of the previous account. Everything else (files,
+  messages, dates) is unchanged, checked commit by commit. Every commit hash before this point changed.
 - Left for the owner: logo, CurseForge/Modrinth projects, GitHub description and topics, the art license decision.
   Proposed next: player README, CHANGELOG, issue templates, the platform page texts, then an automatic release
   workflow.
