@@ -445,6 +445,9 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
   `mineable` tag, and a line in `docs/resources.md`.
 
 ### Tooling (Windows, git, Gradle, config files)
+- Pushing: Git Credential Manager on the owner's PC also holds another GitHub account, so the remote URL names the
+  account (`https://redkeepp@github.com/redkeepp/virtual-farm-works.git`); without it GCM pushes as the other
+  account and GitHub answers 403. The owner pushes (first time: GCM's browser sign-in, as redkeepp).
 - Commits: Bash tool with a heredoc — `git commit -F - <<'EOF' ... EOF`. From PowerShell 5.1, quotes in `-m` split
   into pathspecs, `-F` with the long scratchpad path fails, piping adds a BOM. Never hide git's stderr (`2>$null`).
 - `gradlew` must stay executable in git (`git ls-files -s gradlew` -> `100755`); Windows loses the bit and CI fails
