@@ -64,4 +64,7 @@ Resonant have no recipes yet (their machines and upgrades are not built).
 | File | Purpose |
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template; Gradle fills `${...}` from `gradle.properties`: description, author (Redkeep), home page and issue links (left out while empty), and JEI, Jade and Mystical Agriculture as optional dependencies (the built-against versions as minimums). The logo line waits for the owner's logo. |
+| `README.md` | The public face for players and pack makers: machines, plants, upgrades, recipes, mod support, measured performance, config, requirements, download, bug reports, building, license. Its body can serve as the CurseForge/Modrinth description. Keep it in sync with the features and the benchmark. |
+| `CHANGELOG.md` | One section per release (Keep a Changelog style); the GitHub, CurseForge and Modrinth release notes come from it. |
+| `.github/ISSUE_TEMPLATE/` | `bug_report.yml` (asks for the mod, NeoForge and Minecraft versions, single player or server, other mods, steps and a log link), `feature_request.yml`, `config.yml` (no blank issues). |
 | `config/virtualfarmworks-server.toml` (generated at runtime, not in the repo) | Pack-maker config, generated from `config/VfwServerConfig.java` with its comments. See `docs/specs/configurability.md`. |

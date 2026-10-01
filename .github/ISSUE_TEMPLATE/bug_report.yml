@@ -1,0 +1,71 @@
+# Bug report form for Virtual Farm Works: asks for the versions, the steps and the log, so a bug can be reproduced.
+# Syntax: GitHub issue forms (https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms).
+name: Bug report
+description: Something does not work as it should, or the game crashes.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check that the bug still happens with the latest Virtual Farm Works version.
+  - type: input
+    id: mod-version
+    attributes:
+      label: Virtual Farm Works version
+      description: The last number in the jar name, e.g. 1.0.0 for virtualfarmworks-26.1.2-1.0.0.jar.
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: neoforge-version
+    attributes:
+      label: NeoForge version
+      placeholder: 26.1.2.109
+    validations:
+      required: true
+  - type: input
+    id: minecraft-version
+    attributes:
+      label: Minecraft version
+      placeholder: 26.1.2
+    validations:
+      required: true
+  - type: dropdown
+    id: side
+    attributes:
+      label: Where does it happen?
+      options:
+        - Single player
+        - Dedicated server
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: mods
+    attributes:
+      label: Modpack or other mods
+      description: The modpack and its version, or the mods involved (Mystical Agriculture, JEI, Jade, pipes...).
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What you expected and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Place an Entropic Farm Matrix
+        2. Put ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log or crash report
+      description: Upload logs/latest.log (or the file from crash-reports/) to https://mclo.gs and paste the link here.
+    validations:
+      required: true

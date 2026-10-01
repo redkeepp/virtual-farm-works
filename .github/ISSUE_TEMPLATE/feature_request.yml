@@ -1,0 +1,17 @@
+# Feature request form for Virtual Farm Works: the idea and the problem it solves.
+name: Feature request
+description: An idea or a suggestion for the mod.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What would you like the mod to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The problem it solves, or how you would use it.

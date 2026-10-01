@@ -85,6 +85,10 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
   notice in every copy) and leaves out `antigos_nao_usar`. Authors, home page and issue links: `gradle.properties`
   (`mod_authors`, `mod_url`, `mod_issues_url`). JEI, Jade and Mystical Agriculture are declared optional
   dependencies with the versions VFW is built against as minimums (older ones get NeoForge's error screen).
+- Public face: `README.md` (players and pack makers; update it with the features and the benchmark numbers),
+  `CHANGELOG.md` (a section for every release; release notes are taken from it), `.github/ISSUE_TEMPLATE/` (bug form
+  with versions and log, feature form, no blank issues). A release: bump `mod_version`, add the CHANGELOG section,
+  build, and the owner publishes the jar (GitHub release tag `v<mod_version>`).
 
 ## Current state (2026-09-30)
 

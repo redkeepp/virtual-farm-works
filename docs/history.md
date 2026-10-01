@@ -194,8 +194,10 @@ Delight, Mystical Agriculture, JEI; checked through the GitHub API) and approved
   gradle.properties name Redkeep and the new repository instead of the previous account. Everything else (files,
   messages, dates) is unchanged, checked commit by commit. Every commit hash before this point changed.
 - Left for the owner: logo, CurseForge/Modrinth projects, GitHub description and topics, the art license decision.
-  Proposed next: player README, CHANGELOG, issue templates, the platform page texts, then an automatic release
-  workflow.
+- **Public face (same day, owner OK).** A README for players and pack makers (machines, plants, upgrades, recipes,
+  mod support, measured performance, config, requirements), a CHANGELOG with the 1.0.0 section, and GitHub issue
+  forms (bug report with versions and log link, feature request, no blank issues). Next, when the platforms
+  exist: an automatic release workflow.
 
 ## Benchmark results log
 
