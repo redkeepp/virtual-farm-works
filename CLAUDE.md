@@ -121,6 +121,18 @@ slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; r
 **Released:** 1.0.0 on GitHub Releases (2026-09-30, published by the owner, without the logo). In progress: 1.0.1
 (`mod_version`; adds the logo), meant as the first CurseForge/Modrinth upload (page texts: `docs/publishing.md`).
 
+**Two Minecraft versions, side by side (owner, 2026-10-01).**
+- **26.x** (branch `main`): "the base for everything from now on, on the new, up-to-date API". Every feature is
+  designed and built here first, the 26.x way: never shape 26.x code around 1.21.1. Target: ATM11 and later.
+- **1.21.1** (branch `1.21.1`, not created yet): "the stubborn old one that has not died yet and still needs
+  attention". ATM10 (NeoForge 21.1) is the second most played CurseForge pack, so it gets every feature after 26.x,
+  ported to its old API (no transfer API, old GUI, NBT saves, old game tests...). Its own problems are solved in
+  that branch only; a bug in logic both versions share is fixed in both. It pins NeoForge 21.1 and the JEI, Jade
+  and Mystical Agriculture versions ATM10 ships.
+- Same mod version for the same features on both lines (the file name carries the Minecraft version); both jars go
+  to the same CurseForge/Modrinth projects. Port analysis (what changes and its weight): this session's notes in
+  `docs/history.md` once the port starts. Nothing is ported until the owner asks.
+
 **Next:** Voltaic, Ionic and Resonant (the middle tiers; they will reuse `MachineLayout`), when the owner specifies
 them.
 Tests: 46 game tests (45 VFW + 1 vanilla), 86 JUnit, load benchmark.
