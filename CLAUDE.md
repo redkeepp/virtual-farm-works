@@ -127,8 +127,10 @@ slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; r
 - **1.21.1** (branch `1.21.1`, not created yet): "the stubborn old one that has not died yet and still needs
   attention". ATM10 (NeoForge 21.1) is the second most played CurseForge pack, so it gets every feature after 26.x,
   ported to its old API (no transfer API, old GUI, NBT saves, old game tests...). Its own problems are solved in
-  that branch only; a bug in logic both versions share is fixed in both. It pins NeoForge 21.1 and the JEI, Jade
-  and Mystical Agriculture versions ATM10 ships.
+  that branch only; a bug in logic both versions share is fixed in both. It pins the versions ATM10 ships (owner,
+  2026-10-01; all checked on their mavens): NeoForge 21.1.228, Mystical Agriculture 1.21.1-8.0.26, Mystical
+  Agradditions 1.21.1-8.0.13, JEI 19.27.0.340 (`jei-1.21.1-*-api`), Jade 15.10.5+neoforge (Modrinth maven).
+  Cucumber's version (needed at runtime by MA) is still to be read from ATM10.
 - Same mod version for the same features on both lines (the file name carries the Minecraft version); both jars go
   to the same CurseForge/Modrinth projects. Port analysis (what changes and its weight): this session's notes in
   `docs/history.md` once the port starts. Nothing is ported until the owner asks.
