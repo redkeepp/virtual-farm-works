@@ -43,7 +43,8 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
    honestly: measured vs estimated, what was not tested.
 7. **Art assets** under `src/main/resources/assets/virtualfarmworks/` are the owner's and complete. Do NOT rename,
    reorganize or "fix" them; keep the Portuguese texture names (`azul.png`, `corpo.png`, ...). Ignore
-   `textures/gui/starter_farm_matrix_gui2.png`, `textures/item/antigos_nao_usar/` and missing Entropic assets. If
+   `textures/gui/starter_farm_matrix_gui2.png`, `textures/item/antigos_nao_usar/` (excluded from the jar by
+   build.gradle) and missing Entropic assets. If
    something renders as the missing texture, check the code's resource paths first, then tell the owner; never
    create replacement art.
 8. **Modpack mindset** (owner): the mod will run in big packs — support ANY seed, ANY sapling, ANY plant through its
@@ -69,7 +70,14 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
   copies `run/mods` into it). Never point them back to `run/`: `run/config` holds the owner's manual test values.
 - Dev test mods go as jars in `run/mods/` (MA 9.0.9, Agradditions 9.0.3, Cucumber, Jade, JEI, and others; 26.1 is
   unobfuscated, so production jars load in dev). `run/` and `run-gametest/` are git-ignored. CI (GitHub Actions)
-  runs `gradlew build` only (JUnit, no game tests).
+  runs `gradlew build` only (JUnit, and it compiles the game tests without running them).
+- Release jar (`gradlew build` -> `build/libs/virtualfarmworks-<minecraft_version>-<mod_version>.jar`, e.g.
+  `virtualfarmworks-26.1.2-1.0.0.jar`; `mod_version` alone goes into `neoforge.mods.toml`): built from `main` only.
+  The game tests and the benchmark are the `gametest` source set (`src/gametest/java`), part of the mod in dev runs
+  only (their own `@Mod` class, `GameTestsEntry`); the jar carries `LICENSE_virtualfarmworks` (MIT asks for the
+  notice in every copy) and leaves out `antigos_nao_usar`. Authors, home page and issue links: `gradle.properties`
+  (`mod_authors`, `mod_url`, `mod_issues_url`). JEI, Jade and Mystical Agriculture are declared optional
+  dependencies with the versions VFW is built against as minimums (older ones get NeoForge's error screen).
 
 ## Current state (2026-09-30)
 
@@ -95,7 +103,7 @@ slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; r
 
 **Next:** Voltaic, Ionic and Resonant (the middle tiers; they will reuse `MachineLayout`), when the owner specifies
 them.
-Tests: 45 game tests (44 VFW + 1 vanilla), 86 JUnit, load benchmark.
+Tests: 46 game tests (45 VFW + 1 vanilla), 86 JUnit, load benchmark.
 
 Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says "scaffolding"). Outside VFW:
 MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or with JEI; Trash Cans 1.1.1
@@ -124,7 +132,8 @@ crashes when anything exports into its Item Trash Can (its own bug, see `docs/hi
   automated input.
 - Content: Starter, Voltaic, Ionic, Resonant, Entropic **Farm Matrix**; Water Provider Upgrade and Growth Speed
   Upgrade in those 5 tiers (an upgrade fits machines of its tier or lower: `MachineTier#accepts`); one Crux Provider
-  Upgrade. Progression: from a Botany-Pot-like Starter to thousands of plots (Entropic ≈ 6,000 as a design target).
+  Upgrade. Only tiers whose machine exists (`MachineTier#isBuilt`: Starter, Entropic) register their upgrades, and
+  the "Fits:" tooltip names only those (owner, 2026-09-30: a release shows nothing a player cannot use). Progression: from a Botany-Pot-like Starter to thousands of plots (Entropic ≈ 6,000 as a design target).
 
 ## How the machine works — quick reference
 
@@ -481,14 +490,16 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
   `EntropicFarmMatrixScreen`, `FarmMatrixJeiTargets`, `SmoothProgress`, `GuiScaleFit`, `compat/VfwJeiPlugin`. Never reference
   `client/` from common code (a dedicated server crashes).
 - `compat/jade/`, `compat/mysticalagriculture/` — see Integrations.
-- `gametest/` (dev only) — `VfwGameTests` (registration: add a `test(...)` line with a max tick count),
-  `MachineGameTests`, `FilterGameTests`, `PlantablesGameTests`, `EntropicGameTests`, `CrafterGameTests`,
-  `MysticalHarvestTests`, `MysticalFarmlandTests`, `LoadBenchmark`.
+- `src/gametest/java/com/virtualfarmworks/gametest/` (dev only, never in the release jar) — `GameTestsEntry` (its
+  `@Mod` entry), `VfwGameTests` (registration: add a `test(...)` line with a max tick count), `MachineGameTests`,
+  `FilterGameTests`, `PlantablesGameTests`, `EntropicGameTests`, `CrafterGameTests`, `MysticalHarvestTests`,
+  `MysticalFarmlandTests`, `LoadBenchmark`.
   `FarmMatrixBlockEntity#setProgressForTesting` exists only for tests.
 - `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`, `client/GuiScaleFit`,
   `config/ConfigFileLayout`).
 - `src/main/resources/data/virtualfarmworks/` — tags, data maps, recipes, loot tables (see `docs/resources.md`).
-- `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata (Gradle expands it from `gradle.properties`).
+- `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata: description, links, authors, optional
+  dependencies (Gradle expands it from `gradle.properties`; the logo line waits for the owner's logo).
 
 ## Docs (read the specs before implementing)
 

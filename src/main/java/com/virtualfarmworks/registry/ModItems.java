@@ -37,11 +37,11 @@ public final class ModItems {
     public static final DeferredItem<BlockItem> ENTROPIC_FARM_MATRIX =
             ITEMS.registerSimpleBlockItem("entropic_farm_matrix", ModBlocks.ENTROPIC_FARM_MATRIX);
 
-    /** {@code <tier>_water_provider_upgrade}, one per tier. */
+    /** {@code <tier>_water_provider_upgrade}, one per built tier ({@link MachineTier#isBuilt}). */
     public static final Map<MachineTier, DeferredItem<TieredUpgradeItem>> WATER_PROVIDER_UPGRADES =
             registerTiered(UpgradeType.WATER_PROVIDER);
 
-    /** {@code <tier>_growth_upgrade} (displayed as "Growth Speed Upgrade"), one per tier. */
+    /** {@code <tier>_growth_upgrade} (displayed as "Growth Speed Upgrade"), one per built tier. */
     public static final Map<MachineTier, DeferredItem<TieredUpgradeItem>> GROWTH_SPEED_UPGRADES =
             registerTiered(UpgradeType.GROWTH_SPEED);
 
@@ -51,10 +51,16 @@ public final class ModItems {
     private ModItems() {
     }
 
-    /** Registers one {@link TieredUpgradeItem} per tier, in tier order (the map iterates in that order). */
+    /**
+     * Registers one {@link TieredUpgradeItem} per built tier, in tier order (the map iterates in that order). Tiers not
+     * built yet get none: their textures and names wait in the assets until the tier is made.
+     */
     private static Map<MachineTier, DeferredItem<TieredUpgradeItem>> registerTiered(UpgradeType type) {
         Map<MachineTier, DeferredItem<TieredUpgradeItem>> byTier = new EnumMap<>(MachineTier.class);
         for (MachineTier tier : MachineTier.values()) {
+            if (!tier.isBuilt()) {
+                continue;
+            }
             byTier.put(tier, ITEMS.registerItem(
                     tier.getSerializedName() + "_" + type.registrySuffix(),
                     properties -> new TieredUpgradeItem(type, tier, properties)));

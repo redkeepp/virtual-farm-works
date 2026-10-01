@@ -45,8 +45,9 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
  * Automated in-game tests, run headless with {@code gradlew runGameTestServer} (boots a real server with every mod in
  * {@code run/mods}, runs the tests, exits non-zero on failure).
  *
- * <p>Registered only in development ({@link FMLEnvironment#isProduction()} false), so they never show up in players'
- * {@code /test} lists. Each test is a plain function: it runs checks against real registries/tags/config and calls
+ * <p>Development only: this source set (src/gametest) never goes into the release jar, and {@link GameTestsEntry}
+ * registers the tests; the {@link FMLEnvironment#isProduction()} check stays as a second guard, so they never show
+ * up in players' {@code /test} lists. Each test is a plain function: it runs checks against real registries/tags/config and calls
  * {@code helper.succeed()}; a failed {@link #check} fails the test with a readable message.
  *
  * <p>Add a test: write a {@code static void name(GameTestHelper)} and add one {@link #test} line to {@link #TESTS}
@@ -83,6 +84,7 @@ public final class VfwGameTests {
             // finishing touches (step 8)
             test("machine_inserts_upgrades_from_hand", MachineGameTests::insertsUpgradesFromHand, 20),
             test("recipes_are_loaded", MachineGameTests::recipesAreLoaded, 20),
+            test("only_built_tiers_have_items", MachineGameTests::onlyBuiltTiersHaveItems, 20),
             test("mystical_effective_farmland", VfwGameTests::mysticalEffectiveFarmland, 20),
             // output: hidden slots and batched harvests (step 8, owner's deadlock report)
             test("machine_big_harvest_does_not_deadlock", MachineGameTests::bigHarvestDoesNotDeadlock, 20),

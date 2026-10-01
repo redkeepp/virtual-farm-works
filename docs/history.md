@@ -170,6 +170,26 @@ game tests passed:
   server (the custom packets included) and a final clean benchmark (no regression). The energy buffer's x 3 stays
   in code (owner). Git tag `entropic-complete`.
 
+## Preparing the first release (2026-09-30)
+
+The owner asked what the repository lacks compared with large mods (Applied Energistics 2, Mekanism, Create, Farmer's
+Delight, Mystical Agriculture, JEI; checked through the GitHub API) and approved the code and metadata part first:
+
+- **Unbuilt tiers hidden.** The Voltaic, Ionic and Resonant upgrades were registered, in the creative tab and in JEI,
+  without recipes or machines. `MachineTier#isBuilt` (Starter, Entropic) now decides which tiers register items; the
+  "Fits:" tooltip names only those. Their art and names stay in the assets. Game test `only_built_tiers_have_items`.
+- **Clean release jar.** The game tests and the benchmark moved to their own source set (`src/gametest`, a dev-only
+  `@Mod` entry `GameTestsEntry`; `gradlew build` still compiles them); the owner's old textures (`antigos_nao_usar`)
+  stay in the repository but out of the jar; the jar carries the MIT license. 273 files and 522 KB before, 258 files
+  and 413 KB after.
+- **Metadata.** `neoforge.mods.toml` without the MDK examples: description, authors, home page and issue tracker
+  (`gradle.properties`), JEI, Jade and Mystical Agriculture as optional dependencies with the built-against versions as
+  minimums. The logo line waits for the owner's logo.
+- **Version 1.0.0**, file `virtualfarmworks-26.1.2-1.0.0.jar` (Minecraft version in the name, like large mods).
+- Left for the owner: logo, CurseForge/Modrinth projects, GitHub description and topics, the art license decision.
+  Proposed next: player README, CHANGELOG, issue templates, the platform page texts, then an automatic release
+  workflow.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

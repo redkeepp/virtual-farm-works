@@ -1,6 +1,7 @@
 // Virtual Farm Works — Gradle build (NeoForge ModDevGradle). Defines the dev run configurations (client, server,
-// gameTestServer, data), compile-only optional integrations (Mystical Agriculture), test dependencies (JUnit) and the
-// mod metadata expansion. Based on the official NeoForge 26.1.2 MDK; MDK comments are kept below where still useful.
+// gameTestServer, benchmark, data), the gametest source set (dev only, never in the release jar), compile-only optional
+// integrations (Mystical Agriculture, JEI, Jade), test dependencies (JUnit), the mod metadata expansion and what the
+// release jar holds. Based on the official NeoForge 26.1.2 MDK; MDK comments are kept below where still useful.
 plugins {
     id 'java-library'
     id 'maven-publish'
@@ -17,7 +18,9 @@ tasks.named('wrapper', Wrapper).configure {
     distributionType = Wrapper.DistributionType.BIN
 }
 
-version = mod_version
+// Release file name: virtualfarmworks-<Minecraft version>-<mod version>.jar, like large mods (Mystical Agriculture:
+// 26.1.2-9.0.9). The mod version alone goes into neoforge.mods.toml.
+version = "${minecraft_version}-${mod_version}"
 group = mod_group_id
 
 sourceSets.main.resources {
@@ -27,6 +30,21 @@ sourceSets.main.resources {
     // Exclude common development only resources from finalized outputs
     exclude("**/*.bbmodel") // BlockBench project files
     exclude("src/generated/**/.cache") // datagen cache files
+    // The owner's old textures ("antigos, nao usar" = old, do not use): kept in the repository, never shipped
+    exclude("**/antigos_nao_usar/**")
+}
+
+// Game tests and the load benchmark (src/gametest): their own source set, so they never go into the release jar. In dev
+// runs it is part of the mod (mods block below) and registers the tests itself (gametest/GameTestsEntry, a @Mod class).
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations {
+    // The optional integrations' APIs, compile only as for main (the tests exercise Mystical Agriculture).
+    gametestCompileOnly.extendsFrom compileOnly
 }
 
 repositories {
@@ -64,6 +82,9 @@ neoForge {
     // This line is optional. Access Transformers are automatically detected
     // accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
 
+    // Minecraft and NeoForge on the gametest source set's classpaths too.
+    addModdingDependenciesTo(sourceSets.gametest)
+
     // Default run configurations.
     // These can be tweaked, removed, or duplicated as needed.
     runs {
@@ -87,6 +108,7 @@ neoForge {
         // files. The owner's test mods are copied from run/mods before each run (syncTestMods below).
         gameTestServer {
             type = "gameTestServer"
+            sourceSet = sourceSets.gametest
             gameDirectory = project.file('run-gametest')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
@@ -96,6 +118,7 @@ neoForge {
         // run-gametest/vfw-benchmark.txt.
         benchmark {
             type = "gameTestServer"
+            sourceSet = sourceSets.gametest
             gameDirectory = project.file('run-gametest')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
             systemProperty 'virtualfarmworks.benchmark', 'true'
@@ -132,6 +155,7 @@ neoForge {
         // multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.gametest) // dev runs only: the release jar is built from main alone
         }
     }
 }
@@ -209,6 +233,15 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             mod_name               : mod_name,
             mod_license            : mod_license,
             mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_url                : mod_url,
+            mod_issues_url         : mod_issues_url,
+            // Minimum versions of the optional integrations: the ones VFW is built against.
+            jei_version            : jei_version,
+            jade_version           : jade_version,
+            // Its maven version is 26.1.2-9.0.9; the mod itself declares 9.0.9.
+            mystical_agriculture_mod_version: mystical_agriculture_version.substring(
+                    mystical_agriculture_version.lastIndexOf('-') + 1),
     ]
     inputs.properties replaceProperties
     expand replaceProperties
@@ -237,6 +270,20 @@ publishing {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+}
+
+// `gradlew build` (CI) also compiles the game tests, so a change that breaks them is caught without running them.
+tasks.named('check').configure {
+    dependsOn tasks.named('gametestClasses')
+}
+
+// The MIT license asks for its notice in every copy: the jar carries it, under a name no other mod's LICENSE can
+// clash with in a merged or nested jar.
+var licenseInJar = "LICENSE_${mod_id}" // a plain value: the rename runs at execution time (configuration cache)
+tasks.named('jar', Jar).configure {
+    from('LICENSE') {
+        rename { licenseInJar }
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {

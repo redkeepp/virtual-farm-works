@@ -1,6 +1,7 @@
 /*
- * VirtualFarmWorks — mod entry point (@Mod). Wires registries, configs, data maps, game tests and game-bus listeners
- * onto the event buses. Contains no game logic; see CLAUDE.md for the project map.
+ * VirtualFarmWorks — mod entry point (@Mod). Wires registries, configs, data maps, network payloads and game-bus
+ * listeners onto the event buses. Contains no game logic; see CLAUDE.md for the project map. (The game tests have
+ * their own dev-only entry point in src/gametest, never in the release jar.)
  */
 package com.virtualfarmworks;
 
@@ -9,7 +10,6 @@ import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.data.ModDataMaps;
-import com.virtualfarmworks.gametest.VfwGameTests;
 import com.virtualfarmworks.network.CrafterRecipesPayload;
 import com.virtualfarmworks.network.SetCrafterGridPayload;
 import com.virtualfarmworks.network.SetFilterGhostPayload;
@@ -49,7 +49,6 @@ public class VirtualFarmWorks {
         SetFilterGhostPayload.register(modEventBus); // JEI drag-and-drop onto the harvest filter
         SetCrafterGridPayload.register(modEventBus); // JEI "+" and drag-and-drop onto the autocrafter grid
         CrafterRecipesPayload.register(modEventBus); // the autocrafter recipe list, to viewers
-        VfwGameTests.register(modEventBus); // no-op in production
 
         // Game (not mod) bus listeners.
         SoilRules.register(NeoForge.EVENT_BUS);

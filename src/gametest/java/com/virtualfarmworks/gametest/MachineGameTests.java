@@ -2,7 +2,8 @@
  * MachineGameTests — game tests of the placed Farm Matrix: a full growth cycle into the buffer, status reporting,
  * OUTPUT FULL holding the harvest, batched harvests bigger than the output, the hidden output slots, save/load,
  * auto-export per face, what drops on break, slot rules, the server side of the GUI menu (buttons, shift-click,
- * output slots, synced data), and every crafting recipe of the mod crafted from the owner's grid.
+ * output slots, synced data), every crafting recipe of the mod crafted from the owner's grid, and that only tiers
+ * whose machine exists register items.
  */
 package com.virtualfarmworks.gametest;
 
@@ -45,10 +46,12 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
@@ -531,6 +534,37 @@ final class MachineGameTests {
                 ring(Items.DIAMOND, Items.IRON_INGOT, upgrade(ModItems.WATER_PROVIDER_UPGRADES, MachineTier.STARTER)));
         expectCraft(helper, "entropic_growth_upgrade", upgrade(ModItems.GROWTH_SPEED_UPGRADES, MachineTier.ENTROPIC),
                 ring(Items.REDSTONE_BLOCK, Items.DIAMOND, upgrade(ModItems.GROWTH_SPEED_UPGRADES, MachineTier.STARTER)));
+        helper.succeed();
+    }
+
+    /**
+     * Owner (2026-09-30, before publishing): tiers whose machine does not exist yet register no items, and an upgrade's
+     * "Fits:" line names only machines that exist.
+     */
+    static void onlyBuiltTiersHaveItems(GameTestHelper helper) {
+        for (MachineTier tier : MachineTier.values()) {
+            for (String suffix : new String[] {"water_provider_upgrade", "growth_upgrade"}) {
+                Identifier id = Identifier.fromNamespaceAndPath("virtualfarmworks", tier.getSerializedName() + "_" + suffix);
+                check(helper, BuiltInRegistries.ITEM.containsKey(id) == tier.isBuilt(),
+                        id + (tier.isBuilt() ? " must exist" : " must not exist before its machine"));
+            }
+        }
+        ItemStack upgrade = new ItemStack(ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.ENTROPIC).get());
+        List<String> fits = new ArrayList<>();
+        for (Component line : upgrade.getTooltipLines(Item.TooltipContext.of(helper.getLevel()), null,
+                TooltipFlag.NORMAL)) {
+            if (line.getContents() instanceof TranslatableContents text
+                    && text.getKey().equals("tooltip.virtualfarmworks.fits") && text.getArgs().length == 1
+                    && text.getArgs()[0] instanceof Component tiers) {
+                for (Component part : tiers.getSiblings()) {
+                    if (part.getContents() instanceof TranslatableContents name) {
+                        fits.add(name.getKey());
+                    }
+                }
+            }
+        }
+        check(helper, fits.equals(List.of("tier.virtualfarmworks.starter", "tier.virtualfarmworks.entropic")),
+                "an Entropic upgrade fits the machines that exist: " + fits);
         helper.succeed();
     }
 

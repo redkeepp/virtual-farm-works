@@ -59,11 +59,11 @@ public class TieredUpgradeItem extends Item {
         };
         builder.accept(effect.copy().withStyle(ChatFormatting.GRAY));
 
-        // Compatibility line: list every machine tier this upgrade fits, e.g. "Fits: Starter, Voltaic, Ionic".
+        // Compatibility line: list every existing machine tier this upgrade fits, e.g. "Fits: Starter, Entropic".
         MutableComponent fits = Component.empty();
         boolean first = true;
         for (MachineTier machineTier : MachineTier.values()) {
-            if (!fits(machineTier)) {
+            if (!machineTier.isBuilt() || !fits(machineTier)) {
                 continue;
             }
             if (!first) {

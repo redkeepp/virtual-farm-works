@@ -1,6 +1,7 @@
 /*
  * MachineTier — the five Farm Matrix tiers (Starter, Voltaic, Ionic, Resonant, Entropic): progression order, theme
- * color and the upgrade compatibility rule (an upgrade fits when upgradeTier >= machineTier).
+ * color, whether the tier's machine exists yet, and the upgrade compatibility rule (an upgrade fits when upgradeTier
+ * >= machineTier).
  */
 package com.virtualfarmworks.machine;
 
@@ -22,21 +23,23 @@ import net.minecraft.util.StringRepresentable;
 public enum MachineTier implements StringRepresentable {
     // Starter: white (owner spec). Entropic: red, the border color of the owner's Entropic GUI texture. The other colors
     // are placeholders until the owner provides each tier's spec; do not rely on them for anything visible yet.
-    STARTER("starter", 0xFFFFFF),
-    VOLTAIC("voltaic", 0xFFFFFF),
-    IONIC("ionic", 0xFFFFFF),
-    RESONANT("resonant", 0xFFFFFF),
-    ENTROPIC("entropic", 0xFF0000);
+    STARTER("starter", 0xFFFFFF, true),
+    VOLTAIC("voltaic", 0xFFFFFF, false),
+    IONIC("ionic", 0xFFFFFF, false),
+    RESONANT("resonant", 0xFFFFFF, false),
+    ENTROPIC("entropic", 0xFF0000, true);
 
     public static final Codec<MachineTier> CODEC = StringRepresentable.fromEnum(MachineTier::values);
 
     private final String name;
     /** RGB theme color of the machine (GUI title, side-panel borders). */
     private final int themeColor;
+    private final boolean built;
 
-    MachineTier(String name, int themeColor) {
+    MachineTier(String name, int themeColor, boolean built) {
         this.name = name;
         this.themeColor = themeColor;
+        this.built = built;
     }
 
     @Override
@@ -46,6 +49,15 @@ public enum MachineTier implements StringRepresentable {
 
     public int themeColor() {
         return themeColor;
+    }
+
+    /**
+     * Whether the tier's machine exists (Starter and Entropic so far). A tier not built registers no items at all, so a
+     * release never shows upgrades nobody can craft or use (owner, 2026-09-30). Building a tier: flip this, register
+     * its block in ModBlocks and add its section in VfwServerConfig.
+     */
+    public boolean isBuilt() {
+        return built;
     }
 
     /**

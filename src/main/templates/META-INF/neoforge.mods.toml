@@ -1,93 +1,65 @@
 # Virtual Farm Works — mod metadata TEMPLATE. Gradle (generateModMetadata in build.gradle) replaces every
 # dollar-brace placeholder with the values from gradle.properties and puts the result in the jar as
-# META-INF/neoforge.mods.toml. Edit versions and names in gradle.properties, not here.
+# META-INF/neoforge.mods.toml. Edit versions, names and links in gradle.properties, not here.
 # WARNING: this file is a Groovy template. Never write a literal dollar sign followed by a brace, even in a comment:
-# Gradle tries to evaluate it and the build fails. The comments below come from the NeoForge MDK.
-#
-# This is an example neoforge.mods.toml file. It contains the data relating to the loading mods.
-# There are several mandatory fields (#mandatory), and many more that are optional (#optional).
-# The overall format is standard TOML format, v0.5.0.
-# Note that there are a couple of TOML lists in this file.
-# Find more information on toml format here:  https://github.com/toml-lang/toml
+# Gradle tries to evaluate it and the build fails.
+# Format: https://docs.neoforged.net/docs/gettingstarted/modfiles
 
-# The license for you mod. This is mandatory metadata and allows for easier comprehension of your redistributive properties.
-# Review your options at https://choosealicense.com/. All rights reserved is the default copyright stance, and is thus the default here.
 license="${mod_license}"
+# Shown when problems occur (crash screens, the mods list).
+issueTrackerURL="${mod_issues_url}"
 
-# A URL to refer people to when problems occur with this mod
-#issueTrackerURL="https://change.me.to.your.issue.tracker.example.invalid/" #optional
-
-# A list of mods - how many allowed here is determined by the individual mod loader
-[[mods]] #mandatory
-
-# The modid of the mod
-modId="${mod_id}" #mandatory
-
-# The version number of the mod
-version="${mod_version}" #mandatory
-
-# A display name for the mod
-displayName="${mod_name}" #mandatory
-
-# A URL to query for updates for this mod. See the JSON update specification https://docs.neoforged.net/docs/misc/updatechecker/
-#updateJSONURL="https://change.me.example.invalid/updates.json" #optional
-
-# A URL for the "homepage" for this mod, displayed in the mod UI
-#displayURL="https://change.me.to.your.mods.homepage.example.invalid/" #optional
-
-# A file name (in the root of the mod JAR) containing a logo for display
-#logoFile="examplemod.png" #optional
-
-# A text field displayed in the mod UI
-#credits="" #optional
-
-# The authors of the mod, displayed in the mod UI (optional)
-#authors=""
-
-# The description text for the mod (multi line!) (#mandatory)
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+# The mod's home page, shown in the mods list.
+displayURL="${mod_url}"
+authors="${mod_authors}"
+# The owner's logo goes here once drawn: a square PNG at the root of src/main/resources, then
+# logoFile="virtualfarmworks.png" (the mods list shows it).
 description='''
-Compact, server-friendly virtual farming. Aggregated crop simulation with a single global growth cycle per machine.
+Compact, server-friendly virtual farming. Each Farm Matrix grows up to thousands of plants inside one block on a
+single shared growth cycle, so large farms cost almost nothing in server tick time. Works with vanilla and modded
+plantables (crops, trees, flowers and more), with optional support for Mystical Agriculture, JEI and Jade.
+
+Starter Farm Matrix: an early machine for one plant. Entropic Farm Matrix: 60 plant groups, powered by FE, with pipe
+input, replanting and a built-in autocrafter.
 '''
 
-# The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.
-#[[mixins]]
-#config="${mod_id}.mixins.json"
-
-# The [[accessTransformers]] block allows you to declare where your AT file is.
-# If this block is omitted, a fallback attempt will be made to load an AT from META-INF/accesstransformer.cfg
-#[[accessTransformers]]
-#file="META-INF/accesstransformer.cfg"
-
-# A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
-[[dependencies.${mod_id}]] #optional
-    # the modid of the dependency
-    modId="neoforge" #mandatory
-    # The type of the dependency. Can be one of "required", "optional", "incompatible" or "discouraged" (case insensitive).
-    # 'required' requires the mod to exist, 'optional' does not
-    # 'incompatible' will prevent the game from loading when the mod exists, and 'discouraged' will show a warning
-    type="required" #mandatory
-    # Optional field describing why the dependency is required or why it is incompatible
-    # reason="..."
-    # The version range of the dependency
-    versionRange="[${neo_version},)" #mandatory
-    # An ordering relationship for the dependency.
-    # BEFORE - This mod is loaded BEFORE the dependency
-    # AFTER - This mod is loaded AFTER the dependency
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
     ordering="NONE"
-    # Side this dependency is applied on - BOTH, CLIENT, or SERVER
     side="BOTH"
 
-# Here's another dependency
 [[dependencies.${mod_id}]]
     modId="minecraft"
     type="required"
-    # This version range declares a minimum of the current minecraft version up to but not including the next major version
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
 
-# Features are specific properties of the game environment, that you may want to declare you require. This example declares
-# that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
-# stop your mod loading on the server for example.
-#[features.${mod_id}]
-#openGLVersion="[3.2,)"
+# Optional integrations: the mod runs without them. When one is installed it must be at least the version VFW was
+# built and tested against (an older one may lack what VFW uses); NeoForge explains the problem instead of crashing.
+[[dependencies.${mod_id}]]
+    modId="jei"
+    type="optional"
+    versionRange="[${jei_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="jade"
+    type="optional"
+    versionRange="[${jade_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="mysticalagriculture"
+    type="optional"
+    versionRange="[${mystical_agriculture_mod_version},)"
+    ordering="NONE"
+    side="BOTH"
