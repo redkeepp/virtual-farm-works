@@ -129,8 +129,8 @@ slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; r
   ported to its old API (no transfer API, old GUI, NBT saves, old game tests...). Its own problems are solved in
   that branch only; a bug in logic both versions share is fixed in both. It pins the versions ATM10 ships (owner,
   2026-10-01; all checked on their mavens): NeoForge 21.1.228, Mystical Agriculture 1.21.1-8.0.26, Mystical
-  Agradditions 1.21.1-8.0.13, JEI 19.27.0.340 (`jei-1.21.1-*-api`), Jade 15.10.5+neoforge (Modrinth maven).
-  Cucumber's version (needed at runtime by MA) is still to be read from ATM10.
+  Agradditions 1.21.1-8.0.13, Cucumber 1.21.1-8.0.16 (MA's library, needed at runtime), JEI 19.27.0.340
+  (`jei-1.21.1-*-api`), Jade 15.10.5+neoforge (Modrinth maven).
 - Same mod version for the same features on both lines (the file name carries the Minecraft version); both jars go
   to the same CurseForge/Modrinth projects. Port analysis (what changes and its weight): this session's notes in
   `docs/history.md` once the port starts. Nothing is ported until the owner asks.
