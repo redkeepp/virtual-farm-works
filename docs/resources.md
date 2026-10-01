@@ -64,6 +64,9 @@ Resonant have no recipes yet (their machines and upgrades are not built).
 | File | Purpose |
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template; Gradle fills `${...}` from `gradle.properties`: description, author (Redkeep), home page and issue links (left out while empty), and JEI, Jade and Mystical Agriculture as optional dependencies (the built-against versions as minimums). The logo line waits for the owner's logo. |
+| `src/main/resources/virtualfarmworks_logo2.png` | The owner's logo (512x512): `logoFile` in the mod metadata (mods list, no blur), the README header, the CurseForge/Modrinth icon. |
+| `docs/images/*.png` | The owner's screenshots (Starter, Entropic, autocrafter), shown in the README and the platform galleries. |
+| `docs/publishing.md` | CurseForge and Modrinth page texts and settings, ready to paste. |
 | `README.md` | The public face for players and pack makers: machines, plants, upgrades, recipes, mod support, measured performance, config, requirements, download, bug reports, building, license. Its body can serve as the CurseForge/Modrinth description. Keep it in sync with the features and the benchmark. |
 | `CHANGELOG.md` | One section per release (Keep a Changelog style); the GitHub, CurseForge and Modrinth release notes come from it. |
 | `.github/ISSUE_TEMPLATE/` | `bug_report.yml` (asks for the mod, NeoForge and Minecraft versions, single player or server, other mods, steps and a log link), `feature_request.yml`, `config.yml` (no blank issues). |

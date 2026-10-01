@@ -3,6 +3,12 @@
 All notable changes to Virtual Farm Works. Versions follow [Semantic Versioning](https://semver.org/); release files
 are named `virtualfarmworks-<Minecraft version>-<mod version>.jar`.
 
+## [Unreleased]
+
+### Added
+
+- The mod's logo in the mods list.
+
 ## [1.0.0] - 2026-09-30
 
 First public release, for Minecraft 26.1.2 and NeoForge 26.1.2.109 or newer.

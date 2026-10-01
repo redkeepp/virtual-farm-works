@@ -16,8 +16,9 @@ displayName="${mod_name}"
 # The mod's home page, shown in the mods list; left out while mod_url is empty.
 <% if (mod_url) { %>displayURL="${mod_url}"<% } %>
 authors="${mod_authors}"
-# The owner's logo goes here once drawn: a square PNG at the root of src/main/resources, then
-# logoFile="virtualfarmworks.png" (the mods list shows it).
+# The owner's logo (512x512, root of src/main/resources), shown in the mods list. Pixel art: no blur when scaled.
+logoFile="virtualfarmworks_logo2.png"
+logoBlur=false
 description='''
 Compact, server-friendly virtual farming. Each Farm Matrix grows up to thousands of plants inside one block on a
 single shared growth cycle, so large farms cost almost nothing in server tick time. Works with vanilla and modded

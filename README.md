@@ -1,5 +1,7 @@
 # Virtual Farm Works
 
+<img src="src/main/resources/virtualfarmworks_logo2.png" alt="Virtual Farm Works logo" width="160">
+
 **Compact, server-friendly virtual farming for NeoForge.** A Farm Matrix grows plants inside a single block: put seeds
 and soils in, take the harvest out. Every machine runs one shared growth cycle instead of thousands of individual
 crops, so even huge farms cost almost nothing in server tick time.
@@ -19,6 +21,8 @@ An early-game farm for one kind of plant.
 - 9 output slots plus 27 hidden overflow slots; auto-export into adjacent inventories, per face.
 - Harvest filter (whitelist or blacklist) to throw away what you do not want; no power needed.
 
+![Starter Farm Matrix growing Mystical Agriculture seeds at 3x speed](docs/images/starter_working.png)
+
 ### Entropic Farm Matrix
 
 The endgame farm: up to 3,840 plots in one block.
@@ -34,6 +38,10 @@ The endgame farm: up to 3,840 plots in one block.
   catalyst slot takes Mystical Agriculture's Master Infusion Crystal, so higher essence tiers craft automatically.
   The recipes stay on the machine item when you break it.
 - 24 output slots plus 72 hidden overflow slots, harvest filter, the same upgrades as the Starter.
+
+![Entropic Farm Matrix with all 3,840 plots active on Supremium Farmland](docs/images/entropic_working.png)
+
+![The autocrafter chaining Mystical Agriculture essences, with the Master Infusion Crystal as catalyst](docs/images/entropic_crafter.png)
 
 ## Plants
 
@@ -123,5 +131,6 @@ development client; `./gradlew runGameTestServer` runs the game tests. Design no
 
 ## License
 
-MIT, for both code and assets (textures, models, JSON). See [LICENSE](LICENSE). Build files derived from the NeoForge
+MIT, for both code and assets (textures, models, JSON): use, change and share everything, even commercially; just
+keep the license notice. Modpacks are welcome, no need to ask. See [LICENSE](LICENSE). Build files derived from the NeoForge
 MDK keep their original notice in [TEMPLATE_LICENSE.txt](TEMPLATE_LICENSE.txt).

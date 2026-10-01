@@ -198,6 +198,10 @@ Delight, Mystical Agriculture, JEI; checked through the GitHub API) and approved
   mod support, measured performance, config, requirements), a CHANGELOG with the 1.0.0 section, and GitHub issue
   forms (bug report with versions and log link, feature request, no blank issues). Next, when the platforms
   exist: an automatic release workflow.
+- **1.0.0 released on GitHub** (owner, 2026-09-30), without a logo. Then the owner's logo (in the mods list,
+  pixel art kept sharp) and three screenshots (README, platform galleries), the CurseForge/Modrinth page texts in
+  `docs/publishing.md`, and `mod_version` 1.0.1 for the next release. License: the owner wants it as free as
+  possible; MIT stays (code and assets), modpacks welcome without asking.
 
 ## Benchmark results log
 

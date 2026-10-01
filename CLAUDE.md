@@ -16,7 +16,8 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
   26.1.2). Other versions later: keep version-specific code isolated where reasonable. 26.1 is unobfuscated (official
   names).
 - Build: ModDevGradle 2.0.147 (official NeoForge MDK), Gradle wrapper 9.2.1.
-- License: **MIT** for code and assets (all art is the owner's). `LICENSE` is VFW's; `TEMPLATE_LICENSE.txt` is the
+- License: **MIT** for code and assets (all art is the owner's; owner, 2026-09-30: "as free as possible", modpacks
+  welcome without asking). `LICENSE` is VFW's; `TEMPLATE_LICENSE.txt` is the
   NeoForged MDK notice and must be kept. Never copy code or assets from other mods without checking their license.
 - Git: `https://github.com/redkeepp/virtual-farm-works` (Redkeep's account; moved there on 2026-09-30), branch
   `main`. Claude commits (this repository's git identity is Redkeep, set in `.git/config`); the OWNER pushes.
@@ -85,10 +86,15 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
   notice in every copy) and leaves out `antigos_nao_usar`. Authors, home page and issue links: `gradle.properties`
   (`mod_authors`, `mod_url`, `mod_issues_url`). JEI, Jade and Mystical Agriculture are declared optional
   dependencies with the versions VFW is built against as minimums (older ones get NeoForge's error screen).
+- Logo: `src/main/resources/virtualfarmworks_logo2.png` (the owner's, 512x512; `logoFile` with `logoBlur=false`,
+  so the pixel art stays sharp in the mods list). Screenshots: `docs/images/` (the owner's; used by the README and
+  the platform pages). Keep both names as the owner gave them.
 - Public face: `README.md` (players and pack makers; update it with the features and the benchmark numbers),
   `CHANGELOG.md` (a section for every release; release notes are taken from it), `.github/ISSUE_TEMPLATE/` (bug form
-  with versions and log, feature form, no blank issues). A release: bump `mod_version`, add the CHANGELOG section,
-  build, and the owner publishes the jar (GitHub release tag `v<mod_version>`).
+  with versions and log, feature form, no blank issues), `docs/publishing.md` (CurseForge/Modrinth page texts and
+  settings). A release: set `mod_version`, date the CHANGELOG section, build, and the owner publishes the jar
+  (GitHub release tag `v<mod_version>`, then CurseForge and Modrinth). Right after a release, `mod_version` moves
+  to the next version, so a build never carries the number of a published jar it differs from.
 
 ## Current state (2026-09-30)
 
@@ -111,6 +117,9 @@ button, config switch); autocrafter (up to 100 crafting-table recipes, chains in
 output holds, Master Infusion Crystal catalyst, JEI "+", recipes kept on the broken machine's item); Water Provider,
 4 Growth Speed Upgrades, Crux Provider; Fertilized Essence switch; harvest filter; 24 visible + 72 hidden output
 slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; recipes. Git tag `entropic-complete`.
+
+**Released:** 1.0.0 on GitHub Releases (2026-09-30, published by the owner, without the logo). In progress: 1.0.1
+(`mod_version`; adds the logo), meant as the first CurseForge/Modrinth upload (page texts: `docs/publishing.md`).
 
 **Next:** Voltaic, Ionic and Resonant (the middle tiers; they will reuse `MachineLayout`), when the owner specifies
 them.
