@@ -63,5 +63,5 @@ Resonant have no recipes yet (their machines and upgrades are not built).
 
 | File | Purpose |
 |---|---|
-| `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template; Gradle fills `${...}` from `gradle.properties`: description, authors, home page and issue links, and JEI, Jade and Mystical Agriculture as optional dependencies (the built-against versions as minimums). The logo line waits for the owner's logo. |
+| `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template; Gradle fills `${...}` from `gradle.properties`: description, author (Redkeep), home page and issue links (left out while empty), and JEI, Jade and Mystical Agriculture as optional dependencies (the built-against versions as minimums). The logo line waits for the owner's logo. |
 | `config/virtualfarmworks-server.toml` (generated at runtime, not in the repo) | Pack-maker config, generated from `config/VfwServerConfig.java` with its comments. See `docs/specs/configurability.md`. |

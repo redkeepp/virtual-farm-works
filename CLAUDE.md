@@ -18,7 +18,7 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
 - Build: ModDevGradle 2.0.147 (official NeoForge MDK), Gradle wrapper 9.2.1.
 - License: **MIT** for code and assets (all art is the owner's). `LICENSE` is VFW's; `TEMPLATE_LICENSE.txt` is the
   NeoForged MDK notice and must be kept. Never copy code or assets from other mods without checking their license.
-- Git: `https://github.com/redkeepp/virtual-farm-works`, branch `main`. Claude commits; the OWNER pushes.
+- Git: the GitHub repository (remote `origin`), branch `main`. Claude commits; the OWNER pushes.
 
 ## Working rules (owner requirements)
 
@@ -50,6 +50,9 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
 8. **Modpack mindset** (owner): the mod will run in big packs — support ANY seed, ANY sapling, ANY plant through its
    block class, tags and the game's own rules. Never hard-code vanilla item lists in Java; exceptions go in tags or
    data maps that pack makers can edit.
+9. **Presented as Redkeep's** (owner, 2026-09-30): the author is Redkeep (`mod_authors`, LICENSE copyright). Never
+   write the owner's personal name, GitHub username or e-mail in any file, doc or metadata. Links to the home page
+   and issue tracker stay empty until a Redkeep home exists (`mod_url`, `mod_issues_url` in gradle.properties).
 
 ## Commands
 
@@ -73,6 +76,8 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
   runs `gradlew build` only (JUnit, and it compiles the game tests without running them).
 - Release jar (`gradlew build` -> `build/libs/virtualfarmworks-<minecraft_version>-<mod_version>.jar`, e.g.
   `virtualfarmworks-26.1.2-1.0.0.jar`; `mod_version` alone goes into `neoforge.mods.toml`): built from `main` only.
+  Optional metadata lines (home page, issue tracker) are Groovy `if` blocks in the template, left out when their
+  property is empty.
   The game tests and the benchmark are the `gametest` source set (`src/gametest/java`), part of the mod in dev runs
   only (their own `@Mod` class, `GameTestsEntry`); the jar carries `LICENSE_virtualfarmworks` (MIT asks for the
   notice in every copy) and leaves out `antigos_nao_usar`. Authors, home page and issue links: `gradle.properties`

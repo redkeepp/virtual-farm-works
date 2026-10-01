@@ -2,19 +2,19 @@
 # dollar-brace placeholder with the values from gradle.properties and puts the result in the jar as
 # META-INF/neoforge.mods.toml. Edit versions, names and links in gradle.properties, not here.
 # WARNING: this file is a Groovy template. Never write a literal dollar sign followed by a brace, even in a comment:
-# Gradle tries to evaluate it and the build fails.
+# Gradle tries to evaluate it and the build fails. Lines between percent-sign tags are Groovy too (optional lines).
 # Format: https://docs.neoforged.net/docs/gettingstarted/modfiles
 
 license="${mod_license}"
-# Shown when problems occur (crash screens, the mods list).
-issueTrackerURL="${mod_issues_url}"
+# Shown when problems occur (crash screens, the mods list); left out while mod_issues_url is empty.
+<% if (mod_issues_url) { %>issueTrackerURL="${mod_issues_url}"<% } %>
 
 [[mods]]
 modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
-# The mod's home page, shown in the mods list.
-displayURL="${mod_url}"
+# The mod's home page, shown in the mods list; left out while mod_url is empty.
+<% if (mod_url) { %>displayURL="${mod_url}"<% } %>
 authors="${mod_authors}"
 # The owner's logo goes here once drawn: a square PNG at the root of src/main/resources, then
 # logoFile="virtualfarmworks.png" (the mods list shows it).
