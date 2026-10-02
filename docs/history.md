@@ -254,6 +254,18 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
 - Energy: `MachineEnergy` extends NeoForge's `EnergyStorage` (int, like 26.1's `SimpleEnergyHandler`); insertion by
   cables reports the change; the capacity is clamped to `Integer.MAX_VALUE`.
 
+### Step 3 — saving
+- 26.1's `ValueOutput` / `ValueInput` become a `CompoundTag` plus the registries (`saveAdditional` /
+  `loadAdditional(CompoundTag, HolderLookup.Provider)` in 1.21.1). The keys are main's, so the two lines stay easy to
+  compare, though saves never move between Minecraft versions.
+- `machine/Saves` holds what 26.1's value classes did for free: a codec value written under a key with registry ops
+  (held drops and the crafter's buffer carry item components, the crafter's recipes recipe ids), a failed value logged
+  and left out instead of breaking the save, and booleans that default to true when missing (NBT's own default is
+  false: a machine saved without the key would come back switched off).
+- The filter decodes its entries one by one, as 26.1's `listOrEmpty` did, so one unreadable entry costs only itself.
+- The energy amount is restored as saved: the capacity is set by the first revalidation, which also trims an amount
+  above a lowered capacity (clamping at load, before the capacity is known, would empty every buffer).
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

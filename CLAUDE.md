@@ -159,6 +159,8 @@ Filled in as the port goes (`docs/port-1.21.1.md`); the sections below still des
   edits (`Slot#setChanged`) to the inventory. `GridInput` routes EVERY insertion (1.21.1 pipes insert slot by slot).
 - Capabilities: `Capabilities.ItemHandler.BLOCK` / `Capabilities.EnergyStorage.BLOCK`; `MachineEnergy` extends
   `EnergyStorage`.
+- Saves: NBT (`saveAdditional` / `loadAdditional(CompoundTag, HolderLookup.Provider)`), main's keys. `machine/Saves`
+  writes codec values with registry ops and reads booleans with a default (NBT's default is false).
 
 ## Core design (owner's spec, source of truth)
 

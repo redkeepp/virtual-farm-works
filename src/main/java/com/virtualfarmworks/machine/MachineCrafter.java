@@ -26,7 +26,9 @@ import com.virtualfarmworks.plant.VfwTags;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.transfer.ItemResource;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -35,8 +37,6 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * Server side only; the menu edits it through the machine.
@@ -714,20 +714,23 @@ public final class MachineCrafter {
     // Persistence
     // =================================================================================================================
 
-    public void save(ValueOutput out) {
-        out.putBoolean("enabled", enabled);
-        out.store("recipes", PATTERNS_CODEC, patterns);
+    /** Saved form: {@code {enabled, recipes, buffer}} (codecs with registry ops, see {@code Saves}). */
+    public CompoundTag save(HolderLookup.Provider registries) {
+        CompoundTag tag = new CompoundTag();
+        tag.putBoolean("enabled", enabled);
+        Saves.store(tag, "recipes", PATTERNS_CODEC, patterns, registries);
         if (!buffer.isEmpty()) {
-            out.store("buffer", AMOUNTS_CODEC, entries(buffer));
+            Saves.store(tag, "buffer", AMOUNTS_CODEC, entries(buffer), registries);
         }
+        return tag;
     }
 
-    public void load(ValueInput in) {
-        enabled = in.getBooleanOr("enabled", true);
+    public void load(HolderLookup.Provider registries, CompoundTag tag) {
+        enabled = Saves.booleanOr(tag, "enabled", true);
         patterns.clear();
-        in.read("recipes", PATTERNS_CODEC).ifPresent(list -> patterns.addAll(trim(list)));
+        Saves.read(tag, "recipes", PATTERNS_CODEC, registries).ifPresent(list -> patterns.addAll(trim(list)));
         buffer = new LinkedHashMap<>();
-        in.read("buffer", AMOUNTS_CODEC).ifPresent(list -> list.forEach(entry -> {
+        Saves.read(tag, "buffer", AMOUNTS_CODEC, registries).ifPresent(list -> list.forEach(entry -> {
             if (!entry.key().isEmpty() && entry.amount() > 0) {
                 buffer.merge(entry.key(), entry.amount(), Long::sum);
             }

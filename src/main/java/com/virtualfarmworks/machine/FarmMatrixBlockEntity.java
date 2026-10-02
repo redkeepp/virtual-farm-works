@@ -45,8 +45,11 @@ import com.virtualfarmworks.transfer.SlotTransaction;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentGetter;
 import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -61,8 +64,6 @@ import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
 import net.neoforged.neoforge.capabilities.BlockCapabilityCache;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.energy.IEnergyStorage;
@@ -1346,55 +1347,61 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
     }
 
+    /**
+     * NBT save (1.21.1: a {@code CompoundTag}; see {@link Saves}). Codec values (held drops, the crafter's recipes) are
+     * written with registry ops, item components may need them.
+     */
     @Override
-    protected void saveAdditional(ValueOutput out) {
-        super.saveAdditional(out);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
         // Persisted format: keep these keys stable.
-        inputs.serialize(out.child("inputs"));
-        output.serialize(out.child("output"));
-        internal.serialize(out.child("internal_output"));
+        tag.put("inputs", inputs.save(registries));
+        tag.put("output", output.save(registries));
+        tag.put("internal_output", internal.save(registries));
         if (energy != null) {
-            energy.serialize(out.child("energy"));
+            tag.put("energy", energy.save());
         }
         if (!heldDrops.isEmpty()) {
-            out.store("held_drops", HELD_DROPS_CODEC, heldDrops);
+            Saves.store(tag, "held_drops", HELD_DROPS_CODEC, heldDrops, registries);
         }
-        out.putDouble("progress", cycle.progress());
-        out.putIntArray("active", cycle.activeCounts());
-        out.putIntArray("pending", cycle.pendingCounts());
-        out.putIntArray("harvested", cycle.harvestedCounts());
-        out.putBoolean("enabled", enabled);
-        out.putIntArray("face_modes", Arrays.stream(faceModes).mapToInt(FaceMode::ordinal).toArray());
-        out.putBoolean("fertilized_essence", fertilizedEssence);
-        out.putBoolean("replant", replantOn);
-        filter.save(out.child("filter"));
+        tag.putDouble("progress", cycle.progress());
+        tag.putIntArray("active", cycle.activeCounts());
+        tag.putIntArray("pending", cycle.pendingCounts());
+        tag.putIntArray("harvested", cycle.harvestedCounts());
+        tag.putBoolean("enabled", enabled);
+        tag.putIntArray("face_modes", Arrays.stream(faceModes).mapToInt(FaceMode::ordinal).toArray());
+        tag.putBoolean("fertilized_essence", fertilizedEssence);
+        tag.putBoolean("replant", replantOn);
+        tag.put("filter", filter.save());
         if (crafter != null) {
-            crafter.save(out.child("crafter"));
+            tag.put("crafter", crafter.save(registries));
         }
     }
 
     @Override
-    protected void loadAdditional(ValueInput in) {
-        super.loadAdditional(in);
-        in.child("inputs").ifPresent(inputs::deserialize);
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+        Saves.child(tag, "inputs").ifPresent(saved -> inputs.load(registries, saved));
         inputs.ensureMinimumSize();
-        in.child("output").ifPresent(output::deserialize);
+        Saves.child(tag, "output").ifPresent(saved -> output.load(registries, saved));
         output.ensureMinimumSize();
-        in.child("internal_output").ifPresent(internal::deserialize);
+        Saves.child(tag, "internal_output").ifPresent(saved -> internal.load(registries, saved));
         if (energy != null) {
-            in.child("energy").ifPresent(energy::deserialize);
+            Saves.child(tag, "energy").ifPresent(energy::load);
         }
-        heldDrops = in.read("held_drops", HELD_DROPS_CODEC).map(List::copyOf).orElse(List.of());
-        // "harvested" is missing in saves from before batched harvests: nothing was harvested yet, 0 is right.
-        cycle.load(in.getDoubleOr("progress", 0.0), in.getIntArray("active").orElse(new int[0]),
-                in.getIntArray("pending").orElse(new int[0]), in.getIntArray("harvested").orElse(new int[0]));
-        enabled = in.getBooleanOr("enabled", true);
-        loadFaceModes(in);
-        fertilizedEssence = in.getBooleanOr("fertilized_essence", true);
-        replantOn = in.getBooleanOr("replant", true);
-        in.child("filter").ifPresent(filter::load);
+        heldDrops = Saves.read(tag, "held_drops", HELD_DROPS_CODEC, registries).map(List::copyOf).orElse(List.of());
+        // Missing arrays read as empty ones (CompoundTag's default): "harvested" is missing in saves from before
+        // batched harvests, nothing was harvested yet, 0 is right.
+        cycle.load(tag.getDouble("progress"), tag.getIntArray("active"), tag.getIntArray("pending"),
+                tag.getIntArray("harvested"));
+        enabled = Saves.booleanOr(tag, "enabled", true);
+        loadFaceModes(tag);
+        fertilizedEssence = Saves.booleanOr(tag, "fertilized_essence", true);
+        replantOn = Saves.booleanOr(tag, "replant", true);
+        Saves.child(tag, "filter").ifPresent(filter::load);
         if (crafter != null) {
-            in.child("crafter").ifPresent(crafter::load); // its recipes are matched again on the next tick
+            // Its recipes are matched again on the next tick.
+            Saves.child(tag, "crafter").ifPresent(saved -> crafter.load(registries, saved));
         }
         // Everything derived is rebuilt on the next tick; a batch that was blocked is simply rolled again.
         inputsDirty = true;
@@ -1435,16 +1442,16 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
      * Face modes: "face_modes" (one ordinal per side), or the Starter's older "output_faces" bit mask (bit set =
      * OUTPUT, clear = NONE), or the tier's defaults.
      */
-    private void loadFaceModes(ValueInput in) {
-        int[] modes = in.getIntArray("face_modes").orElse(null);
-        if (modes != null) {
+    private void loadFaceModes(CompoundTag tag) {
+        if (tag.contains("face_modes", Tag.TAG_INT_ARRAY)) {
+            int[] modes = tag.getIntArray("face_modes");
             for (int i = 0; i < faceModes.length; i++) {
                 FaceMode mode = i < modes.length ? FaceMode.byOrdinal(modes[i]) : faceModes[i];
                 faceModes[i] = layout.acceptsInput() || mode == FaceMode.NONE ? mode : FaceMode.OUTPUT;
             }
             return;
         }
-        int mask = in.getIntOr("output_faces", -1);
+        int mask = tag.contains("output_faces", Tag.TAG_INT) ? tag.getInt("output_faces") : -1;
         if (mask >= 0) {
             for (RelativeSide side : RelativeSide.all()) {
                 faceModes[side.ordinal()] = (mask & side.bit()) != 0 ? FaceMode.OUTPUT : FaceMode.NONE;

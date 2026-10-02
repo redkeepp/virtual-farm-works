@@ -17,11 +17,13 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.virtualfarmworks.harvest.HarvestFilter;
 
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * Entries are ITEM TYPES in ghost slots: the player shows an item (or drags one from JEI), the filter remembers its
@@ -126,20 +128,33 @@ public final class MachineFilter {
 
     // --- persistence ------------------------------------------------------------------------------------------------
 
-    public void save(ValueOutput out) {
-        out.putBoolean("whitelist", whitelist);
-        ValueOutput.TypedOutputList<SavedEntry> list = out.list("entries", SavedEntry.CODEC);
+    /** Saved form: {@code {whitelist, entries: [{slot, item}]}} (plain NBT: ids and numbers only). */
+    public CompoundTag save() {
+        CompoundTag tag = new CompoundTag();
+        tag.putBoolean("whitelist", whitelist);
+        ListTag list = new ListTag();
         for (Map.Entry<Integer, Item> entry : entries.entrySet()) {
-            list.add(new SavedEntry(entry.getKey(), BuiltInRegistries.ITEM.getKey(entry.getValue()).toString()));
+            SavedEntry saved = new SavedEntry(entry.getKey(), BuiltInRegistries.ITEM.getKey(entry.getValue()).toString());
+            SavedEntry.CODEC.encodeStart(NbtOps.INSTANCE, saved).result().ifPresent(list::add);
         }
+        tag.put("entries", list);
+        return tag;
     }
 
-    /** Restores a saved filter; entries of items that no longer exist (mod removed) or bad positions are skipped. */
-    public void load(ValueInput in) {
-        whitelist = in.getBooleanOr("whitelist", false);
+    /**
+     * Restores a saved filter; entries of items that no longer exist (mod removed), unreadable entries or bad positions
+     * are skipped one by one.
+     */
+    public void load(CompoundTag tag) {
+        whitelist = tag.getBoolean("whitelist");
         entries.clear();
         Set<Item> seen = new HashSet<>();
-        for (SavedEntry saved : in.listOrEmpty("entries", SavedEntry.CODEC)) {
+        ListTag list = tag.getList("entries", Tag.TAG_COMPOUND);
+        for (Tag element : list) {
+            SavedEntry saved = SavedEntry.CODEC.parse(NbtOps.INSTANCE, element).result().orElse(null);
+            if (saved == null) {
+                continue;
+            }
             ResourceLocation id = ResourceLocation.tryParse(saved.item());
             Item item = id == null ? Items.AIR : BuiltInRegistries.ITEM.get(id);
             if (item != Items.AIR && saved.position() >= 0 && saved.position() < MAX_POSITIONS && seen.add(item)) {
