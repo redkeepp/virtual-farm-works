@@ -98,6 +98,11 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
 
 ## Current state (2026-09-30)
 
+**This checkout is the 1.21.1 line** (branch `1.21.1`, worktree folder `virtualfarmworks-1.21.1`, created from main
+at 544812d). Its code is still the 26.1.2 code: the port follows `docs/port-1.21.1.md` (areas, weights, order,
+pinned versions, dev environment). Until the port is done, the 26.1.2 facts below describe the target behavior,
+not this branch's APIs.
+
 **Starter Farm Matrix: DONE** (declared by the owner on 2026-09-29, after the plantables and the benchmark), tested in
 game by the owner (single player; dedicated server before the JEI packet was added). Features: one global growth
 cycle with ACTIVE/PENDING plots; every plantable (crops, trees, flowers, grass, aquatic and hanging plants — "More
@@ -127,10 +132,9 @@ slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; r
 - **1.21.1** (branch `1.21.1`, not created yet): "the stubborn old one that has not died yet and still needs
   attention". ATM10 (NeoForge 21.1) is the second most played CurseForge pack, so it gets every feature after 26.x,
   ported to its old API (no transfer API, old GUI, NBT saves, old game tests...). Its own problems are solved in
-  that branch only; a bug in logic both versions share is fixed in both. It pins the versions ATM10 ships (owner,
-  2026-10-01; all checked on their mavens): NeoForge 21.1.228, Mystical Agriculture 1.21.1-8.0.26, Mystical
-  Agradditions 1.21.1-8.0.13, Cucumber 1.21.1-8.0.16 (MA's library, needed at runtime), JEI 19.27.0.340
-  (`jei-1.21.1-*-api`), Jade 15.10.5+neoforge (Modrinth maven).
+  that branch only; a bug in logic both versions share is fixed in both. It pins the versions ATM10 ships, kept in
+  `docs/port-1.21.1.md` (2026-10-02: NeoForge 21.1.251, Mystical Agriculture 1.21.1-8.0.28, Mystical Agradditions
+  1.21.1-8.0.14, Cucumber 1.21.1-8.0.16, JEI 19.57.0.446, Jade 15.10.6+neoforge).
 - Same mod version for the same features on both lines (the file name carries the Minecraft version); both jars go
   to the same CurseForge/Modrinth projects. Port analysis (what changes and its weight): this session's notes in
   `docs/history.md` once the port starts. Nothing is ported until the owner asks.
