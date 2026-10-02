@@ -55,6 +55,12 @@ public final class MachineEnergy extends EnergyStorage {
         }
     }
 
+    /** Sets the stored FE, kept within 0..capacity (game tests and tools; 26.1's handler has the same method). */
+    public void set(int amount) {
+        energy = Math.clamp(amount, 0, capacity);
+        onChange.run();
+    }
+
     /** FE stored now (26.1 name, kept so the machine code reads the same on both lines). */
     public long getAmountAsLong() {
         return energy;

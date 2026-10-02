@@ -107,6 +107,25 @@ list: after each step, no error is left in the files and areas it covers.
    Supremium farmland in MA 8 (its `soil_properties` entry is left out on this line). Area 11: the server config is
    still `config/virtualfarmworks-server.toml`; a world may override it in `<world>/serverconfig/`. `src/main`
    compiles with no error or warning.
-8. Game tests, JUnit and the load benchmark; then the owner's in-game test in ATM10.
+8. Game tests, JUnit and the load benchmark; then the owner's in-game test in ATM10. **IN PROGRESS** (2026-10-02):
+   JUnit passes unchanged (86 tests, Java 21). `src/gametest` does not compile yet (236 errors in 9 files). Findings
+   for the rest of the step, all read in the 1.21.1 sources:
+   - Registration: no test-function registry. `RegisterGameTestsEvent#register(VfwGameTests.class)` and a static
+     `@GameTestGenerator` method returning `TestFunction(batch, name, structure, maxTicks, 0, true, function)` (with
+     `neoforge.enabledGameTestNamespaces` set, generated tests are kept by their structure's namespace).
+   - Structure: none is built in. Ship an empty 8x4x8 template (DataVersion 3955) as
+     `src/gametest/resources/data/virtualfarmworks/structure/empty.nbt`, use `virtualfarmworks:empty`, and document it
+     in `docs/resources.md`.
+   - Positions: relative (0, 0, 0) is the test's STRUCTURE BLOCK (the test area starts at y 1), so every `MACHINE`
+     becomes (0, 1, 0); the Entropic test's extra machines (2, 1, 0) and (4, 1, 0); the MA test's farmland too.
+   - `GameTestHelper`: `assertTrue(boolean, String)`, `getBlockEntity(pos)` (generic, no class), `fail(String)`.
+   - Transfer calls become `IItemHandler` / `IEnergyStorage` calls (simulate where only the answer matters);
+     `ItemStacksResourceHandler` -> `ItemSlots` (`OutputBuffer` for the plain 9-slot buffer); `useItemOn` returns an
+     `ItemInteractionResult` (`PASS_TO_DEFAULT_BLOCK_INTERACTION` = falls through to the GUI); recipes as in step 4.
+   - Remove the plants newer than 1.21.1 (cactus flower, pale hanging moss, pale oak, golden dandelion, open
+     eyeblossom, leaf litter, dry short grass, firefly bush, pale moss block and carpet).
+   - MA 8 in the MA tests: `CropTier#getFarmland()` (not `getFarmlandBlock()`); no Awakened Supremium farmland and no
+     always-effective tag, so that check goes.
+   - Already added to `src/main` for the tests: `ItemResource#is(Item)`, `MachineEnergy#set(int)`.
 
 Commit on this branch after every finished step; the owner pushes the branch.

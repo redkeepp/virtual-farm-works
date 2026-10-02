@@ -93,6 +93,11 @@ public final class ItemResource {
         return holder().is(tag);
     }
 
+    /** Whether this type is of {@code other} (its components aside). */
+    public boolean is(Item other) {
+        return item == other;
+    }
+
     /** A new stack of this type ({@link ItemStack#EMPTY} for {@link #EMPTY} or a count below 1). */
     public ItemStack toStack(int count) {
         return isEmpty() || count <= 0 ? ItemStack.EMPTY : new ItemStack(holder(), count, components);
