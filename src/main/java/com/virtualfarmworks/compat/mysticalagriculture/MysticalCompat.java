@@ -4,7 +4,7 @@
  */
 package com.virtualfarmworks.compat.mysticalagriculture;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.harvest.DropSource;
 

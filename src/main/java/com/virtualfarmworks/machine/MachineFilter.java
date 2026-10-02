@@ -10,14 +10,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.virtualfarmworks.harvest.HarvestFilter;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.storage.ValueInput;
@@ -140,8 +140,8 @@ public final class MachineFilter {
         entries.clear();
         Set<Item> seen = new HashSet<>();
         for (SavedEntry saved : in.listOrEmpty("entries", SavedEntry.CODEC)) {
-            Identifier id = Identifier.tryParse(saved.item());
-            Item item = id == null ? Items.AIR : BuiltInRegistries.ITEM.getValue(id);
+            ResourceLocation id = ResourceLocation.tryParse(saved.item());
+            Item item = id == null ? Items.AIR : BuiltInRegistries.ITEM.get(id);
             if (item != Items.AIR && saved.position() >= 0 && saved.position() < MAX_POSITIONS && seen.add(item)) {
                 entries.put(saved.position(), item);
             }

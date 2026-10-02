@@ -30,7 +30,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.TestData;
 import net.minecraft.gametest.framework.TestEnvironmentDefinition;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.bus.api.IEventBus;
@@ -46,7 +46,7 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
  * {@code run/mods}, runs the tests, exits non-zero on failure).
  *
  * <p>Development only: this source set (src/gametest) never goes into the release jar, and {@link GameTestsEntry}
- * registers the tests; the {@link FMLEnvironment#isProduction()} check stays as a second guard, so they never show
+ * registers the tests; the {@link FMLEnvironment#production} check stays as a second guard, so they never show
  * up in players' {@code /test} lists. Each test is a plain function: it runs checks against real registries/tags/config and calls
  * {@code helper.succeed()}; a failed {@link #check} fails the test with a readable message.
  *
@@ -133,7 +133,7 @@ public final class VfwGameTests {
     }
 
     public static void register(IEventBus modEventBus) {
-        if (FMLEnvironment.isProduction()) {
+        if (FMLEnvironment.production) {
             return;
         }
         FUNCTIONS.register(modEventBus);
@@ -143,7 +143,7 @@ public final class VfwGameTests {
             for (Spec spec : specs) {
                 // Vanilla's empty structure; "required" so a failure fails the whole run (non-zero exit code).
                 event.registerTest(spec.function().getId(), new FunctionGameTestInstance(spec.function().getKey(),
-                        new TestData<>(environment, Identifier.withDefaultNamespace("empty"), spec.maxTicks(), 0,
+                        new TestData<>(environment, ResourceLocation.withDefaultNamespace("empty"), spec.maxTicks(), 0,
                                 true)));
             }
         });
@@ -397,10 +397,10 @@ public final class VfwGameTests {
     }
 
     private static ItemStack byId(String id) {
-        return new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.parse(id)));
+        return new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(id)));
     }
 
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID, path);
+    private static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID, path);
     }
 }

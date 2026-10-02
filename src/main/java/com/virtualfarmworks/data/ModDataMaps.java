@@ -4,12 +4,12 @@
  */
 package com.virtualfarmworks.data;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.IEventBus;
@@ -23,14 +23,14 @@ public final class ModDataMaps {
      * multiplier the server uses; non-mandatory so the map never blocks a client from joining.
      */
     public static final DataMapType<Item, SoilProperties> SOIL_PROPERTIES = DataMapType
-            .builder(Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID, "soil_properties"), Registries.ITEM,
+            .builder(ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID, "soil_properties"), Registries.ITEM,
                     SoilProperties.CODEC)
             .synced(SoilProperties.CODEC, false)
             .build();
 
     /** Fixed harvests of plantable items, see {@link FixedYield}. Server-only: harvests happen on the server. */
     public static final DataMapType<Item, FixedYield> FIXED_YIELD = DataMapType
-            .builder(Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID, "fixed_yield"), Registries.ITEM,
+            .builder(ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID, "fixed_yield"), Registries.ITEM,
                     FixedYield.CODEC)
             .build();
 
@@ -49,12 +49,12 @@ public final class ModDataMaps {
      * datapacks, so machines must not cache this across a {@code /reload}; they re-read it on revalidation.
      */
     public static double soilSpeedMultiplier(ItemStack soil) {
-        SoilProperties properties = soil.typeHolder().getData(SOIL_PROPERTIES);
+        SoilProperties properties = soil.getItemHolder().getData(SOIL_PROPERTIES);
         return properties == null ? 1.0 : properties.speedMultiplier();
     }
 
     /** The fixed harvest of a plantable stack, or null when it has none (read on revalidation, like the soil bonus). */
     public static @Nullable FixedYield fixedYield(ItemStack seed) {
-        return seed.isEmpty() ? null : seed.typeHolder().getData(FIXED_YIELD);
+        return seed.isEmpty() ? null : seed.getItemHolder().getData(FIXED_YIELD);
     }
 }

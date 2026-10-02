@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.config.VfwServerConfig;
 import com.virtualfarmworks.machine.MachineTier;

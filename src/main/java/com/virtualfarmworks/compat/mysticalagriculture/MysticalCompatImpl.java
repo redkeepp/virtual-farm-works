@@ -5,13 +5,13 @@
  */
 package com.virtualfarmworks.compat.mysticalagriculture;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.blakebr0.mysticalagriculture.api.crop.Crop;
 import com.blakebr0.mysticalagriculture.api.crop.ICropProvider;
 import com.virtualfarmworks.harvest.DropSource;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -23,7 +23,8 @@ import net.minecraft.world.level.block.Block;
  */
 final class MysticalCompatImpl {
     /** MA's Inferium crop, the only crop exempt from the effective-farmland rule. */
-    private static final Identifier INFERIUM_CROP = Identifier.fromNamespaceAndPath(MysticalCompat.MODID, "inferium");
+    private static final ResourceLocation INFERIUM_CROP =
+            ResourceLocation.fromNamespaceAndPath(MysticalCompat.MODID, "inferium");
 
     private MysticalCompatImpl() {
     }

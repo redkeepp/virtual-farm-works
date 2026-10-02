@@ -99,9 +99,10 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
 ## Current state (2026-09-30)
 
 **This checkout is the 1.21.1 line** (branch `1.21.1`, worktree folder `virtualfarmworks-1.21.1`, created from main
-at 544812d). Its code is still the 26.1.2 code: the port follows `docs/port-1.21.1.md` (areas, weights, order,
-pinned versions, dev environment). Until the port is done, the 26.1.2 facts below describe the target behavior,
-not this branch's APIs.
+at 544812d). The port is IN PROGRESS: it follows `docs/port-1.21.1.md` (areas, weights, order, pinned versions, dev
+environment), which marks the steps already done; `docs/history.md` ("Port to 1.21.1") explains them. The code does
+not compile until every area of `src/main` is ported. Until the port is done, the 26.1.2 facts below describe the
+target behavior, not this branch's APIs.
 
 **Starter Farm Matrix: DONE** (declared by the owner on 2026-09-29, after the plantables and the benchmark), tested in
 game by the owner (single player; dedicated server before the JEI packet was added). Features: one global growth

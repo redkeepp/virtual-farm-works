@@ -59,7 +59,15 @@ never against memory of 26.1 or of other versions.
 
 ## Order
 
-1. Build and base, until the code compiles again together with steps 2 and 3.
+Progress is marked here as the port goes (DONE = committed on this branch); `docs/history.md` ("Port to 1.21.1") has
+the details and the reasons. The code does not compile until every area of `src/main` is ported (javac compiles the
+whole source set at once), so the steps are committed as they are finished and checked against the compiler's error
+list: after each step, no error is left in the files and areas it covers.
+
+1. Build and base, until the code compiles again together with steps 2 and 3. **DONE** (2026-10-02): versions,
+   Java 21 toolchain, `data()` run, CI JDK, FML 4's `modLoader` / `loaderVersion` in the mods.toml template, the
+   renames of area 1 plus `Registry#getValue` -> `get`, `ItemStack#typeHolder` -> `getItemHolder` and
+   `org.jspecify` -> `org.jetbrains.annotations.Nullable` (jspecify is not on the 1.21.1 classpath).
 2. Inventories and energy.
 3. Saving.
 4. Recipes and autocrafter.

@@ -10,7 +10,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Optional;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.plant.VirtualLevel;
@@ -26,7 +26,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.AzaleaBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.NetherFungusBlock;
+import net.minecraft.world.level.block.FungusBlock;
 import net.minecraft.world.level.block.SaplingBlock;
 import net.minecraft.world.level.block.grower.TreeGrower;
 import net.minecraft.world.level.block.state.BlockState;
@@ -44,7 +44,7 @@ import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
  *       Trees that only exist in 2x2 (dark oak, pale oak) use their 2x2 feature: one sapling is enough for the whole
  *       tree (owner). The bee variants are never chosen (they need flowers around the sapling).</li>
  *   <li>{@link AzaleaBlock}: the azalea tree grower.</li>
- *   <li>{@link NetherFungusBlock}: its huge fungus feature, grown on the nylium it requires whatever the machine's
+ *   <li>{@link FungusBlock}: its huge fungus feature, grown on the nylium it requires whatever the machine's
  *       soil is (owner: the nylium condition is dropped).</li>
  * </ul>
  * The private parts of those vanilla classes are read once through reflection (26.1 runs with official names, so the
@@ -56,8 +56,8 @@ import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
  */
 public final class TreeGrowth {
     private static final @Nullable Field SAPLING_GROWER = field(SaplingBlock.class, "treeGrower");
-    private static final @Nullable Field FUNGUS_FEATURE = field(NetherFungusBlock.class, "feature");
-    private static final @Nullable Field FUNGUS_GROUND = field(NetherFungusBlock.class, "requiredBlock");
+    private static final @Nullable Field FUNGUS_FEATURE = field(FungusBlock.class, "feature");
+    private static final @Nullable Field FUNGUS_GROUND = field(FungusBlock.class, "requiredBlock");
     private static final @Nullable MethodHandle NORMAL_TREE = method("getConfiguredFeature", RandomSource.class,
             boolean.class);
     private static final @Nullable MethodHandle MEGA_TREE = method("getConfiguredMegaFeature", RandomSource.class);
@@ -78,7 +78,7 @@ public final class TreeGrowth {
 
     /** Whether a plant block is a tree plant (sapling, azalea or nether fungus, modded subclasses included). */
     public static boolean isTree(Block plant) {
-        return plant instanceof SaplingBlock || plant instanceof AzaleaBlock || plant instanceof NetherFungusBlock;
+        return plant instanceof SaplingBlock || plant instanceof AzaleaBlock || plant instanceof FungusBlock;
     }
 
     /**
@@ -88,7 +88,7 @@ public final class TreeGrowth {
     @SuppressWarnings("unchecked")
     public static @Nullable TreeGrowth of(Block plant) {
         try {
-            if (plant instanceof NetherFungusBlock) {
+            if (plant instanceof FungusBlock) {
                 if (FUNGUS_FEATURE == null || FUNGUS_GROUND == null) {
                     return null;
                 }

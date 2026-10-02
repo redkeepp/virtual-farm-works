@@ -11,7 +11,7 @@ import com.virtualfarmworks.sim.MachineStatus;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextColor;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import snownee.jade.api.BlockAccessor;
 import snownee.jade.api.IBlockComponentProvider;
 import snownee.jade.api.ITooltip;
@@ -57,7 +57,7 @@ enum FarmMatrixJadeTooltip implements IBlockComponentProvider {
     }
 
     @Override
-    public Identifier getUid() {
+    public ResourceLocation getUid() {
         return FarmMatrixJadeData.UID;
     }
 }

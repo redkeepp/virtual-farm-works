@@ -11,7 +11,7 @@ import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 
@@ -45,7 +45,7 @@ import net.minecraft.world.level.block.SporeBlossomBlock;
 import net.minecraft.world.level.block.StemBlock;
 import net.minecraft.world.level.block.SugarCaneBlock;
 import net.minecraft.world.level.block.SweetBerryBushBlock;
-import net.minecraft.world.level.block.VegetationBlock;
+import net.minecraft.world.level.block.BushBlock;
 import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
@@ -86,7 +86,7 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
  * matters.
  */
 public final class PlantRules {
-    /** Handle to the protected {@code VegetationBlock#mayPlaceOn}; null if it could not be resolved. */
+    /** Handle to the protected {@code BushBlock#mayPlaceOn}; null if it could not be resolved. */
     private static final @Nullable MethodHandle MAY_PLACE_ON = findMayPlaceOn();
 
     /** Soil needs of generic plants, per block. Depends on tags: cleared with {@link #clearCaches()}. */
@@ -171,7 +171,7 @@ public final class PlantRules {
         if (isSupportedPlantBlock(block) || block instanceof EntityBlock) {
             return false;
         }
-        return block instanceof VegetationBlock         // flowers, saplings, grass, bushes, fungi, roots, lily pad...
+        return block instanceof BushBlock               // flowers, saplings, grass, bushes, fungi, roots, lily pad...
                 || block instanceof GrowingPlantHeadBlock // kelp, weeping and twisting vines
                 || block instanceof VineBlock
                 || block instanceof GlowLichenBlock
@@ -219,7 +219,7 @@ public final class PlantRules {
      *       force-deny plants on their soils; a non-default answer wins.</li>
      *   <li>Generic plants: their own survival rule ({@code canSurvive}, see {@link #survivesOn}), or any universal soil
      *       when they grow on dirt ({@link SoilNeed#ANY}).</li>
-     *   <li>Native plants: {@code mayPlaceOn} for {@link VegetationBlock}s, called through {@link #mayPlaceOn}
+     *   <li>Native plants: {@code mayPlaceOn} for {@link BushBlock}s, called through {@link #mayPlaceOn}
      *       (vanilla crops use the 26.1 {@code #supports_*} tags there, modded crops may override it), or the matching
      *       vanilla support tag for plants that are not VegetationBlocks (sugar cane, cactus, bamboo, cocoa, chorus
      *       flower).</li>
@@ -247,14 +247,14 @@ public final class PlantRules {
             return genericPlant(block).need() == SoilNeed.ANY && isUniversalSoil(soil);
         }
 
-        // Order matters: MushroomBlock is a VegetationBlock but uses a VFW tag instead of its broad vanilla rule.
+        // Order matters: MushroomBlock is a BushBlock but uses a VFW tag instead of its broad vanilla rule.
         if (block instanceof MushroomBlock) {
             return soil.is(VfwTags.SUPPORTS_MUSHROOMS);
         }
         if (block instanceof CaveVinesBlock) {
             return soil.is(VfwTags.SUPPORTS_GLOW_BERRIES);
         }
-        if (block instanceof VegetationBlock vegetation) {
+        if (block instanceof BushBlock vegetation) {
             return mayPlaceOn(vegetation, soil, view);
         }
         if (block instanceof SugarCaneBlock) {
@@ -342,7 +342,7 @@ public final class PlantRules {
     // --- native plants ----------------------------------------------------------------------------------------------
 
     /**
-     * Calls the plant's protected {@code VegetationBlock#mayPlaceOn} — its own "which soil can I stand on" rule, which
+     * Calls the plant's protected {@code BushBlock#mayPlaceOn} — its own "which soil can I stand on" rule, which
      * vanilla crops implement with the 26.1 {@code #supports_*} tags and modded crops may override.
      *
      * <p>Why reflection and not an access transformer: an AT making the base method public breaks the Minecraft
@@ -353,7 +353,7 @@ public final class PlantRules {
      *
      * <p>If the handle cannot be resolved or the call throws, falls back to the vanilla tag each plant type uses.
      */
-    private static boolean mayPlaceOn(VegetationBlock plant, BlockState soil, SoilView view) {
+    private static boolean mayPlaceOn(BushBlock plant, BlockState soil, SoilView view) {
         MethodHandle handle = MAY_PLACE_ON;
         if (handle != null) {
             try {
@@ -369,8 +369,8 @@ public final class PlantRules {
         return fallbackMayPlaceOn(plant, soil);
     }
 
-    /** Vanilla's rules for the VegetationBlock types VFW accepts natively, used only if {@link #mayPlaceOn} fails. */
-    private static boolean fallbackMayPlaceOn(VegetationBlock plant, BlockState soil) {
+    /** Vanilla's rules for the BushBlock types VFW accepts natively, used only if {@link #mayPlaceOn} fails. */
+    private static boolean fallbackMayPlaceOn(BushBlock plant, BlockState soil) {
         if (plant instanceof CropBlock) {
             return soil.is(BlockTags.SUPPORTS_CROPS);
         }
@@ -385,12 +385,12 @@ public final class PlantRules {
 
     private static @Nullable MethodHandle findMayPlaceOn() {
         try {
-            Method method = VegetationBlock.class.getDeclaredMethod("mayPlaceOn",
+            Method method = BushBlock.class.getDeclaredMethod("mayPlaceOn",
                     BlockState.class, BlockGetter.class, BlockPos.class);
             method.setAccessible(true);
             return MethodHandles.lookup().unreflect(method);
         } catch (ReflectiveOperationException | RuntimeException e) {
-            VirtualFarmWorks.LOGGER.warn("Could not access VegetationBlock#mayPlaceOn; VFW will use vanilla tag rules "
+            VirtualFarmWorks.LOGGER.warn("Could not access BushBlock#mayPlaceOn; VFW will use vanilla tag rules "
                     + "for plant/soil compatibility (modded crops with custom soil rules may be misjudged).", e);
             return null;
         }

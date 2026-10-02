@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -38,11 +38,11 @@ public final class ItemFilter {
 
     public static final ItemFilter EMPTY = new ItemFilter(Set.of(), Set.of(), List.of());
 
-    private final Set<Identifier> ids;
+    private final Set<ResourceLocation> ids;
     private final Set<String> namespaces;
     private final List<TagKey<Item>> tags;
 
-    private ItemFilter(Set<Identifier> ids, Set<String> namespaces, List<TagKey<Item>> tags) {
+    private ItemFilter(Set<ResourceLocation> ids, Set<String> namespaces, List<TagKey<Item>> tags) {
         this.ids = ids;
         this.namespaces = namespaces;
         this.tags = tags;
@@ -58,16 +58,16 @@ public final class ItemFilter {
         if (entries.isEmpty()) {
             return EMPTY;
         }
-        Set<Identifier> ids = new HashSet<>();
+        Set<ResourceLocation> ids = new HashSet<>();
         Set<String> namespaces = new HashSet<>();
         List<TagKey<Item>> tags = new ArrayList<>();
         for (String entry : entries) {
             if (entry.startsWith("#")) {
-                tags.add(TagKey.create(Registries.ITEM, Identifier.parse(entry.substring(1))));
+                tags.add(TagKey.create(Registries.ITEM, ResourceLocation.parse(entry.substring(1))));
             } else if (entry.endsWith(":*")) {
                 namespaces.add(entry.substring(0, entry.length() - 2));
             } else {
-                ids.add(Identifier.parse(entry));
+                ids.add(ResourceLocation.parse(entry));
             }
         }
         return new ItemFilter(Set.copyOf(ids), Set.copyOf(namespaces), List.copyOf(tags));
@@ -82,7 +82,7 @@ public final class ItemFilter {
         if (stack.isEmpty() || isEmpty()) {
             return false;
         }
-        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (ids.contains(id) || namespaces.contains(id.getNamespace())) {
             return true;
         }

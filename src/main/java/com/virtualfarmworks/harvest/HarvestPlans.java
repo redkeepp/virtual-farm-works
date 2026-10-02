@@ -7,7 +7,7 @@ package com.virtualfarmworks.harvest;
 
 import java.lang.reflect.Field;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.compat.mysticalagriculture.MysticalCompat;
@@ -186,7 +186,7 @@ public final class HarvestPlans {
         if (STEM_FRUIT != null) {
             try {
                 ResourceKey<Block> key = (ResourceKey<Block>) STEM_FRUIT.get(stem);
-                Block fruit = BuiltInRegistries.BLOCK.getValue(key);
+                Block fruit = BuiltInRegistries.BLOCK.get(key);
                 if (fruit != Blocks.AIR) {
                     return fruit.defaultBlockState();
                 }

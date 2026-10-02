@@ -31,7 +31,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -610,7 +610,7 @@ final class LoadBenchmark {
     }
 
     private static Item item(String id) {
-        return BuiltInRegistries.ITEM.getValue(Identifier.parse(id));
+        return BuiltInRegistries.ITEM.get(ResourceLocation.parse(id));
     }
 
     private static void expect(GameTestHelper helper, boolean condition, String message) {

@@ -1,4 +1,4 @@
-// Virtual Farm Works — Gradle settings: plugin repositories and the Java toolchain resolver (downloads JDK 25 when the
+// Virtual Farm Works — Gradle settings: plugin repositories and the Java toolchain resolver (downloads JDK 21 when the
 // machine does not have one). Unchanged from the NeoForge MDK.
 pluginManagement {
     repositories {

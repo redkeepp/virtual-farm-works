@@ -4,7 +4,7 @@
  */
 package com.virtualfarmworks.plant;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

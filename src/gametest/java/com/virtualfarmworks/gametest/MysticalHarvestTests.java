@@ -23,7 +23,7 @@ import com.virtualfarmworks.sim.DropTally.Category;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.BlockItem;
@@ -49,8 +49,8 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
 final class MysticalHarvestTests {
     private static final int SAMPLES = 4000;
     private static final double TOLERANCE = 0.05;
-    private static final Identifier FERTILIZED_ESSENCE =
-            Identifier.fromNamespaceAndPath("mysticalagriculture", "fertilized_essence");
+    private static final ResourceLocation FERTILIZED_ESSENCE =
+            ResourceLocation.fromNamespaceAndPath("mysticalagriculture", "fertilized_essence");
 
     private MysticalHarvestTests() {
     }
@@ -79,7 +79,7 @@ final class MysticalHarvestTests {
         CropBlock cropBlock = crop.getCropBlock();
         BlockState mature = cropBlock.getStateForAge(cropBlock.getMaxAge());
         Item essence = crop.getEssenceItem();
-        Item fertilized = BuiltInRegistries.ITEM.getValue(FERTILIZED_ESSENCE);
+        Item fertilized = BuiltInRegistries.ITEM.get(FERTILIZED_ESSENCE);
 
         // --- MA's real drops: the crop "stands" on the farmland placed above (MA reads origin.below()).
         LootParams.Builder params = new LootParams.Builder(level)
@@ -131,7 +131,7 @@ final class MysticalHarvestTests {
     static void whitelistKeepsOnlyEssence(GameTestHelper helper) {
         Item seedItem = firstTierOneResourceSeed(helper);
         Item essence = cropOf(seedItem).getEssenceItem();
-        Item fertilized = BuiltInRegistries.ITEM.getValue(FERTILIZED_ESSENCE);
+        Item fertilized = BuiltInRegistries.ITEM.get(FERTILIZED_ESSENCE);
         // The crop's own farmland: 20% extra-seed chance, so the unfiltered roll surely has every kind of drop.
         DropSource source = HarvestPlans.create(new ItemStack(seedItem),
                 new ItemStack(CropTier.ONE.getFarmlandBlock().asItem()));
@@ -184,10 +184,10 @@ final class MysticalHarvestTests {
     }
 
     private static Item item(String id) {
-        return BuiltInRegistries.ITEM.getValue(Identifier.parse(id));
+        return BuiltInRegistries.ITEM.get(ResourceLocation.parse(id));
     }
 
     private static Block block(String id) {
-        return BuiltInRegistries.BLOCK.getValue(Identifier.parse(id));
+        return BuiltInRegistries.BLOCK.get(ResourceLocation.parse(id));
     }
 }

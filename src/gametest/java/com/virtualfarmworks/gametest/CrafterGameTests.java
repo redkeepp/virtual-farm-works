@@ -33,13 +33,13 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -199,17 +199,17 @@ final class CrafterGameTests {
 
         // Ghost cells: an empty cursor clears a cell, a cursor item sets it and stays on the cursor.
         menu.setCarried(ItemStack.EMPTY);
-        menu.clicked(EntropicFarmMatrixMenu.CRAFT_GRID_START + 8, 0, ContainerInput.PICKUP, player);
+        menu.clicked(EntropicFarmMatrixMenu.CRAFT_GRID_START + 8, 0, ClickType.PICKUP, player);
         menu.broadcastChanges();
         check(helper, menu.gridStacks().get(8).isEmpty() && menu.craftPreview().isEmpty(),
                 "8 wheat make nothing");
         menu.setCarried(new ItemStack(Items.WHEAT, 5));
-        menu.clicked(EntropicFarmMatrixMenu.CRAFT_GRID_START + 8, 0, ContainerInput.PICKUP, player);
+        menu.clicked(EntropicFarmMatrixMenu.CRAFT_GRID_START + 8, 0, ClickType.PICKUP, player);
         menu.broadcastChanges();
         check(helper, menu.getCarried().getCount() == 5 && menu.craftPreview().is(Items.HAY_BLOCK),
                 "a ghost cell takes the item type only");
         menu.setCarried(ItemStack.EMPTY);
-        menu.clicked(EntropicFarmMatrixMenu.CRAFT_RESULT, 0, ContainerInput.PICKUP, player);
+        menu.clicked(EntropicFarmMatrixMenu.CRAFT_RESULT, 0, ClickType.PICKUP, player);
         check(helper, menu.getCarried().isEmpty() && menu.craftPreview().is(Items.HAY_BLOCK),
                 "the result cannot be taken");
 
@@ -368,7 +368,7 @@ final class CrafterGameTests {
     // --- helpers ----------------------------------------------------------------------------------------------------
 
     private static Item item(String id) {
-        return BuiltInRegistries.ITEM.getValue(Identifier.parse(id));
+        return BuiltInRegistries.ITEM.get(ResourceLocation.parse(id));
     }
 
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {

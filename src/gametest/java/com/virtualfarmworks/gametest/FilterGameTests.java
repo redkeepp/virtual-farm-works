@@ -27,7 +27,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -80,20 +80,20 @@ final class FilterGameTests {
         int first = FarmMatrixMenu.FILTER_START;
 
         menu.setCarried(new ItemStack(Items.WHEAT_SEEDS, 5));
-        menu.clicked(first + 4, 0, ContainerInput.PICKUP, player);
+        menu.clicked(first + 4, 0, ClickType.PICKUP, player);
         check(helper, machine.filter().get(4) == Items.WHEAT_SEEDS, "a click with an item must list its type");
         check(helper, menu.getCarried().is(Items.WHEAT_SEEDS) && menu.getCarried().getCount() == 5,
                 "the carried stack must be untouched (ghost)");
-        menu.clicked(first + 5, 0, ContainerInput.PICKUP, player);
+        menu.clicked(first + 5, 0, ClickType.PICKUP, player);
         check(helper, machine.filter().get(5) == null, "an item can be listed once");
 
         menu.setCarried(new ItemStack(Items.CARROT));
-        menu.clicked(first + 5, 0, ContainerInput.PICKUP, player);
+        menu.clicked(first + 5, 0, ClickType.PICKUP, player);
         menu.setCarried(ItemStack.EMPTY);
-        menu.clicked(first + 4, 0, ContainerInput.PICKUP, player);
+        menu.clicked(first + 4, 0, ClickType.PICKUP, player);
         check(helper, machine.filter().get(4) == null && machine.filter().get(5) == Items.CARROT,
                 "an empty hand must remove only the clicked entry");
-        menu.clicked(first + 5, 0, ContainerInput.QUICK_MOVE, player);
+        menu.clicked(first + 5, 0, ClickType.QUICK_MOVE, player);
         check(helper, machine.filter().get(5) == null, "shift-click must remove too");
         check(helper, menu.quickMoveStack(player, first).isEmpty(), "ghost slots never move items");
         check(helper, !menu.canDragTo(menu.slots.get(first)), "drags never include ghost slots");
@@ -101,7 +101,7 @@ final class FilterGameTests {
         // Pages are created on demand; each viewer browses its own page.
         menu.clickMenuButton(player, FarmMatrixMenu.BUTTON_FILTER_NEXT);
         menu.setCarried(new ItemStack(Items.WHEAT_SEEDS));
-        menu.clicked(first, 0, ContainerInput.PICKUP, player);
+        menu.clicked(first, 0, ClickType.PICKUP, player);
         menu.setCarried(ItemStack.EMPTY);
         check(helper, machine.filter().get(9) == Items.WHEAT_SEEDS, "slot 0 of page 2 is position 9");
         check(helper, menu.setFilterGhost(1, new ItemStack(Items.DIAMOND)) && machine.filter().get(10) == Items.DIAMOND,
@@ -176,7 +176,7 @@ final class FilterGameTests {
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         FarmMatrixMenu menu = new FarmMatrixMenu(1, player.getInventory(), machine);
         menu.setCarried(new ItemStack(Items.WHEAT_SEEDS, 3));
-        menu.clicked(FarmMatrixMenu.OUTPUT_START + 4, 0, ContainerInput.PICKUP, player);
+        menu.clicked(FarmMatrixMenu.OUTPUT_START + 4, 0, ClickType.PICKUP, player);
         check(helper, count(machine, Items.WHEAT_SEEDS) == 3 && menu.getCarried().isEmpty(),
                 "the output accepts items by hand");
         machine.serverTick(level);

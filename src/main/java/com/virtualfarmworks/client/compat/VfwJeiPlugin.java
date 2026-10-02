@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.client.EntropicFarmMatrixScreen;
@@ -39,13 +39,13 @@ import mezz.jei.api.registration.IRecipeTransferRegistration;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Discovered by JEI through the {@link JeiPlugin} annotation; never loaded when JEI is absent (VFW only compiles
@@ -55,8 +55,8 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 @JeiPlugin
 public final class VfwJeiPlugin implements IModPlugin {
     @Override
-    public Identifier getPluginUid() {
-        return Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID, "jei");
+    public ResourceLocation getPluginUid() {
+        return ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID, "jei");
     }
 
     @Override
@@ -175,7 +175,7 @@ public final class VfwJeiPlugin implements IModPlugin {
                     grid.add(i < inputs.size() ? inputs.get(i).getDisplayedItemStack().orElse(ItemStack.EMPTY)
                             : ItemStack.EMPTY);
                 }
-                ClientPacketDistributor.sendToServer(new SetCrafterGridPayload(menu.containerId,
+                PacketDistributor.sendToServer(new SetCrafterGridPayload(menu.containerId,
                         MachineCrafter.normalize(grid)));
                 menu.setCrafterVisible(true);
             }

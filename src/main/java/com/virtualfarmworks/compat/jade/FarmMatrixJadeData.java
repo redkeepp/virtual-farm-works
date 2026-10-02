@@ -12,7 +12,7 @@ import com.virtualfarmworks.machine.MachineEnergy;
 import com.virtualfarmworks.sim.GrowthSpeed;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import snownee.jade.api.BlockAccessor;
 import snownee.jade.api.IServerDataProvider;
 
@@ -24,7 +24,7 @@ import snownee.jade.api.IServerDataProvider;
 enum FarmMatrixJadeData implements IServerDataProvider<BlockAccessor> {
     INSTANCE;
 
-    static final Identifier UID = Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID, "farm_matrix");
+    static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID, "farm_matrix");
     static final String STATUS = "vfw_status";
     static final String PROGRESS = "vfw_progress";
     static final String HYDRATION = "vfw_hydration";
@@ -60,7 +60,7 @@ enum FarmMatrixJadeData implements IServerDataProvider<BlockAccessor> {
     }
 
     @Override
-    public Identifier getUid() {
+    public ResourceLocation getUid() {
         return UID;
     }
 }

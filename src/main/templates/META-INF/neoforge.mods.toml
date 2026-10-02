@@ -5,6 +5,9 @@
 # Gradle tries to evaluate it and the build fails. Lines between percent-sign tags are Groovy too (optional lines).
 # Format: https://docs.neoforged.net/docs/gettingstarted/modfiles
 
+# The language loader and its version range: required by FML 4 (NeoForge 21.1), which refuses a mod file without them.
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
 license="${mod_license}"
 # Shown when problems occur (crash screens, the mods list); left out while mod_issues_url is empty.
 <% if (mod_issues_url) { %>issueTrackerURL="${mod_issues_url}"<% } %>

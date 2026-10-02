@@ -5,7 +5,7 @@
  */
 package com.virtualfarmworks.compat.mysticalagriculture;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.blakebr0.mysticalagriculture.api.crop.Crop;
 import com.blakebr0.mysticalagriculture.api.farmland.IEssenceFarmland;
@@ -19,7 +19,7 @@ import com.virtualfarmworks.sim.DropTally.Category;
 import com.virtualfarmworks.sim.HarvestMath;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -55,8 +55,8 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  * so MA harvests are exact even for thousands of plots.
  */
 final class MysticalDropSource implements DropSource {
-    private static final Identifier FERTILIZED_ESSENCE = Identifier.fromNamespaceAndPath("mysticalagriculture",
-            "fertilized_essence");
+    private static final ResourceLocation FERTILIZED_ESSENCE =
+            ResourceLocation.fromNamespaceAndPath("mysticalagriculture", "fertilized_essence");
 
     private final Crop crop;
     private final boolean inferium;
@@ -71,7 +71,7 @@ final class MysticalDropSource implements DropSource {
         this.soil = soil;
         this.essence = ItemResource.of(crop.getEssenceItem());
         this.seed = ItemResource.of(crop.getSeedsItem());
-        Item fertilized = BuiltInRegistries.ITEM.getValue(FERTILIZED_ESSENCE);
+        Item fertilized = BuiltInRegistries.ITEM.get(FERTILIZED_ESSENCE);
         this.fertilizedEssence = fertilized == Items.AIR ? null : ItemResource.of(fertilized);
     }
 

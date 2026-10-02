@@ -5,7 +5,7 @@
  */
 package com.virtualfarmworks.menu;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineFilter;
@@ -22,7 +22,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
-import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.SimpleContainerData;
@@ -292,17 +292,17 @@ public abstract class AbstractFarmMatrixMenu extends AbstractContainerMenu {
      * other input (number keys, middle click, Q, drag) does nothing.
      */
     @Override
-    public void clicked(int slotIndex, int buttonNum, ContainerInput input, Player player) {
+    public void clicked(int slotIndex, int buttonNum, ClickType clickType, Player player) {
         if (slotIndex >= 0 && slotIndex < slots.size() && slots.get(slotIndex) instanceof DisplaySlot) {
             return; // shows a computed item: nothing to take, place or clone
         }
         if (slotIndex < 0 || slotIndex >= slots.size() || !(slots.get(slotIndex) instanceof GhostSlot slot)) {
-            super.clicked(slotIndex, buttonNum, input, player);
+            super.clicked(slotIndex, buttonNum, clickType, player);
             return;
         }
-        if (input == ContainerInput.QUICK_MOVE) {
+        if (clickType == ClickType.QUICK_MOVE) {
             slot.set(ItemStack.EMPTY);
-        } else if (input == ContainerInput.PICKUP) {
+        } else if (clickType == ClickType.PICKUP) {
             ItemStack carried = getCarried();
             slot.set(carried.isEmpty() ? ItemStack.EMPTY : carried.copyWithCount(1));
         }

@@ -31,8 +31,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -544,7 +544,8 @@ final class MachineGameTests {
     static void onlyBuiltTiersHaveItems(GameTestHelper helper) {
         for (MachineTier tier : MachineTier.values()) {
             for (String suffix : new String[] {"water_provider_upgrade", "growth_upgrade"}) {
-                Identifier id = Identifier.fromNamespaceAndPath("virtualfarmworks", tier.getSerializedName() + "_" + suffix);
+                ResourceLocation id = ResourceLocation.fromNamespaceAndPath("virtualfarmworks",
+                        tier.getSerializedName() + "_" + suffix);
                 check(helper, BuiltInRegistries.ITEM.containsKey(id) == tier.isBuilt(),
                         id + (tier.isBuilt() ? " must exist" : " must not exist before its machine"));
             }
@@ -585,7 +586,7 @@ final class MachineGameTests {
         CraftingInput input = CraftingInput.of(3, 3, stacks);
         Optional<RecipeHolder<CraftingRecipe>> recipe = level.recipeAccess().getRecipeFor(RecipeType.CRAFTING, input, level);
         ResourceKey<Recipe<?>> key = ResourceKey.create(Registries.RECIPE,
-                Identifier.fromNamespaceAndPath("virtualfarmworks", name));
+                ResourceLocation.fromNamespaceAndPath("virtualfarmworks", name));
         check(helper, recipe.isPresent() && recipe.get().id().equals(key), "the grid does not make recipe " + name);
         ItemStack crafted = recipe.get().value().assemble(input);
         check(helper, crafted.is(result) && crafted.getCount() == 1, name + " crafts " + crafted);

@@ -9,7 +9,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.machine.MachineLayout;
 import com.virtualfarmworks.machine.MachineSlots;

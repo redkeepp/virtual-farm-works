@@ -10,7 +10,7 @@ package com.virtualfarmworks.client;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.mojang.blaze3d.platform.Window;
 import com.virtualfarmworks.VirtualFarmWorks;
@@ -43,7 +43,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
@@ -52,7 +52,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Draws only; every action is sent to the server as a menu button click ({@link AbstractFarmMatrixMenu#clickMenuButton}),
@@ -76,8 +76,8 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     /** How fast the drawn FE level follows the synced one: it falls gradually when power is cut (owner spec). */
     private static final double ENERGY_SMOOTHING_SECONDS = 0.35;
 
-    private final Identifier texture;
-    private final Identifier crafterTexture;
+    private final ResourceLocation texture;
+    private final ResourceLocation crafterTexture;
     private final int themeColor;
     private final ItemStack waterGhost;
     private final ItemStack growthGhost;
@@ -104,9 +104,9 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     public EntropicFarmMatrixScreen(EntropicFarmMatrixMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title, EntropicLayout.GUI_WIDTH, EntropicLayout.GUI_HEIGHT);
         MachineTier tier = menu.tier();
-        this.texture = Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID,
+        this.texture = ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID,
                 "textures/gui/" + tier.getSerializedName() + "_farm_matrix_gui.png");
-        this.crafterTexture = Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID,
+        this.crafterTexture = ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID,
                 "textures/gui/crafter_farm_matrix_gui.png");
         this.themeColor = 0xFF000000 | tier.themeColor();
         this.waterGhost = new ItemStack(ModItems.WATER_PROVIDER_UPGRADES.get(tier).get());
@@ -662,7 +662,7 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
 
     /** Client: an item was dropped from JEI on filter ghost slot {@code slot}; the server records it. */
     public void setFilterGhostFromJei(int slot, ItemStack stack) {
-        ClientPacketDistributor.sendToServer(new SetFilterGhostPayload(menu.containerId, slot, stack.copyWithCount(1)));
+        PacketDistributor.sendToServer(new SetFilterGhostPayload(menu.containerId, slot, stack.copyWithCount(1)));
     }
 
     /** Screen areas of the autocrafter's recipe cells while its panel is open (JEI drag-and-drop). */
@@ -684,7 +684,7 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     public void setCrafterCellFromJei(int cell, ItemStack stack) {
         List<ItemStack> grid = menu.gridStacks();
         grid.set(cell, stack.copyWithCount(1));
-        ClientPacketDistributor.sendToServer(new SetCrafterGridPayload(menu.containerId, grid));
+        PacketDistributor.sendToServer(new SetCrafterGridPayload(menu.containerId, grid));
     }
 
     // =================================================================================================================

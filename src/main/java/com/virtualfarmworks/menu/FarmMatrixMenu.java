@@ -4,7 +4,7 @@
  */
 package com.virtualfarmworks.menu;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineFilter;

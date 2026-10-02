@@ -203,6 +203,28 @@ Delight, Mystical Agriculture, JEI; checked through the GitHub API) and approved
   `docs/publishing.md`, and `mod_version` 1.0.1 for the next release. License: the owner wants it as free as
   possible; MIT stays (code and assets), modpacks welcome without asking.
 
+## Port to 1.21.1 (branch 1.21.1, from 2026-10-02)
+
+The owner keeps a 1.21.1 line for All the Mods 10 (CLAUDE.md, "Two Minecraft versions"). The plan, with the areas,
+their weight and the order, is `docs/port-1.21.1.md`; this section records how each step went and why. Every API was
+checked against the 1.21.1 sources (NeoForge 21.1.251's `neoforge-21.1.251-sources.jar`, which holds Minecraft and
+NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 26.1.
+
+### Step 1 — build and base
+- Versions from ATM10 (`gradle.properties`), Java 21 toolchain (a JDK 21 is installed; JAVA_HOME may stay on 25, it
+  only runs Gradle), the 1.21.1 MDK's `data()` run type (`clientData()` is 1.21.4+), JDK 21 in CI.
+- FML 4 refuses a mod file without `modLoader` and `loaderVersion` ("Missing ModLoader in file", read in
+  `ModFileInfo`); later FML versions dropped them, so the 26.1 template had neither. Added, with the range in
+  `gradle.properties` (`loader_version_range=[4,)`, as in the 1.21.1 MDK).
+- NeoForge runs Minecraft with its official names in production since 1.20.5 (checked: Mystical Agriculture 8.0.28's
+  jar calls `CropBlock.randomTick` by name), so VFW's reflection by official names (stem fruit, tree growers,
+  `mayPlaceOn`) keeps working in 1.21.1 jars.
+- Renames: `Identifier` -> `ResourceLocation`, `ContainerInput` -> `ClickType`, `NetherFungusBlock` -> `FungusBlock`,
+  `VegetationBlock` -> `BushBlock`, `FMLEnvironment.isProduction()` -> `FMLEnvironment.production`,
+  `ClientPacketDistributor` -> `PacketDistributor`, `Registry#getValue` -> `get`, `ItemStack#typeHolder` ->
+  `getItemHolder`. jspecify is not on the 1.21.1 classpath: `org.jetbrains.annotations.Nullable` (also a TYPE_USE
+  annotation, what NeoForge 21.1 itself uses) replaces it, so `ModConfigSpec.@Nullable IntValue` still compiles.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

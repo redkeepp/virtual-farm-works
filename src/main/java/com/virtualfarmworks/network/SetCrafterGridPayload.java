@@ -15,7 +15,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.IEventBus;
@@ -32,7 +32,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  */
 public record SetCrafterGridPayload(int containerId, List<ItemStack> grid) implements CustomPacketPayload {
     public static final Type<SetCrafterGridPayload> TYPE =
-            new Type<>(Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID, "set_crafter_grid"));
+            new Type<>(ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID, "set_crafter_grid"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, SetCrafterGridPayload> STREAM_CODEC =
             StreamCodec.composite(

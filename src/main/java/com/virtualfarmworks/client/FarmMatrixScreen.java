@@ -9,7 +9,7 @@ package com.virtualfarmworks.client;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.machine.MachineFilter;
@@ -30,14 +30,14 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Draws only; every action is sent to the server as a menu button click ({@link FarmMatrixMenu#clickMenuButton}),
@@ -51,7 +51,7 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
  */
 public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
         implements FarmMatrixJeiTargets {
-    private final Identifier texture;
+    private final ResourceLocation texture;
     private final int themeColor;
     /** Placeholder shown in each empty input slot, by {@link MachineSlots} index (owner spec). */
     private final ItemStack[] ghosts;
@@ -67,7 +67,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
     public FarmMatrixScreen(FarmMatrixMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title, FarmMatrixLayout.GUI_WIDTH, FarmMatrixLayout.GUI_HEIGHT);
         MachineTier tier = menu.tier();
-        this.texture = Identifier.fromNamespaceAndPath(VirtualFarmWorks.MODID,
+        this.texture = ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID,
                 "textures/gui/" + tier.getSerializedName() + "_farm_matrix_gui.png");
         this.themeColor = 0xFF000000 | tier.themeColor();
         this.ghosts = new ItemStack[MachineSlots.INPUT_COUNT];
@@ -591,7 +591,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
 
     /** Client: an item was dropped from JEI on ghost slot {@code slot}; the server records it (see the payload). */
     public void setFilterGhostFromJei(int slot, ItemStack stack) {
-        ClientPacketDistributor.sendToServer(new SetFilterGhostPayload(menu.containerId, slot, stack.copyWithCount(1)));
+        PacketDistributor.sendToServer(new SetFilterGhostPayload(menu.containerId, slot, stack.copyWithCount(1)));
     }
 
     private @Nullable RelativeSide faceAt(double mouseX, double mouseY) {

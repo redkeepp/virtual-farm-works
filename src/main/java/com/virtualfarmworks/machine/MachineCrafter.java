@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
