@@ -18,7 +18,6 @@ import com.virtualfarmworks.VirtualFarmWorks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.util.TriState;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
@@ -33,10 +32,9 @@ import net.minecraft.world.level.block.ChorusFlowerBlock;
 import net.minecraft.world.level.block.CocoaBlock;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.FarmlandBlock;
+import net.minecraft.world.level.block.FarmBlock;
 import net.minecraft.world.level.block.GlowLichenBlock;
 import net.minecraft.world.level.block.GrowingPlantHeadBlock;
-import net.minecraft.world.level.block.HangingMossBlock;
 import net.minecraft.world.level.block.HangingRootsBlock;
 import net.minecraft.world.level.block.MultifaceBlock;
 import net.minecraft.world.level.block.MushroomBlock;
@@ -49,6 +47,7 @@ import net.minecraft.world.level.block.BushBlock;
 import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.neoforged.neoforge.common.util.TriState;
 
 /**
  * Which items are plantable in VFW, whether a plant needs a soil, and whether it can grow on a given soil.
@@ -60,8 +59,8 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
  *       and glow berries, mushrooms, chorus. Their soil rules are exactly the game's.</li>
  *   <li><b>Generic plants</b> ({@link #isGenericPlantBlock}, owner decision 2026-09-28: "accept every plantable, any
  *       seed, any sapling, anything"): every other vegetation block (flowers, saplings, grass, ferns, bushes, fungi,
- *       roots, lily pads...) and the plants that are not vegetation blocks (kelp, vines, glow lichen, spore blossom,
- *       hanging roots, pale hanging moss, big dripleaf, and any modded {@link GrowingPlantHeadBlock} or
+ *       roots, lily pads...: {@link BushBlock} in 1.21.1) and the plants that are not vegetation blocks (kelp, vines,
+ *       glow lichen, spore blossom, hanging roots, big dripleaf, and any modded {@link GrowingPlantHeadBlock} or
  *       {@link VineBlock}). Detected by block class, so modded plants built on the vanilla classes work.</li>
  * </ul>
  * Plants with a block entity are never generic plants: in modpacks those are crafted, functional blocks (Botania's
@@ -77,7 +76,7 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
  *   <li>stands only on farmland: {@link SoilNeed#FARMLAND} — a crop in all but class (pitcher pod): its natural rule,
  *       and a hoe tills dirt, exactly like crops;</li>
  *   <li>stands on none of them (hangs, climbs or floats: lily pad, small dripleaf, vines, weeping vines, spore blossom,
- *       hanging roots, pale hanging moss): {@link SoilNeed#NONE} — needs no soil; the soil slot is ignored.</li>
+ *       hanging roots): {@link SoilNeed#NONE} — needs no soil; the soil slot is ignored.</li>
  * </ul>
  *
  * <h2>Soil compatibility</h2>
@@ -111,7 +110,7 @@ public final class PlantRules {
      * What {@link #classify} learned about a generic plant.
      *
      * @param need       its soil need
-     * @param anySurface its natural rule accepts any solid surface (seagrass, kelp, leaf litter...): such a rule is not a
+     * @param anySurface its natural rule accepts any solid surface (seagrass, kelp...): such a rule is not a
      *                   soil rule, so it must not turn every solid block into a soil in the soil slot
      */
     private record GenericPlant(SoilNeed need, boolean anySurface) {
@@ -177,7 +176,6 @@ public final class PlantRules {
                 || block instanceof GlowLichenBlock
                 || block instanceof SporeBlossomBlock
                 || block instanceof HangingRootsBlock
-                || block instanceof HangingMossBlock      // pale hanging moss
                 || block instanceof BigDripleafBlock;
     }
 
@@ -192,7 +190,7 @@ public final class PlantRules {
     /**
      * Whether a plant may decide which blocks count as soils in the soil slot ({@link SoilRules}). Generic plants that
      * need no soil, or whose natural rule accepts any solid surface, may not: otherwise ice (lily pad), stone, glass or
-     * a diamond block (seagrass, leaf litter) would become soils.
+     * a diamond block (seagrass) would become soils.
      */
     static boolean definesSoils(Block plant) {
         if (!isGenericPlantBlock(plant)) {
@@ -204,12 +202,12 @@ public final class PlantRules {
 
     /**
      * Soils every generic plant with {@link SoilNeed#ANY} grows on (owner: "dirt, grass, any farmland"): the block tag
-     * {@link VfwTags#UNIVERSAL_SOILS} (default: the vanilla vegetation soils — dirt, coarse and rooted dirt, grass,
-     * podzol, mycelium, moss, mud, farmland) plus every {@link FarmlandBlock}, so modded farmlands (Mystical Agriculture,
-     * Agradditions...) count without a list.
+     * {@link VfwTags#UNIVERSAL_SOILS} (default: the vanilla vegetation soils of 1.21.1 — {@code #minecraft:dirt}: dirt,
+     * coarse and rooted dirt, grass, podzol, mycelium, moss, mud — and farmland) plus every {@link FarmBlock}
+     * (1.21.1's farmland class), so modded farmlands (Mystical Agriculture, Agradditions...) count without a list.
      */
     public static boolean isUniversalSoil(BlockState soil) {
-        return soil.is(VfwTags.UNIVERSAL_SOILS) || soil.getBlock() instanceof FarmlandBlock;
+        return soil.is(VfwTags.UNIVERSAL_SOILS) || soil.getBlock() instanceof FarmBlock;
     }
 
     /**
@@ -219,10 +217,10 @@ public final class PlantRules {
      *       force-deny plants on their soils; a non-default answer wins.</li>
      *   <li>Generic plants: their own survival rule ({@code canSurvive}, see {@link #survivesOn}), or any universal soil
      *       when they grow on dirt ({@link SoilNeed#ANY}).</li>
-     *   <li>Native plants: {@code mayPlaceOn} for {@link BushBlock}s, called through {@link #mayPlaceOn}
-     *       (vanilla crops use the 26.1 {@code #supports_*} tags there, modded crops may override it), or the matching
-     *       vanilla support tag for plants that are not VegetationBlocks (sugar cane, cactus, bamboo, cocoa, chorus
-     *       flower).</li>
+     *   <li>Native plants: {@code mayPlaceOn} for {@link BushBlock}s, called through {@link #mayPlaceOn} (vanilla
+     *       crops and stems accept any {@link FarmBlock} there, modded crops may override it), or, for plants that are
+     *       not BushBlocks (sugar cane, cactus, bamboo, cocoa, chorus flower), the soil part of their 1.21.1
+     *       {@code canSurvive}: the same tags and blocks, without its water or neighbour checks.</li>
      * </ol>
      * Mushrooms and glow berries use VFW tags because their vanilla rules are "any solid block" (see {@link VfwTags}).
      *
@@ -257,20 +255,21 @@ public final class PlantRules {
         if (block instanceof BushBlock vegetation) {
             return mayPlaceOn(vegetation, soil, view);
         }
+        // 1.21.1 has no #supports_* block tags: these are the soil tests inside each plant's own canSurvive.
         if (block instanceof SugarCaneBlock) {
-            return soil.is(BlockTags.SUPPORTS_SUGAR_CANE); // water adjacency ignored: virtual plot
+            return soil.is(BlockTags.DIRT) || soil.is(BlockTags.SAND); // water adjacency ignored: virtual plot
         }
         if (block instanceof CactusBlock) {
-            return soil.is(BlockTags.SUPPORTS_CACTUS);
+            return soil.is(BlockTags.SAND);
         }
         if (block instanceof BambooStalkBlock || block instanceof BambooSaplingBlock) {
-            return soil.is(BlockTags.SUPPORTS_BAMBOO);
+            return soil.is(BlockTags.BAMBOO_PLANTABLE_ON);
         }
         if (block instanceof CocoaBlock) {
-            return soil.is(BlockTags.SUPPORTS_COCOA);
+            return soil.is(BlockTags.JUNGLE_LOGS);
         }
         if (block instanceof ChorusFlowerBlock) {
-            return soil.is(BlockTags.SUPPORTS_CHORUS_FLOWER);
+            return soil.is(Blocks.END_STONE);
         }
         // Unknown plant type (only reachable through EXTRA_PLANTABLES with a non-plant block): only the soil's
         // explicit TRUE, handled above, can accept it.
@@ -343,12 +342,12 @@ public final class PlantRules {
 
     /**
      * Calls the plant's protected {@code BushBlock#mayPlaceOn} — its own "which soil can I stand on" rule, which
-     * vanilla crops implement with the 26.1 {@code #supports_*} tags and modded crops may override.
+     * vanilla crops implement as "any {@link FarmBlock}" and modded crops may override.
      *
      * <p>Why reflection and not an access transformer: an AT making the base method public breaks the Minecraft
      * recompile, because 19 vanilla subclasses override it as {@code protected} ("weaker access privileges"), and that
-     * list changes between Minecraft versions. A {@link MethodHandle} resolved once is version-proof (26.1 runs with
-     * official names in production) and dispatches to overrides like a normal call. Only used on revalidation, never
+     * list changes between Minecraft versions. A {@link MethodHandle} resolved once is version-proof (NeoForge runs
+     * Minecraft with its official names in production since 1.20.5) and dispatches to overrides like a normal call. Only used on revalidation, never
      * per tick, so reflective cost is irrelevant.
      *
      * <p>If the handle cannot be resolved or the call throws, falls back to the vanilla tag each plant type uses.
@@ -369,18 +368,18 @@ public final class PlantRules {
         return fallbackMayPlaceOn(plant, soil);
     }
 
-    /** Vanilla's rules for the BushBlock types VFW accepts natively, used only if {@link #mayPlaceOn} fails. */
+    /**
+     * Vanilla 1.21.1's rules for the BushBlock types VFW accepts natively, used only if {@link #mayPlaceOn} fails: crops
+     * and stems on any {@link FarmBlock}, nether wart on soul sand, the rest on {@code #minecraft:dirt} or farmland.
+     */
     private static boolean fallbackMayPlaceOn(BushBlock plant, BlockState soil) {
-        if (plant instanceof CropBlock) {
-            return soil.is(BlockTags.SUPPORTS_CROPS);
-        }
-        if (plant instanceof StemBlock) {
-            return soil.is(BlockTags.SUPPORTS_STEM_CROPS);
+        if (plant instanceof CropBlock || plant instanceof StemBlock) {
+            return soil.getBlock() instanceof FarmBlock;
         }
         if (plant instanceof NetherWartBlock) {
-            return soil.is(BlockTags.SUPPORTS_NETHER_WART);
+            return soil.is(Blocks.SOUL_SAND);
         }
-        return soil.is(BlockTags.SUPPORTS_VEGETATION);
+        return soil.is(BlockTags.DIRT) || soil.getBlock() instanceof FarmBlock;
     }
 
     private static @Nullable MethodHandle findMayPlaceOn() {

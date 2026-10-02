@@ -40,9 +40,9 @@ public final class VfwTags {
 
     /**
      * Soils every generic plant that stands on dirt grows on (owner, 2026-09-28: "dirt, grass, any farmland"), on top of
-     * its natural soils. Default: {@code #minecraft:supports_vegetation} (dirt, coarse and rooted dirt, grass block,
-     * podzol, mycelium, moss, mud, farmland). Every {@code FarmlandBlock} counts as well, even without being listed, so
-     * modded farmlands work out of the box.
+     * its natural soils. Default: {@code #minecraft:dirt} (dirt, coarse and rooted dirt, grass block, podzol, mycelium,
+     * moss, mud, muddy mangrove roots) and farmland: vanilla 1.21.1's own vegetation rule. Every {@code FarmBlock}
+     * (1.21.1's farmland class) counts as well, even without being listed, so modded farmlands work out of the box.
      */
     public static final TagKey<Block> UNIVERSAL_SOILS = block("universal_soils");
 
@@ -56,7 +56,7 @@ public final class VfwTags {
     /**
      * Soils for mushrooms. Vanilla mushrooms accept any solid block in the dark, which would let the soil slot accept
      * stone, cobblestone... A virtual machine has no light level, so VFW uses the natural mushroom soils instead
-     * (default: {@code #minecraft:overrides_mushroom_light_requirement} = mycelium, podzol, nylium).
+     * (default: {@code #minecraft:mushroom_grow_block} = mycelium, podzol, nylium).
      */
     public static final TagKey<Block> SUPPORTS_MUSHROOMS = block("supports_mushrooms");
 

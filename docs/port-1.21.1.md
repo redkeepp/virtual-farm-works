@@ -80,7 +80,12 @@ list: after each step, no error is left in the files and areas it covers.
    recipe ids are `ResourceLocation`s, `assemble(input, registries)`; "placeable by a player" = what the recipe book
    lists in 1.21.1 (`!isSpecial() && !isIncomplete()`, `ClientRecipeBook`'s own test). The 7 recipe JSONs use
    ingredient objects. JEI's side is step 7.
-5. Plants and tags.
+5. Plants and tags. **DONE** (2026-10-02): the soil rules of 1.21.1 read from its sources (`#minecraft:dirt`,
+   `#minecraft:sand`, `#minecraft:bamboo_plantable_on`, `#minecraft:jungle_logs`, end stone, soul sand, any `FarmBlock`),
+   NeoForge's own `TriState`, `FarmBlock` (1.21.1's farmland class), no pale hanging moss; `VirtualLevel` / `SoilView`
+   on 1.21.1's level interfaces; the three block tags' defaults (`universal_soils`, `supports_mushrooms`,
+   `supports_glow_berries`). The reflected fields and methods (stem fruit, tree growers, fungi) have the same names in
+   1.21.1. The plants newer than 1.21.1 in `PlantablesGameTests` are step 8.
 6. GUI (with area 6, blocks and items, where it touches screens).
 7. Integrations.
 8. Game tests, JUnit and the load benchmark; then the owner's in-game test in ATM10.

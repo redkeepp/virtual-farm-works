@@ -279,6 +279,25 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
 - Recipe JSONs: 1.21.1 reads ingredient objects (`{"item": ...}`), checked against vanilla 1.21.1's own recipes; the
   results already used `{"id": ...}`. Advancements are unchanged (same format in vanilla 1.21.1).
 
+### Step 5 — plants and tags
+- 1.21.1 has no `#minecraft:supports_*` block tags: each plant's soil rule is code. Read from the 1.21.1 sources:
+  `BushBlock#mayPlaceOn` = `#minecraft:dirt` or any `FarmBlock`; crops and stems = any `FarmBlock`; nether wart =
+  soul sand; sugar cane = `#minecraft:dirt` or `#minecraft:sand` (+ water, ignored); cactus = `#minecraft:sand`;
+  bamboo = `#minecraft:bamboo_plantable_on`; cocoa = `#minecraft:jungle_logs`; chorus flower = end stone. `PlantRules`
+  uses exactly these for the plants that are not BushBlocks and as the fallback when `mayPlaceOn` cannot be called.
+- NeoForge 21.1's `canSustainPlant` returns its own `net.neoforged.neoforge.common.util.TriState` (26.1 moved it to
+  vanilla). The farmland class is `FarmBlock` (renamed `FarmlandBlock` later); Mystical Agriculture 8's farmlands
+  extend it, so "every farmland counts" still covers them.
+- Tag defaults: `universal_soils` = `#minecraft:dirt` + farmland (the same blocks as 26.1's `supports_vegetation`, minus
+  pale moss, which does not exist); `supports_mushrooms` = `#minecraft:mushroom_grow_block` (the later
+  `overrides_mushroom_light_requirement`); `supports_glow_berries` names the moss block (no `#minecraft:moss_blocks`).
+- `VirtualLevel` against 1.21.1's `WorldGenLevel` hierarchy (listed with `javap`): `getMinBuildHeight` (MUST be
+  overridden: the default asks `dimensionType()`, which a rule-check level without a server cannot answer),
+  `getShade`, `playSound` / `levelEvent` with a `Player`, no environment attributes.
+- The private fields and methods read by reflection have the same names in 1.21.1 (`StemBlock#fruit`,
+  `SaplingBlock#treeGrower`, `FungusBlock#feature` / `requiredBlock`, `TreeGrower#getConfiguredFeature` /
+  `getConfiguredMegaFeature`).
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

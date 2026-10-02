@@ -161,6 +161,12 @@ Filled in as the port goes (`docs/port-1.21.1.md`); the sections below still des
   `EnergyStorage`.
 - Saves: NBT (`saveAdditional` / `loadAdditional(CompoundTag, HolderLookup.Provider)`), main's keys. `machine/Saves`
   writes codec values with registry ops and reads booleans with a default (NBT's default is false).
+- Recipes: ids are `ResourceLocation`s; `getRecipeManager().getRecipeFor(type, input, level, hint)`; "placeable" =
+  `!isSpecial() && !isIncomplete()`; recipe JSON ingredients are objects (`{"item": ...}`).
+- Plants: no `#supports_*` tags in 1.21.1 (soil rules are code: `#dirt`, `#sand`, `#bamboo_plantable_on`,
+  `#jungle_logs`, end stone, soul sand, any `FarmBlock`); NeoForge's `TriState`; farmland class `FarmBlock`; VFW tag
+  defaults use 1.21.1 tags (`#minecraft:dirt`, `#minecraft:mushroom_grow_block`). `VirtualLevel` must override
+  `getMinBuildHeight` (the default asks the dimension).
 
 ## Core design (owner's spec, source of truth)
 

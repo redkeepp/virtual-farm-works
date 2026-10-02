@@ -98,7 +98,7 @@ public final class SoilRules {
     }
 
     private static boolean computeAcceptableSoil(ItemStack soil, BlockState state) {
-        // A plant is never a soil, even when vanilla would allow it (sugar cane on sugar cane, cactus flower on cactus).
+        // A plant is never a soil, even when vanilla would allow it (sugar cane on sugar cane, cactus on cactus).
         if (PlantRules.isPlantBlock(state.getBlock())) {
             return false;
         }
@@ -117,7 +117,7 @@ public final class SoilRules {
      * Representative plants used to decide whether a block is a soil at all: the default state of every plantable
      * item's block, de-duplicated by block CLASS. Plants of the same class share the same soil logic (e.g. the ~150
      * Mystical Agriculture crops are one class), so this keeps the list to a few dozen entries even in huge packs.
-     * Plants that need no soil, or accept any solid surface (seagrass, leaf litter...), are left out
+     * Plants that need no soil, or accept any solid surface (seagrass, kelp...), are left out
      * ({@code PlantRules#definesSoils}): they would make ice, stone or glass soils. Built lazily on first use after each
      * tag reload.
      */

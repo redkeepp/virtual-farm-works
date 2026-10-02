@@ -16,6 +16,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.particles.ParticleOptions;
@@ -27,7 +28,6 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
-import net.minecraft.world.attribute.EnvironmentAttributeReader;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.flag.FeatureFlagSet;
@@ -182,7 +182,7 @@ public final class VirtualLevel implements WorldGenLevel {
 
     /** Stores the state; no neighbour updates, block entities, drops or lighting (like world generation). */
     @Override
-    public boolean setBlock(BlockPos pos, BlockState state, @Block.UpdateFlags int updateFlags, int updateLimit) {
+    public boolean setBlock(BlockPos pos, BlockState state, int updateFlags, int updateLimit) {
         if (++placements > MAX_PLACEMENTS) {
             throw new TooManyBlocks();
         }
@@ -257,10 +257,20 @@ public final class VirtualLevel implements WorldGenLevel {
         throw new UnsupportedOperationException("A virtual level has no light engine (light is always full)");
     }
 
+    /** No face shading (only rendering asks; nothing renders a virtual level). */
+    @Override
+    public float getShade(Direction direction, boolean shade) {
+        return 1.0F;
+    }
+
     // --- world shape ------------------------------------------------------------------------------------------------
 
+    /**
+     * The world's bottom. Must be overridden: 1.21.1's default asks {@code dimensionType()}, which a rule-check level
+     * (no server) cannot answer.
+     */
     @Override
-    public int getMinY() {
+    public int getMinBuildHeight() {
         return MIN_Y;
     }
 
@@ -317,11 +327,6 @@ public final class VirtualLevel implements WorldGenLevel {
     @Override
     public Holder<Biome> getUncachedNoiseBiome(int quartX, int quartY, int quartZ) {
         return registryAccess().lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.PLAINS);
-    }
-
-    @Override
-    public EnvironmentAttributeReader environmentAttributes() {
-        return EnvironmentAttributeReader.EMPTY;
     }
 
     // --- borrowed from the server (growth mode only) -----------------------------------------------------------------
@@ -402,7 +407,7 @@ public final class VirtualLevel implements WorldGenLevel {
     }
 
     @Override
-    public void playSound(@Nullable Entity except, BlockPos pos, SoundEvent sound, SoundSource source, float volume,
+    public void playSound(@Nullable Player except, BlockPos pos, SoundEvent sound, SoundSource source, float volume,
                           float pitch) {
     }
 
@@ -411,7 +416,7 @@ public final class VirtualLevel implements WorldGenLevel {
     }
 
     @Override
-    public void levelEvent(@Nullable Entity source, int type, BlockPos pos, int data) {
+    public void levelEvent(@Nullable Player source, int type, BlockPos pos, int data) {
     }
 
     @Override

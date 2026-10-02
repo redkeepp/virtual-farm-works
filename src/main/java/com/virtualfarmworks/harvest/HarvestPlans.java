@@ -73,7 +73,7 @@ import net.neoforged.neoforge.common.Tags;
  * the next tiers).
  */
 public final class HarvestPlans {
-    /** {@code StemBlock#fruit} (private in 26.1): the block a stem grows. Null if it could not be accessed. */
+    /** {@code StemBlock#fruit} (private): the block a stem grows. Null if it could not be accessed. */
     private static final @Nullable Field STEM_FRUIT = findStemFruitField();
 
     private HarvestPlans() {
@@ -177,8 +177,8 @@ public final class HarvestPlans {
     }
 
     /**
-     * The fruit a stem grows, read from the stem's private {@code fruit} field (26.1 runs with official names, so the
-     * name is stable). Falls back to vanilla's known pairs, then to the stem itself (whose loot is its seeds) so a
+     * The fruit a stem grows, read from the stem's private {@code fruit} field (NeoForge runs Minecraft with its official
+     * names in production since 1.20.5, so the name is stable). Falls back to vanilla's known pairs, then to the stem itself (whose loot is its seeds) so a
      * broken lookup degrades instead of crashing.
      */
     @SuppressWarnings("unchecked")

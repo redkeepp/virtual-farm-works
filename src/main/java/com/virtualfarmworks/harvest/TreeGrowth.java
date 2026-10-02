@@ -41,15 +41,16 @@ import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
  * <ul>
  *   <li>{@link SaplingBlock} (every vanilla sapling, the mangrove propagule and most modded saplings): its
  *       {@link TreeGrower}, choosing the normal tree with the grower's own odds (fancy oak 10%, tall mangrove 85%...).
- *       Trees that only exist in 2x2 (dark oak, pale oak) use their 2x2 feature: one sapling is enough for the whole
+ *       Trees that only exist in 2x2 (dark oak) use their 2x2 feature: one sapling is enough for the whole
  *       tree (owner). The bee variants are never chosen (they need flowers around the sapling).</li>
  *   <li>{@link AzaleaBlock}: the azalea tree grower.</li>
  *   <li>{@link FungusBlock}: its huge fungus feature, grown on the nylium it requires whatever the machine's
  *       soil is (owner: the nylium condition is dropped).</li>
  * </ul>
- * The private parts of those vanilla classes are read once through reflection (26.1 runs with official names, so the
- * names are stable); if that ever fails, {@link #of} returns null and the plant is harvested as a plain plant instead.
- * NeoForge's {@code BlockGrowFeatureEvent} is not fired: it expects a real level.
+ * The private parts of those vanilla classes are read once through reflection (NeoForge runs Minecraft with its
+ * official names in production since 1.20.5, so the names are stable); if that ever fails, {@link #of} returns null
+ * and the plant is harvested as a plain plant instead. NeoForge's {@code BlockGrowFeatureEvent} is not fired: it
+ * expects a real level.
  *
  * <p>Cost: one growth places a few dozen to a few hundred blocks in a hash map, comparable to tens of loot-table rolls,
  * so {@link TreeDropSource} grows only a few trees per harvest (config). Server thread only.
