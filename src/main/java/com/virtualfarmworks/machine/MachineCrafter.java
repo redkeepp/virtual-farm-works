@@ -24,6 +24,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.plant.VfwTags;
 import com.virtualfarmworks.sim.DropTally;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.resources.ResourceKey;
@@ -36,7 +37,6 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 /**
  * Server side only; the menu edits it through the machine.
@@ -470,6 +470,14 @@ public final class MachineCrafter {
     }
 
     /**
+     * {@link #isResult(ItemResource)} for a stack (pipes ask through the faces' views): builds the resource only when
+     * there are results to look it up in.
+     */
+    public boolean isResult(ItemStack stack) {
+        return !results.isEmpty() && !stack.isEmpty() && results.contains(ItemResource.of(stack));
+    }
+
+    /**
      * Crafts a harvest batch on a copy of the buffer (see the class doc); changes nothing. Call only while
      * {@link #isActive()} and resolved.
      *
@@ -493,7 +501,7 @@ public final class MachineCrafter {
             }
         });
         Map<ItemResource, Long> taken = new LinkedHashMap<>();
-        ItemResource usableCatalyst = !catalyst.isEmpty() && catalyst.toStack().is(VfwTags.CRAFTER_CATALYSTS)
+        ItemResource usableCatalyst = !catalyst.isEmpty() && catalyst.is(VfwTags.CRAFTER_CATALYSTS)
                 ? catalyst : ItemResource.EMPTY;
         for (int index : order) {
             Resolved recipe = recipes.get(index);

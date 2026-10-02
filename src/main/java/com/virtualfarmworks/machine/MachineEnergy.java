@@ -5,14 +5,17 @@
  */
 package com.virtualfarmworks.machine;
 
-import net.neoforged.neoforge.transfer.energy.SimpleEnergyHandler;
+import net.minecraft.nbt.CompoundTag;
+import net.neoforged.neoforge.energy.EnergyStorage;
 
 /**
- * NeoForge {@link SimpleEnergyHandler} (transaction-aware insertion, saved amount) with what the machine needs on top:
+ * NeoForge 1.21.1's {@link EnergyStorage} (an {@code IEnergyStorage}: cables insert with simulate/execute) with what the
+ * machine needs on top:
  * <ul>
  *   <li>capacity set from the config: plot capacity x FE per plot x 3 (owner formula: the buffer always holds three
- *       ticks of the highest possible consumption), recomputed when the config changes;</li>
- *   <li>{@link #consume}: the machine's own drain, outside any transaction (server thread, in its tick);</li>
+ *       ticks of the highest possible consumption), recomputed when the config changes. FE is an {@code int} on this
+ *       API (as on 26.1's): a capacity above about 2.1 billion FE is clamped;</li>
+ *   <li>{@link #consume}: the machine's own drain, in its tick (server thread);</li>
  *   <li>extraction by other blocks is refused: the buffer only feeds the machine.</li>
  * </ul>
  * Changes are reported through {@code onChange} so the machine saves them (throttled by the machine).
@@ -24,15 +27,24 @@ import net.neoforged.neoforge.transfer.energy.SimpleEnergyHandler;
  * before the machine's payment of its last tick: a buffer a source keeps up with reads full, and one that drains still
  * falls tick by tick.
  */
-public final class MachineEnergy extends SimpleEnergyHandler {
+public final class MachineEnergy extends EnergyStorage {
     private final Runnable onChange;
     /** FE the machine paid in its last tick; 0 when it did not pay (stopped, waiting, harvesting). */
     private long lastUse;
 
-    /** @param onChange called after committed insertions and after {@link #consume} */
+    /** @param onChange called after insertions that changed the amount (not simulated) and after {@link #consume} */
     public MachineEnergy(Runnable onChange) {
         super(0, Integer.MAX_VALUE, 0);
         this.onChange = onChange;
+    }
+
+    @Override
+    public int receiveEnergy(int toReceive, boolean simulate) {
+        int received = super.receiveEnergy(toReceive, simulate);
+        if (received > 0 && !simulate) {
+            onChange.run();
+        }
+        return received;
     }
 
     /** Sets the capacity (config); energy above a lowered capacity is lost, like any full buffer. */
@@ -41,6 +53,16 @@ public final class MachineEnergy extends SimpleEnergyHandler {
         if (energy > this.capacity) {
             energy = this.capacity;
         }
+    }
+
+    /** FE stored now (26.1 name, kept so the machine code reads the same on both lines). */
+    public long getAmountAsLong() {
+        return energy;
+    }
+
+    /** The buffer's size. */
+    public long getCapacityAsLong() {
+        return capacity;
     }
 
     /** Whether the buffer can pay {@code amount} right now. */
@@ -74,8 +96,20 @@ public final class MachineEnergy extends SimpleEnergyHandler {
         return Math.min(capacity, (long) energy + lastUse);
     }
 
-    @Override
-    protected void onEnergyChanged(int previousAmount) {
-        onChange.run();
+    // --- saving -----------------------------------------------------------------------------------------------------
+
+    /** Saved form: {@code {amount}}. The capacity is not saved (it comes from the config). */
+    public CompoundTag save() {
+        CompoundTag tag = new CompoundTag();
+        tag.putInt("amount", energy);
+        return tag;
+    }
+
+    /**
+     * Restores the amount. The capacity is set by the machine's next revalidation, which also trims an amount above a
+     * lowered capacity; until then the saved amount is kept as it is.
+     */
+    public void load(CompoundTag tag) {
+        energy = Math.max(0, tag.getInt("amount"));
     }
 }

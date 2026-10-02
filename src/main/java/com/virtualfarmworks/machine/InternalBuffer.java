@@ -5,14 +5,13 @@
  */
 package com.virtualfarmworks.machine;
 
+import com.virtualfarmworks.transfer.ItemSlots;
+import com.virtualfarmworks.transfer.SlotRange;
+
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.storage.ValueInput;
-import net.neoforged.neoforge.transfer.EmptyResourceHandler;
-import net.neoforged.neoforge.transfer.RangedResourceHandler;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
 /**
  * Size comes from the config ({@code machines.<tier>.internalBufferSlots}, Starter default 27) and may change while a
@@ -24,19 +23,19 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
  * </ul>
  * Only the first {@link #usableSlots()} slots receive harvests ({@link #fillView()}); the refill drains every slot.
  */
-public final class InternalBuffer extends ItemStacksResourceHandler {
+public final class InternalBuffer extends ItemSlots {
     private final Runnable onChange;
     private int usableSlots;
-    private ResourceHandler<ItemResource> fillView = EmptyResourceHandler.instance();
+    private SlotRange fillView = new SlotRange(this, 0, 0);
 
-    /** @param onChange called after every committed change (the machine marks itself for saving) */
+    /** @param onChange called after every change (the machine marks itself for saving) */
     public InternalBuffer(Runnable onChange) {
         super(0);
         this.onChange = onChange;
     }
 
     @Override
-    protected void onContentsChanged(int index, ItemStack previousContents) {
+    protected void onContentsChanged(int index) {
         onChange.run();
     }
 
@@ -50,12 +49,12 @@ public final class InternalBuffer extends ItemStacksResourceHandler {
         if (size != size()) {
             NonNullList<ItemStack> resized = NonNullList.withSize(size, ItemStack.EMPTY);
             for (int i = 0; i < Math.min(size, size()); i++) {
-                resized.set(i, stackInSlot(i));
+                resized.set(i, getStackInSlot(i));
             }
             setStacks(resized);
         }
-        // A ranged view needs at least one slot; with 0 usable slots harvests go to the visible buffer only.
-        fillView = usableSlots > 0 ? RangedResourceHandler.of(this, 0, usableSlots) : EmptyResourceHandler.instance();
+        // With 0 usable slots harvests go to the visible buffer only (an empty range).
+        fillView = new SlotRange(this, 0, usableSlots);
     }
 
     public int usableSlots() {
@@ -63,7 +62,7 @@ public final class InternalBuffer extends ItemStacksResourceHandler {
     }
 
     /** What harvests may fill: the first {@link #usableSlots()} slots. */
-    public ResourceHandler<ItemResource> fillView() {
+    public SlotRange fillView() {
         return fillView;
     }
 
@@ -71,7 +70,7 @@ public final class InternalBuffer extends ItemStacksResourceHandler {
     public int emptyUsableSlots() {
         int empty = 0;
         for (int i = 0; i < Math.min(usableSlots, size()); i++) {
-            if (getAmountAsLong(i) == 0) {
+            if (isEmpty(i)) {
                 empty++;
             }
         }
@@ -84,19 +83,19 @@ public final class InternalBuffer extends ItemStacksResourceHandler {
 
     /** A copy of the stack in a slot (safe to read). */
     public ItemStack stackInSlot(int index) {
-        return getResource(index).toStack(getAmountAsInt(index));
+        return getStackInSlot(index).copy();
     }
 
-    /** Loading replaces the slot list with the saved one; rebuild the fill view for the new list. */
+    /** Loading replaces the slot list with the saved one; resize it for the current config again. */
     @Override
-    public void deserialize(ValueInput input) {
-        super.deserialize(input);
+    public void load(HolderLookup.Provider registries, CompoundTag tag) {
+        super.load(registries, tag);
         setUsableSlots(usableSlots);
     }
 
     private int lastFilledSlot() {
         for (int i = size() - 1; i >= 0; i--) {
-            if (getAmountAsLong(i) > 0) {
+            if (!isEmpty(i)) {
                 return i;
             }
         }

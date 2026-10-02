@@ -10,6 +10,7 @@ import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.plant.VfwTags;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.DropTally.Category;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import it.unimi.dsi.fastutil.objects.Object2IntLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
@@ -20,7 +21,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 /**
  * What a tree plot yields per harvest: the drops of a whole real tree broken by hand (owner, 2026-09-28), and the tree

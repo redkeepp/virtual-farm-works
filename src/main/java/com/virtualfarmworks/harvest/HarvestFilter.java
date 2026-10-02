@@ -6,8 +6,9 @@ package com.virtualfarmworks.harvest;
 
 import java.util.Set;
 
+import com.virtualfarmworks.transfer.ItemResource;
+
 import net.minecraft.world.item.Item;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 /**
  * Matches by item type only (components ignored): crops drop plain items, and a ghost slot shows one item per type.

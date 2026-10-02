@@ -68,7 +68,11 @@ list: after each step, no error is left in the files and areas it covers.
    Java 21 toolchain, `data()` run, CI JDK, FML 4's `modLoader` / `loaderVersion` in the mods.toml template, the
    renames of area 1 plus `Registry#getValue` -> `get`, `ItemStack#typeHolder` -> `getItemHolder` and
    `org.jspecify` -> `org.jetbrains.annotations.Nullable` (jspecify is not on the 1.21.1 classpath).
-2. Inventories and energy.
+2. Inventories and energy. **DONE** (2026-10-02): VFW's own stand-ins in a new package `transfer/` (`ItemResource`,
+   `ItemSlots` over NeoForge's `ItemStackHandler`, `SlotTransaction` for all-or-nothing changes to VFW's own buffers,
+   `SlotRange`); `IItemHandler` / `IEnergyStorage` capabilities; routed pipe input on every slot; simulate/execute
+   with neighbours; `menu/HandlerSlot` for the menus. The inventories' own save format is part of this step (counts
+   above 99 survive); the machine's save code is step 3.
 3. Saving.
 4. Recipes and autocrafter.
 5. Plants and tags.

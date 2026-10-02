@@ -10,29 +10,37 @@ import java.util.Map;
 
 import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.plant.SoilRules;
+import com.virtualfarmworks.transfer.ItemResource;
+import com.virtualfarmworks.transfer.SlotTransaction;
 
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.transaction.TransactionContext;
+import net.neoforged.neoforge.items.IItemHandler;
 
 /**
- * Covers the grid slots {@code [0, 2 x groups)} of the machine's {@link MachineInventory}: index-based insertion goes to
- * that slot (with its own rules), extraction is always refused (pipes never take seeds or soils out).
+ * Shows the grid slots {@code [0, 2 x groups)} of the machine's {@link MachineInventory}; extraction is always refused
+ * (pipes never take seeds or soils out).
  *
- * <h2>Routing of index-less insertion (what most pipes call)</h2>
+ * <h2>Routing</h2>
+ * NeoForge 1.21.1's item handlers have no index-less insertion (26.1's {@code insert(resource, amount)}, which this
+ * class routed): pipes and hoppers insert slot by slot. So EVERY insertion is routed here, whatever slot the caller
+ * names: the stack goes where the routing puts it and the caller gets back what is left, which is all a pipe looks at.
  * A plantable fills, in order: seed slots already holding it; empty seed slots whose soil can grow it; empty seed slots
  * whose soil slot is empty too; any other empty seed slot. A soil fills the soil grid the same way (slots already
  * holding it; empty soil slots whose seed grows on it; empty soil slots whose seed slot is empty; the rest). Anything
- * else is refused. So seeds and soils piped from two chests end up paired where they work.
+ * else is refused. So seeds and soils piped from two chests end up paired where they work. Each slot keeps its own
+ * rules (what it accepts, how many).
  *
- * <p>Cost: a pipe may knock every tick. Filling slots that already hold the item is a plain loop; the pairing checks
- * only run when an empty slot is needed, and their answers are cached per (plant, soil) pair until tags reload.
+ * <p>Simulated and real insertions give the same answer: both plan on a {@code SlotTransaction}, and only a real one
+ * commits it.
+ *
+ * <p>Cost: a pipe may knock every tick, and a slot-by-slot pipe knocks once per slot it tries. Filling slots that
+ * already hold the item is a plain loop; the pairing checks only run when an empty slot is needed, and their answers
+ * are cached per (plant, soil) pair until tags reload.
  */
-public final class GridInput implements ResourceHandler<ItemResource> {
+public final class GridInput implements IItemHandler {
     private final MachineInventory inputs;
     private final MachineLayout layout;
     /** (plantable item, soil item) -> the plant grows on the soil (possibly after tilling). */
@@ -45,93 +53,100 @@ public final class GridInput implements ResourceHandler<ItemResource> {
     }
 
     @Override
-    public int size() {
+    public int getSlots() {
         return 2 * layout.groups();
     }
 
+    /** The grid slot's stack. Read only ({@code IItemHandler} contract). */
     @Override
-    public ItemResource getResource(int index) {
-        return inputs.getResource(index);
+    public ItemStack getStackInSlot(int index) {
+        return index >= 0 && index < getSlots() ? inputs.getStackInSlot(index) : ItemStack.EMPTY;
     }
 
     @Override
-    public long getAmountAsLong(int index) {
-        return inputs.getAmountAsLong(index);
+    public int getSlotLimit(int index) {
+        return index >= 0 && index < getSlots() ? inputs.getSlotLimit(index) : 0;
+    }
+
+    /** Whether the routing would take this item at all (a plantable or a soil); the slot named does not matter. */
+    @Override
+    public boolean isItemValid(int index, ItemStack stack) {
+        return !stack.isEmpty() && (PlantRules.isPlantable(stack) || SoilRules.isAcceptableSoil(stack));
+    }
+
+    /** Routed: see the class doc. {@code index} is ignored. */
+    @Override
+    public ItemStack insertItem(int index, ItemStack stack, boolean simulate) {
+        return insert(stack, simulate);
     }
 
     @Override
-    public long getCapacityAsLong(int index, ItemResource resource) {
-        return inputs.getCapacityAsLong(index, resource);
+    public ItemStack extractItem(int index, int amount, boolean simulate) {
+        return ItemStack.EMPTY;
     }
 
-    @Override
-    public boolean isValid(int index, ItemResource resource) {
-        return inputs.isValid(index, resource);
-    }
-
-    @Override
-    public int insert(int index, ItemResource resource, int amount, TransactionContext transaction) {
-        return index >= 0 && index < size() ? inputs.insert(index, resource, amount, transaction) : 0;
-    }
-
-    @Override
-    public int extract(int index, ItemResource resource, int amount, TransactionContext transaction) {
-        return 0;
-    }
-
-    @Override
-    public int extract(ItemResource resource, int amount, TransactionContext transaction) {
-        return 0;
-    }
-
-    @Override
-    public int insert(ItemResource resource, int amount, TransactionContext transaction) {
-        if (resource.isEmpty() || amount <= 0) {
-            return 0;
+    /**
+     * Routes a stack into the grids (see the class doc).
+     *
+     * @return what did not fit (the caller keeps it); empty when everything went in
+     */
+    public ItemStack insert(ItemStack stack, boolean simulate) {
+        if (stack.isEmpty()) {
+            return ItemStack.EMPTY;
         }
-        ItemStack stack = resource.toStack();
         boolean seed = PlantRules.isPlantable(stack);
         if (!seed && !SoilRules.isAcceptableSoil(stack)) {
-            return 0;
+            return stack;
         }
+        ItemResource resource = ItemResource.of(stack);
+        int amount = stack.getCount();
+        SlotTransaction transaction = new SlotTransaction();
         int inserted = 0;
         // 1. Slots already holding this item.
         for (int group = 0; group < layout.groups() && inserted < amount; group++) {
             int slot = seed ? layout.seedSlot(group) : layout.soilSlot(group);
-            if (inputs.getResource(slot).equals(resource)) {
-                inserted += inputs.insert(slot, resource, amount - inserted, transaction);
+            if (resource.matches(inputs.getStackInSlot(slot))) {
+                inserted += transaction.insert(inputs, slot, resource, amount - inserted);
             }
         }
         // 2-4. Empty slots, best partner first.
         for (int pass = 0; pass < 3 && inserted < amount; pass++) {
             for (int group = 0; group < layout.groups() && inserted < amount; group++) {
                 int slot = seed ? layout.seedSlot(group) : layout.soilSlot(group);
-                if (!inputs.getResource(slot).isEmpty()) {
+                if (!transaction.peek(inputs, slot).isEmpty()) {
                     continue;
                 }
                 int partnerSlot = seed ? layout.soilSlot(group) : layout.seedSlot(group);
-                ItemResource partner = inputs.getResource(partnerSlot);
+                ItemStack partner = transaction.peek(inputs, partnerSlot);
                 boolean take = switch (pass) {
-                    case 0 -> !partner.isEmpty() && (seed ? grows(resource, partner) : grows(partner, resource));
+                    case 0 -> !partner.isEmpty() && (seed ? grows(stack, partner) : grows(partner, stack));
                     case 1 -> partner.isEmpty();
                     default -> true;
                 };
                 if (take) {
-                    inserted += inputs.insert(slot, resource, amount - inserted, transaction);
+                    inserted += transaction.insert(inputs, slot, resource, amount - inserted);
                 }
             }
         }
-        return inserted;
+        if (!simulate) {
+            transaction.commit();
+        }
+        return inserted == amount ? ItemStack.EMPTY : stack.copyWithCount(amount - inserted);
     }
 
     /** Whether {@code plant} grows on {@code soil} here, directly or after tilling (cached until tags reload). */
-    private boolean grows(ItemResource plant, ItemResource soil) {
+    private boolean grows(ItemStack plant, ItemStack soil) {
         if (pairCacheGeneration != SoilRules.cacheGeneration()) {
             pairCache.clear();
             pairCacheGeneration = SoilRules.cacheGeneration();
         }
         long key = ((long) Item.getId(plant.getItem()) << 32) | (Item.getId(soil.getItem()) & 0xFFFFFFFFL);
-        return pairCache.computeIfAbsent(key, k -> computeGrows(plant.toStack(), soil.toStack()));
+        Boolean cached = pairCache.get(key);
+        if (cached == null) {
+            cached = computeGrows(plant, soil);
+            pairCache.put(key, cached);
+        }
+        return cached;
     }
 
     private static boolean computeGrows(ItemStack plant, ItemStack soil) {

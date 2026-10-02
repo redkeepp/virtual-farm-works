@@ -225,6 +225,35 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   `getItemHolder`. jspecify is not on the 1.21.1 classpath: `org.jetbrains.annotations.Nullable` (also a TYPE_USE
   annotation, what NeoForge 21.1 itself uses) replaces it, so `ModConfigSpec.@Nullable IntValue` still compiles.
 
+### Step 2 — inventories and energy
+- 1.21.1 has `IItemHandler` (one call at a time, simulate or execute) instead of the 26.1 transfer API. A harvest
+  batch holds several item types and must be stored all-or-nothing, and simulating it item by item would let two
+  items be promised the same empty slot. Since the harvest only ever stores into the machine's OWN buffers, VFW plans
+  the whole batch on `transfer/SlotTransaction` (its own view of each slot it changed) and writes the slots only on
+  commit: one `setStackInSlot`, hence one change callback, per changed slot; a batch that does not fit changes nothing
+  and fires no callback (otherwise the failed attempt would look like an output change and the machine would retry
+  every tick). Same for the autocrafter taking from the output, the refill of the visible output and upgrades taken
+  from the hand. Neighbours (other mods) get plain simulate-then-execute calls: auto-export inserts a copy with
+  `insertItemStacked` and keeps the rest; INPUT faces simulate the extraction and the grid insertion first and only
+  extract what the grids accept (what a broken neighbour hands over beyond that goes back to it, or drops: never
+  voided).
+- `transfer/ItemResource` replaces NeoForge 26.1's `ItemResource` with the same method names (`of`, `EMPTY`, `getItem`,
+  `toStack`, `getMaxStackSize`, `CODEC`), so the shared logic (harvest, autocrafter, held drops) reads the same on both
+  lines and a fix can be carried over. Its hash is cached per object, but every `of(stack)` is a new object, so hot
+  loops compare stacks in place with `matches` (the output stock scan, the replant plan, the grid routing) instead of
+  building a resource per slot.
+- `transfer/ItemSlots` (base of the machine's inventories) extends NeoForge's `ItemStackHandler` and keeps the 26.1
+  accessor names. Two 1.21.1 traps it handles: vanilla's item codec refuses counts above 99 (grid slots may hold more:
+  each slot is saved as resource + count), and vanilla's shift-click merge grows a slot's stack IN PLACE and only
+  calls `Slot#setChanged`, which a plain `SlotItemHandler` sends to a dummy container — the machine would not notice.
+  `menu/HandlerSlot` forwards it (`ItemSlots#slotChanged`) and uses the inventory's own limit, so grid slots configured
+  above a stack fill above a stack by hand too.
+- Pipe input: 1.21.1 handlers have no index-less insertion, which `GridInput` used to route seeds and soils. Pipes,
+  hoppers and `insertItemStacked` insert slot by slot, so every insertion into `GridInput` is routed whatever slot it
+  names; the caller only looks at what is returned. Simulated and real insertions plan the same way.
+- Energy: `MachineEnergy` extends NeoForge's `EnergyStorage` (int, like 26.1's `SimpleEnergyHandler`); insertion by
+  cables reports the change; the capacity is clamped to `Integer.MAX_VALUE`.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

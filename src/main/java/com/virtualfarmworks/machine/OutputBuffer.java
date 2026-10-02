@@ -7,13 +7,11 @@ package com.virtualfarmworks.machine;
 
 import java.util.function.Predicate;
 
+import com.virtualfarmworks.transfer.ItemSlots;
+
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.transfer.DelegatingResourceHandler;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
-import net.neoforged.neoforge.transfer.transaction.TransactionContext;
+import net.neoforged.neoforge.items.IItemHandler;
 
 /**
  * Owner spec, first version: "these 9 slots are only a buffer for the items produced by the seeds; items only come
@@ -25,10 +23,10 @@ import net.neoforged.neoforge.transfer.transaction.TransactionContext;
  * <p>Every change calls {@code onChange}: the machine uses it to retry a harvest that was blocked by OUTPUT FULL only
  * when space may have appeared, instead of retrying every tick.
  */
-public final class OutputBuffer extends ItemStacksResourceHandler {
+public final class OutputBuffer extends ItemSlots {
     private final int minimumSize;
     private final Runnable onChange;
-    private final ResourceHandler<ItemResource> externalView = new ExtractOnly(this, resource -> true);
+    private final IItemHandler externalView = new ExtractOnly(this, stack -> true);
 
     public OutputBuffer(int slots, Runnable onChange) {
         super(slots);
@@ -37,26 +35,27 @@ public final class OutputBuffer extends ItemStacksResourceHandler {
     }
 
     @Override
-    protected void onContentsChanged(int index, ItemStack previousContents) {
+    protected void onContentsChanged(int index) {
         onChange.run();
     }
 
     /** The handler given to the outside world: extraction works, insertion always inserts nothing. */
-    public ResourceHandler<ItemResource> externalView() {
+    public IItemHandler externalView() {
         return externalView;
     }
 
     /**
-     * An extract-only view that only shows and gives the items {@code shown} accepts (a face exporting only what the
-     * plants produce, or only what the autocrafter made). Other slots look empty through it.
+     * An extract-only view that only shows and gives the stacks {@code shown} accepts (a face exporting only what the
+     * plants produce, or only what the autocrafter made). Other slots look empty through it. The predicate runs on
+     * every pipe query: keep it cheap.
      */
-    public ResourceHandler<ItemResource> externalView(Predicate<ItemResource> shown) {
+    public IItemHandler externalView(Predicate<ItemStack> shown) {
         return new ExtractOnly(this, shown);
     }
 
     public boolean isEmpty() {
         for (int i = 0; i < size(); i++) {
-            if (getAmountAsLong(i) > 0) {
+            if (!isEmpty(i)) {
                 return false;
             }
         }
@@ -65,7 +64,7 @@ public final class OutputBuffer extends ItemStacksResourceHandler {
 
     /** A copy of the stack in a slot (safe to read). */
     public ItemStack stackInSlot(int index) {
-        return getResource(index).toStack(getAmountAsInt(index));
+        return getStackInSlot(index).copy();
     }
 
     /** After loading a save, guarantees at least the tier's visible slot count (never shrinks). */
@@ -80,56 +79,49 @@ public final class OutputBuffer extends ItemStacksResourceHandler {
         setStacks(resized);
     }
 
-    /** Extract-only wrapper: inserts nothing; items {@code shown} rejects look like empty slots and cannot be taken. */
-    private static final class ExtractOnly extends DelegatingResourceHandler<ItemResource> {
-        private final Predicate<ItemResource> shown;
+    /**
+     * Extract-only wrapper: inserts nothing; stacks {@code shown} rejects look like empty slots and cannot be taken.
+     * Callers must not modify the stacks it shows ({@code IItemHandler} contract).
+     */
+    private static final class ExtractOnly implements IItemHandler {
+        private final OutputBuffer buffer;
+        private final Predicate<ItemStack> shown;
 
-        ExtractOnly(ResourceHandler<ItemResource> delegate, Predicate<ItemResource> shown) {
-            super(delegate);
+        ExtractOnly(OutputBuffer buffer, Predicate<ItemStack> shown) {
+            this.buffer = buffer;
             this.shown = shown;
         }
 
         @Override
-        public ItemResource getResource(int index) {
-            ItemResource resource = super.getResource(index);
-            return resource.isEmpty() || shown.test(resource) ? resource : ItemResource.EMPTY;
+        public int getSlots() {
+            return buffer.getSlots();
         }
 
         @Override
-        public long getAmountAsLong(int index) {
-            ItemResource resource = super.getResource(index);
-            return resource.isEmpty() || shown.test(resource) ? super.getAmountAsLong(index) : 0;
+        public ItemStack getStackInSlot(int index) {
+            ItemStack stack = buffer.getStackInSlot(index);
+            return stack.isEmpty() || shown.test(stack) ? stack : ItemStack.EMPTY;
         }
 
         @Override
-        public boolean isValid(int index, ItemResource resource) {
+        public ItemStack insertItem(int index, ItemStack stack, boolean simulate) {
+            return stack;
+        }
+
+        @Override
+        public ItemStack extractItem(int index, int amount, boolean simulate) {
+            ItemStack stack = buffer.getStackInSlot(index);
+            return stack.isEmpty() || !shown.test(stack) ? ItemStack.EMPTY : buffer.extractItem(index, amount, simulate);
+        }
+
+        @Override
+        public int getSlotLimit(int index) {
+            return buffer.getSlotLimit(index);
+        }
+
+        @Override
+        public boolean isItemValid(int index, ItemStack stack) {
             return false;
-        }
-
-        @Override
-        public long getCapacityAsLong(int index, ItemResource resource) {
-            // Report the real capacity for existing contents (fullness checks), 0 for anything new.
-            return resource.isEmpty() || resource.equals(getResource(index)) ? super.getCapacityAsLong(index, resource) : 0;
-        }
-
-        @Override
-        public int insert(int index, ItemResource resource, int amount, TransactionContext transaction) {
-            return 0;
-        }
-
-        @Override
-        public int insert(ItemResource resource, int amount, TransactionContext transaction) {
-            return 0;
-        }
-
-        @Override
-        public int extract(int index, ItemResource resource, int amount, TransactionContext transaction) {
-            return shown.test(resource) ? super.extract(index, resource, amount, transaction) : 0;
-        }
-
-        @Override
-        public int extract(ItemResource resource, int amount, TransactionContext transaction) {
-            return shown.test(resource) ? super.extract(resource, amount, transaction) : 0;
         }
     }
 }

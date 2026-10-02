@@ -17,13 +17,13 @@ import com.virtualfarmworks.harvest.DropSource;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.DropTally.Category;
 import com.virtualfarmworks.sim.HarvestMath;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 /**
  * Why not simply call MA's {@code getDrops}: MA reads {@code level.getBlockState(origin.below())} to find the farmland,

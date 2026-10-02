@@ -38,6 +38,10 @@ import com.virtualfarmworks.sim.HarvestBatching;
 import com.virtualfarmworks.sim.MachineConditions;
 import com.virtualfarmworks.sim.MachineStatus;
 import com.virtualfarmworks.sim.YieldSample;
+import com.virtualfarmworks.transfer.ItemResource;
+import com.virtualfarmworks.transfer.ItemSlots;
+import com.virtualfarmworks.transfer.SlotRange;
+import com.virtualfarmworks.transfer.SlotTransaction;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -61,12 +65,9 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.neoforged.neoforge.capabilities.BlockCapabilityCache;
 import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.ResourceHandlerUtil;
-import net.neoforged.neoforge.transfer.energy.EnergyHandler;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
-import net.neoforged.neoforge.transfer.transaction.Transaction;
+import net.neoforged.neoforge.energy.IEnergyStorage;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.ItemHandlerHelper;
 
 /**
  * The machine. Design goal (owner): a machine with 6,000 plots must cost about the same per tick as one with 1.
@@ -108,7 +109,7 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  * <h2>Harvest batches (anti-dupe)</h2>
  * A due cycle is harvested in batches sized to the free output slots ({@code sim.HarvestBatching}). Each batch is
  * rolled ONCE for one harvest unit (groups sharing seed and soil) and kept in {@link #pendingBatch};
- * {@code Harvester#tryStore} stores it all-or-nothing in a NeoForge transaction and only then are its plots counted as
+ * {@code Harvester#tryStore} stores it all-or-nothing (a {@code SlotTransaction}) and only then are its plots counted as
  * harvested. If it does not fit, status OUTPUT FULL and the SAME drops are retried only when the output or the inputs
  * changed ({@link #harvestRetryRequested}) — no loot re-rolls per retry. At most one batch per harvest unit per tick
  * (a one-plant machine such as the Starter: one batch per tick) and at most {@link #MAX_BATCHES_PER_TICK} in total,
@@ -158,6 +159,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private static final int SAVE_INTERVAL = 20;
     /** Harvest batches of different units stored in one tick at most (lag guard for machines full of plant types). */
     private static final int MAX_BATCHES_PER_TICK = 4;
+    /** Items an INPUT face asks a neighbour's slot for at once (a stack: what most inventories hand out per call). */
+    private static final int PULL_CHUNK = 64;
     /**
      * Owner formula: the energy buffer holds three ticks of the highest possible consumption. Stays in code, not in
      * the config (owner, 2026-09-30).
@@ -285,12 +288,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private int exportCooldown;
     private int ticksSinceSave;
     /** Capability caches of the 6 neighbours, by world direction ordinal; created lazily on the server. */
-    private final @Nullable BlockCapabilityCache<ResourceHandler<ItemResource>, @Nullable Direction>[] exportTargets =
-            newCacheArray();
+    private final @Nullable BlockCapabilityCache<IItemHandler, @Nullable Direction>[] exportTargets = newCacheArray();
     // Automation views (created once; cheap wrappers).
-    private final ResourceHandler<ItemResource> producedView;
-    private final ResourceHandler<ItemResource> craftedView;
-    private final ResourceHandler<ItemResource> allOutputView;
+    private final IItemHandler producedView;
+    private final IItemHandler craftedView;
+    private final IItemHandler allOutputView;
     private final @Nullable GridInput gridInput;
 
     /** What a drop source depends on: seed and soil types, config and tags. Upgrades do not matter. */
@@ -337,7 +339,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         Arrays.fill(groupStatuses, MachineStatus.MISSING_SEED);
         // Default face modes: the Starter exports on every face (owner spec); multi-mode tiers export everything.
         Arrays.fill(faceModes, layout.acceptsInput() ? FaceMode.OUTPUT_ALL : FaceMode.OUTPUT);
-        this.producedView = output.externalView(resource -> !isCrafted(resource));
+        this.producedView = output.externalView(stack -> !isCrafted(stack));
         this.craftedView = output.externalView(this::isCrafted);
         this.allOutputView = output.externalView();
         this.gridInput = layout.acceptsInput() ? new GridInput(inputs) : null;
@@ -558,7 +560,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             toStore = withoutFiltered(toStore);
         }
 
-        List<ResourceHandler<ItemResource>> targets = fillTargets();
+        List<SlotRange> targets = fillTargets();
         if (!Harvester.tryTakeAndStore(fromOutput, outputSources(), toStore, targets)) {
             if (Harvester.slotsNeeded(toStore) <= totalOutputSlots()) {
                 return false; // fits once space frees up: keep this roll and wait (OUTPUT FULL)
@@ -617,16 +619,17 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             long left = drop.amount();
             for (int g = 0; g < layout.groups() && left > 0; g++) {
                 int seedSlot = layout.seedSlot(g);
-                ItemResource seed = inputs.getResource(seedSlot);
-                if (seed.isEmpty() || !seed.equals(drop.key()) || !analyses[g].isValid() || !analyses[g].needsSoil()) {
+                // Compared in place: building a resource per group would cost an object and a hash each.
+                ItemStack seed = inputs.getStackInSlot(seedSlot);
+                if (!drop.key().matches(seed) || !analyses[g].isValid() || !analyses[g].needsSoil()) {
                     continue;
                 }
-                long seeds = inputs.getAmountAsLong(seedSlot);
+                long seeds = seed.getCount();
                 long freeSoil = inputs.getAmountAsLong(layout.soilSlot(g)) - seeds;
-                long slotRoom = inputs.getCapacityAsLong(seedSlot, seed) - seeds;
+                long slotRoom = inputs.getCapacityAsLong(seedSlot, drop.key()) - seeds;
                 long take = Math.min(left, Math.min(freeSoil, slotRoom));
                 if (take > 0) {
-                    plan.add(new Replanting(g, seed, (int) take));
+                    plan.add(new Replanting(g, drop.key(), (int) take));
                     left -= take;
                 }
             }
@@ -669,8 +672,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         List<Integer> targets = new ArrayList<>();
         if (PlantRules.isPlantable(seed)) {
             for (int g = 0; g < layout.groups(); g++) {
-                if (!inputs.getResource(layout.seedSlot(g)).isEmpty()
-                        || inputs.getResource(layout.soilSlot(g)).isEmpty()) {
+                if (!inputs.isEmpty(layout.seedSlot(g)) || inputs.isEmpty(layout.soilSlot(g))) {
                     continue;
                 }
                 PlantAnalysis analysis = PlantAnalysis.analyze(seed, inputs.stackInSlot(layout.soilSlot(g)), tier);
@@ -772,31 +774,30 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     /**
      * What the visible and hidden output hold, per item: the stock the autocrafter may use. Runs on every store attempt
-     * of a crafting machine, so slots are grouped by comparing items (a few distinct items fill many slots) instead of
-     * hashing each one: an item's hash covers all its components, which made this scan the crafter's main cost.
+     * of a crafting machine, so slots are grouped by comparing each stack with the items found so far (a few distinct
+     * items fill many slots) instead of building and hashing a resource per slot: an item's hash covers all its
+     * components, which made this scan the crafter's main cost.
      */
     private Map<ItemResource, Long> outputStock() {
         List<ItemResource> items = new ArrayList<>();
         List<Long> amounts = new ArrayList<>();
-        for (ItemStacksResourceHandler handler : List.of(output, internal)) {
+        for (ItemSlots handler : outputSources()) {
             for (int i = 0; i < handler.size(); i++) {
-                long amount = handler.getAmountAsLong(i);
-                if (amount <= 0) {
+                ItemStack stack = handler.getStackInSlot(i);
+                if (stack.isEmpty()) {
                     continue;
                 }
-                ItemResource resource = handler.getResource(i);
                 int known = -1;
                 for (int k = 0; k < items.size() && known < 0; k++) {
-                    ItemResource other = items.get(k);
-                    if (other.getItem() == resource.getItem() && other.equals(resource)) {
+                    if (items.get(k).matches(stack)) {
                         known = k;
                     }
                 }
                 if (known >= 0) {
-                    amounts.set(known, amounts.get(known) + amount);
+                    amounts.set(known, amounts.get(known) + stack.getCount());
                 } else {
-                    items.add(resource);
-                    amounts.add(amount);
+                    items.add(ItemResource.of(stack));
+                    amounts.add((long) stack.getCount());
                 }
             }
         }
@@ -808,7 +809,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /** Where the autocrafter takes output items from: the visible slots first (what the player sees), then hidden. */
-    private List<ResourceHandler<ItemResource>> outputSources() {
+    private List<ItemSlots> outputSources() {
         return List.of(output, internal);
     }
 
@@ -823,15 +824,15 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /** Where harvests go, in order: the visible buffer, then the usable hidden slots (owner design). */
-    private List<ResourceHandler<ItemResource>> fillTargets() {
-        return List.of(output, internal.fillView());
+    private List<SlotRange> fillTargets() {
+        return List.of(SlotRange.all(output), internal.fillView());
     }
 
     /** Empty slots a harvest could use right now (partly filled stacks are not counted). */
     private int freeOutputSlots() {
         int empty = internal.emptyUsableSlots();
         for (int i = 0; i < output.size(); i++) {
-            if (output.getAmountAsLong(i) == 0) {
+            if (output.isEmpty(i)) {
                 empty++;
             }
         }
@@ -845,17 +846,32 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     /**
      * Moves what fits from the hidden buffer into the visible one (owner design: the hidden slots unload into the
-     * visible slots as those empty). Runs on the tick after the visible buffer changed; one NeoForge transaction.
+     * visible slots as those empty), completing stacks of the same item first. Runs on the tick after the visible buffer
+     * changed; one {@code SlotTransaction}.
      */
     private void refillVisibleOutput() {
         refillRequested = false;
         if (internal.isEmpty()) {
             return;
         }
-        int moved;
+        SlotTransaction transaction = new SlotTransaction();
+        SlotRange visible = SlotRange.all(output);
+        long moved = 0;
+        for (int i = 0; i < internal.size(); i++) {
+            ItemStack stack = internal.getStackInSlot(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ItemResource resource = ItemResource.of(stack);
+            long fits = transaction.insertStacking(visible, resource, stack.getCount());
+            if (fits > 0) {
+                transaction.extract(internal, i, resource, (int) fits);
+                moved += fits;
+            }
+        }
         refilling = true;
         try {
-            moved = ResourceHandlerUtil.moveStacking(internal, output, resource -> true, Integer.MAX_VALUE, null);
+            transaction.commit();
         } finally {
             refilling = false;
         }
@@ -878,7 +894,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
         hoe.hurtAndBreak(1, level, (ServerPlayer) null, brokenItem -> {
         });
-        inputs.set(slot, hoe.isEmpty() ? ItemResource.EMPTY : ItemResource.of(hoe), hoe.getCount());
+        inputs.setStackInSlot(slot, hoe.isEmpty() ? ItemStack.EMPTY : hoe); // the copy, now worn (or broken: empty)
     }
 
     // =================================================================================================================
@@ -896,7 +912,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         VfwServerConfig.MachineSettings settings = VfwServerConfig.machine(tier);
 
         hasHoe = !layout.usesHoe() || SoilRules.isHoe(inputs.stackInSlot(layout.hoeSlot()));
-        hasCrux = !inputs.getResource(layout.cruxSlot()).isEmpty();
+        hasCrux = !inputs.isEmpty(layout.cruxSlot());
         int groups = layout.groups();
         int[] plots = new int[groups];
         boolean[] plantChanged = new boolean[groups];
@@ -949,7 +965,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
 
         // Upgrades.
-        hasWaterProvider = !inputs.getResource(layout.waterSlot()).isEmpty();
+        hasWaterProvider = !inputs.isEmpty(layout.waterSlot());
         int perSlot = VfwServerConfig.GROWTH_UPGRADES_PER_SLOT.get();
         growthUpgrades = 0;
         for (int i = 0; i < MachineSlots.GROWTH_COUNT; i++) {
@@ -1091,7 +1107,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
      * every face whose mode exports, and pulls from adjacent inventories on INPUT faces into the grids (owner: "a chest
      * full of dirt glued to the machine must feed it too", like the output). Uses NeoForge capability caches, so a
      * lookup is a field read until a neighbour changes. Exporting into another Farm Matrix does nothing (its buffer
-     * refuses insertion); pulling from one takes what its face gives (its output), never its inputs.
+     * refuses insertion); pulling from one takes what its face gives (its output), never its inputs. Neighbours are other
+     * mods' inventories: plain {@code IItemHandler} calls, simulate before every real extraction.
      */
     private void autoTransfer(ServerLevel level) {
         if (exportInterval <= 0) {
@@ -1112,34 +1129,86 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             if (facing == null) {
                 facing = getBlockState().getValue(FarmMatrixBlock.FACING);
             }
-            ResourceHandler<ItemResource> neighbour = exportTarget(level, side.toWorld(facing));
+            IItemHandler neighbour = exportTarget(level, side.toWorld(facing));
             if (neighbour == null) {
                 continue;
             }
             if (pulls) {
-                // Index-less insertion, so the grid's routing pairs seeds and soils (see GridInput).
-                ResourceHandlerUtil.move(neighbour, gridInput, resource -> true, Integer.MAX_VALUE, null);
+                pullInto(gridInput, neighbour, level);
             } else {
-                ResourceHandlerUtil.moveStacking(output, neighbour, resource -> mode.exports(isCrafted(resource)),
-                        Integer.MAX_VALUE, null);
+                exportTo(neighbour, mode);
                 exporting = !output.isEmpty();
             }
         }
     }
 
-    private @Nullable ResourceHandler<ItemResource> exportTarget(ServerLevel level, Direction direction) {
-        BlockCapabilityCache<ResourceHandler<ItemResource>, @Nullable Direction> cache = exportTargets[direction.ordinal()];
+    /**
+     * Pushes every output stack the face's mode exports into a neighbour, completing its stacks of the same item first
+     * ({@code insertItemStacked}). What the neighbour took leaves the buffer at once (one change per slot).
+     */
+    private void exportTo(IItemHandler neighbour, FaceMode mode) {
+        for (int i = 0; i < output.size(); i++) {
+            ItemStack stack = output.getStackInSlot(i);
+            if (stack.isEmpty() || !mode.exports(isCrafted(stack))) {
+                continue;
+            }
+            // A copy: an inventory may keep the stack object it is given.
+            ItemStack rest = ItemHandlerHelper.insertItemStacked(neighbour, stack.copy(), false);
+            if (rest.getCount() != stack.getCount()) {
+                output.setStackInSlot(i, rest);
+            }
+        }
+    }
+
+    /**
+     * Pulls into the grids what they take out of a neighbour's slots, a stack at most per call. Every amount is
+     * simulated on both sides first and only what the grids accept is extracted, so nothing is taken that cannot be
+     * stored. The grids route it (see {@link GridInput}). Should the neighbour hand over something else than it offered
+     * (a broken inventory), the rest goes back to it, or drops at the machine if it will not take it: never voided.
+     */
+    private void pullInto(GridInput grids, IItemHandler neighbour, ServerLevel level) {
+        for (int slot = 0; slot < neighbour.getSlots(); slot++) {
+            while (true) {
+                ItemStack offered = neighbour.extractItem(slot, PULL_CHUNK, true);
+                if (offered.isEmpty()) {
+                    break;
+                }
+                int accepted = offered.getCount() - grids.insert(offered, true).getCount();
+                if (accepted <= 0) {
+                    break;
+                }
+                ItemStack taken = neighbour.extractItem(slot, accepted, false);
+                if (taken.isEmpty()) {
+                    break;
+                }
+                ItemStack left = grids.insert(taken, false);
+                if (!left.isEmpty()) {
+                    ItemStack back = ItemHandlerHelper.insertItemStacked(neighbour, left, false);
+                    if (!back.isEmpty()) {
+                        Block.popResource(level, worldPosition, back);
+                    }
+                    break;
+                }
+                if (accepted < offered.getCount()) {
+                    break; // the grids are full for this item
+                }
+            }
+        }
+    }
+
+    private @Nullable IItemHandler exportTarget(ServerLevel level, Direction direction) {
+        BlockCapabilityCache<IItemHandler, @Nullable Direction> cache = exportTargets[direction.ordinal()];
         if (cache == null) {
-            cache = BlockCapabilityCache.create(Capabilities.Item.BLOCK, level, worldPosition.relative(direction),
-                    direction.getOpposite());
+            cache = BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level,
+                    worldPosition.relative(direction), direction.getOpposite());
             exportTargets[direction.ordinal()] = cache;
         }
         return cache.getCapability();
     }
 
     @SuppressWarnings("unchecked")
-    private static BlockCapabilityCache<ResourceHandler<ItemResource>, @Nullable Direction>[] newCacheArray() {
-        return (BlockCapabilityCache<ResourceHandler<ItemResource>, @Nullable Direction>[])
+    private static BlockCapabilityCache<IItemHandler, @Nullable Direction>[] newCacheArray() {
+        return (BlockCapabilityCache<IItemHandler, @Nullable Direction>[])
                 new BlockCapabilityCache[Direction.values().length];
     }
 
@@ -1152,12 +1221,17 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         return crafter != null && crafter.isResult(resource);
     }
 
+    /** {@link #isCrafted(ItemResource)} for a stack; builds no resource unless the autocrafter has results. */
+    public boolean isCrafted(ItemStack stack) {
+        return crafter != null && crafter.isResult(stack);
+    }
+
     /**
      * The item capability of one face ({@code side} = world direction, null = no side). The Starter shows its
      * extract-only output on every face, whatever the auto-output switch (its original behavior). Multi-mode tiers
      * follow the face's {@link FaceMode}: nothing, an extract-only view of the matching items, or the grid input.
      */
-    public @Nullable ResourceHandler<ItemResource> itemHandler(@Nullable Direction side) {
+    public @Nullable IItemHandler itemHandler(@Nullable Direction side) {
         if (!layout.acceptsInput()) {
             return allOutputView;
         }
@@ -1175,7 +1249,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /** The energy capability (every face), or null on tiers without energy. */
-    public @Nullable EnergyHandler energyHandler(@Nullable Direction side) {
+    public @Nullable IEnergyStorage energyHandler(@Nullable Direction side) {
         return energy;
     }
 
@@ -1246,7 +1320,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         }
     }
 
-    private void removeRejected(ItemStacksResourceHandler handler, HarvestFilter filter) {
+    private void removeRejected(ItemSlots handler, HarvestFilter filter) {
         for (int i = 0; i < handler.size(); i++) {
             ItemResource resource = handler.getResource(i);
             if (!resource.isEmpty() && !keeps(filter, resource)) {
@@ -1448,7 +1522,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /** Extract-only view of the VISIBLE output buffer (the hidden one is private). */
-    public ResourceHandler<ItemResource> externalOutput() {
+    public IItemHandler externalOutput() {
         return allOutputView;
     }
 
@@ -1697,9 +1771,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     /**
      * Right-click with an upgrade in hand (owner spec): moves as many upgrades as fit from {@code held} into the
-     * machine, each into its own slot kind (the inventory's slot rules decide, tiers included). Runs in one NeoForge
-     * transaction; the held stack is shrunk by exactly what was inserted, unless {@code consume} is false (creative).
-     * Server side only.
+     * machine, each into its own slot kind (the inventory's slot rules decide, tiers included). One
+     * {@code SlotTransaction}; the held stack is shrunk by exactly what was inserted, unless {@code consume} is false
+     * (creative). Server side only.
      *
      * @return how many items were inserted (0 = nothing fit, the caller opens the GUI instead)
      */
@@ -1707,11 +1781,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         if (held.isEmpty()) {
             return 0;
         }
-        int inserted;
-        try (Transaction transaction = Transaction.openRoot()) {
-            inserted = ResourceHandlerUtil.insertStacking(inputs, ItemResource.of(held), held.getCount(), transaction);
-            transaction.commit();
-        }
+        SlotTransaction transaction = new SlotTransaction();
+        int inserted = (int) transaction.insertStacking(inputs, 0, inputs.size(), ItemResource.of(held), held.getCount());
+        transaction.commit();
         if (inserted > 0 && consume) {
             held.shrink(inserted);
         }

@@ -42,7 +42,6 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
 
 /**
  * The Entropic's menu.
@@ -164,16 +163,15 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
             addSlot(new GridSlot(inputs, LAYOUT.soilSlot(group), EntropicLayout.seedSlotX(group),
                     EntropicLayout.soilSlotY(group)));
         }
-        addSlot(new ResourceHandlerSlot(inputs, inputs::set, LAYOUT.waterSlot(), EntropicLayout.WATER_X,
-                EntropicLayout.WATER_Y));
+        addSlot(new HandlerSlot(inputs, LAYOUT.waterSlot(), EntropicLayout.WATER_X, EntropicLayout.WATER_Y));
         // Inventory order is water, tool (here the catalyst, shown in the crafter panel), growth, crux.
         addSlot(new CatalystSlot(inputs, LAYOUT.catalystSlot(), EntropicLayout.CRAFTER_CATALYST_X,
                 EntropicLayout.CRAFTER_CATALYST_Y));
         for (int i = 0; i < MachineSlots.GROWTH_COUNT; i++) {
-            addSlot(new ResourceHandlerSlot(inputs, inputs::set, LAYOUT.growthSlot(i), FarmMatrixLayout.PANEL_INTERIOR_X,
+            addSlot(new HandlerSlot(inputs, LAYOUT.growthSlot(i), FarmMatrixLayout.PANEL_INTERIOR_X,
                     EntropicLayout.upgradeCellY(i)));
         }
-        addSlot(new ResourceHandlerSlot(inputs, inputs::set, LAYOUT.cruxSlot(), FarmMatrixLayout.PANEL_INTERIOR_X,
+        addSlot(new HandlerSlot(inputs, LAYOUT.cruxSlot(), FarmMatrixLayout.PANEL_INTERIOR_X,
                 EntropicLayout.upgradeCellY(4)));
 
         Runnable onPlayerPut = machine != null ? machine::requestFilterPurge : () -> {
@@ -181,7 +179,7 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
         for (int i = 0; i < LAYOUT.visibleOutputSlots(); i++) {
             addSlot(new OutputSlot(output, i, EntropicLayout.outputSlotX(i), EntropicLayout.outputSlotY(i), onPlayerPut));
         }
-        addStandardInventorySlots(playerInventory, EntropicLayout.PLAYER_INVENTORY_X, EntropicLayout.PLAYER_INVENTORY_Y);
+        addPlayerInventorySlots(playerInventory, EntropicLayout.PLAYER_INVENTORY_X, EntropicLayout.PLAYER_INVENTORY_Y);
         addFilterSlots(EntropicLayout::filterSlotX, EntropicLayout::filterSlotY);
 
         for (int i = 0; i < MachineCrafter.GRID_SIZE; i++) {
@@ -487,9 +485,9 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
     // --- slots ------------------------------------------------------------------------------------------------------
 
     /** A seed or soil grid slot: hidden under the autocrafter panel while it is open. */
-    private final class GridSlot extends ResourceHandlerSlot {
+    private final class GridSlot extends HandlerSlot {
         GridSlot(MachineInventory inputs, int index, int x, int y) {
-            super(inputs, inputs::set, index, x, y);
+            super(inputs, index, x, y);
         }
 
         @Override
@@ -499,9 +497,9 @@ public class EntropicFarmMatrixMenu extends AbstractFarmMatrixMenu {
     }
 
     /** The autocrafter's catalyst (a real item, e.g. the Master Infusion Crystal), shown in the crafter panel. */
-    private final class CatalystSlot extends ResourceHandlerSlot {
+    private final class CatalystSlot extends HandlerSlot {
         CatalystSlot(MachineInventory inputs, int index, int x, int y) {
-            super(inputs, inputs::set, index, x, y);
+            super(inputs, index, x, y);
         }
 
         @Override

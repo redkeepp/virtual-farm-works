@@ -16,6 +16,7 @@ import com.virtualfarmworks.data.FixedYield;
 import com.virtualfarmworks.data.ModDataMaps;
 import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.plant.SoilRules;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
@@ -37,7 +38,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.neoforged.neoforge.common.Tags;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 /**
  * Builds the {@link DropSource} for a seed/soil pair. Called only on revalidation (seed or soil changed, config or

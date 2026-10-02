@@ -44,7 +44,9 @@ public final class ModBlockEntities {
      * Energy: every face of the tiers that use it; none on the Starter.
      */
     private static void registerCapabilities(RegisterCapabilitiesEvent event) {
-        event.registerBlockEntity(Capabilities.Item.BLOCK, FARM_MATRIX.get(), FarmMatrixBlockEntity::itemHandler);
-        event.registerBlockEntity(Capabilities.Energy.BLOCK, FARM_MATRIX.get(), FarmMatrixBlockEntity::energyHandler);
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, FARM_MATRIX.get(),
+                FarmMatrixBlockEntity::itemHandler);
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, FARM_MATRIX.get(),
+                FarmMatrixBlockEntity::energyHandler);
     }
 }

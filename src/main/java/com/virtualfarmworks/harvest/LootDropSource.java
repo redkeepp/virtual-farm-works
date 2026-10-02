@@ -11,13 +11,13 @@ import com.virtualfarmworks.VirtualFarmWorks;
 import com.virtualfarmworks.plant.VfwTags;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.DropTally.Category;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 /**
  * Harvest drops taken from the loot table of {@link #lootState}, i.e. exactly what breaking that block would drop —

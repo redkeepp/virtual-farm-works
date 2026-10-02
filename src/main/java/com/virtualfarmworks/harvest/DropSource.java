@@ -8,9 +8,9 @@ package com.virtualfarmworks.harvest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 import com.virtualfarmworks.sim.DropTally;
+import com.virtualfarmworks.transfer.ItemResource;
 
 /**
  * Produces the RAW drops of harvesting a number of plots of one plant on one soil, before VFW's multipliers

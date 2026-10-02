@@ -19,6 +19,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
@@ -29,7 +30,6 @@ import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
-import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
 
 /**
  * Server-authoritative menu base. The client only ever sends intents (vanilla slot clicks and
@@ -137,6 +137,21 @@ public abstract class AbstractFarmMatrixMenu extends AbstractContainerMenu {
     /** Menu index of the first filter ghost slot. */
     public int filterSlotStart() {
         return filterStart;
+    }
+
+    /**
+     * The player's 27 inventory slots at ({@code x}, {@code y}), then the hotbar 58 px lower: vanilla's layout (26.1's
+     * {@code addStandardInventorySlots}, which 1.21.1 does not have).
+     */
+    protected void addPlayerInventorySlots(Inventory inventory, int x, int y) {
+        for (int row = 0; row < 3; row++) {
+            for (int column = 0; column < 9; column++) {
+                addSlot(new Slot(inventory, 9 + row * 9 + column, x + column * 18, y + row * 18));
+            }
+        }
+        for (int column = 0; column < 9; column++) {
+            addSlot(new Slot(inventory, column, x + column * 18, y + 58));
+        }
     }
 
     // --- sync -------------------------------------------------------------------------------------------------------
@@ -437,11 +452,11 @@ public abstract class AbstractFarmMatrixMenu extends AbstractContainerMenu {
      * (click, drag, number keys) through {@code setByPlayer}; when an item goes in, the machine is asked to delete it
      * next tick if the harvest filter rejects it. This keeps the filter cleanup off every other output change.
      */
-    protected static class OutputSlot extends ResourceHandlerSlot {
+    protected static class OutputSlot extends HandlerSlot {
         private final Runnable onPlayerPut;
 
         public OutputSlot(OutputBuffer output, int index, int x, int y, Runnable onPlayerPut) {
-            super(output, output::set, index, x, y);
+            super(output, index, x, y);
             this.onPlayerPut = onPlayerPut;
         }
 

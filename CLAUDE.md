@@ -148,6 +148,18 @@ Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README stil
 MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or with JEI; Trash Cans 1.1.1
 crashes when anything exports into its Item Trash Can (its own bug, see `docs/history.md`).
 
+## The 1.21.1 line (this branch): what differs from main
+
+Filled in as the port goes (`docs/port-1.21.1.md`); the sections below still describe main where they differ.
+- Items: no NeoForge transfer API. `transfer/` holds VFW's stand-ins with the 26.1 names: `ItemResource` (item type,
+  cached hash; compare stacks with `matches` in hot loops), `ItemSlots` (base of the machine's inventories, a NeoForge
+  `ItemStackHandler`; saves resource + count so counts above 99 survive), `SlotTransaction` (all-or-nothing changes to
+  VFW's OWN buffers: plan, then `commit()`; dropped = nothing changed, no callback) and `SlotRange`. Neighbours get
+  plain `IItemHandler` simulate/execute calls. Menus use `menu/HandlerSlot`, which reports vanilla's in-place stack
+  edits (`Slot#setChanged`) to the inventory. `GridInput` routes EVERY insertion (1.21.1 pipes insert slot by slot).
+- Capabilities: `Capabilities.ItemHandler.BLOCK` / `Capabilities.EnergyStorage.BLOCK`; `MachineEnergy` extends
+  `EnergyStorage`.
+
 ## Core design (owner's spec, source of truth)
 
 - **Central principle**: the player pays for a real farm; the server processes one aggregated, virtual farm. The cost

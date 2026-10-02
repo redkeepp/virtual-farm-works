@@ -1,6 +1,6 @@
 /*
  * Harvester — turns a harvest batch into items (drop source + pack-maker multipliers) and stores them in the output
- * buffers inside a NeoForge transaction: everything fits and is committed, or nothing changes. Anti-dupe core of the
+ * buffers inside a SlotTransaction: everything fits and is committed, or nothing changes. Anti-dupe core of the
  * machine.
  */
 package com.virtualfarmworks.harvest;
@@ -14,12 +14,12 @@ import org.jetbrains.annotations.Nullable;
 import com.virtualfarmworks.config.VfwServerConfig;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.sim.DropTally;
+import com.virtualfarmworks.transfer.ItemResource;
+import com.virtualfarmworks.transfer.ItemSlots;
+import com.virtualfarmworks.transfer.SlotRange;
+import com.virtualfarmworks.transfer.SlotTransaction;
 
 import net.minecraft.world.item.Item;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.ResourceHandlerUtil;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.transaction.Transaction;
 
 /**
  * The two halves of a harvest batch (the machine harvests a cycle in one or more batches, see
@@ -32,12 +32,15 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  * </ol>
  *
  * <h2>Why this cannot dupe or void items</h2>
- * {@link #tryStore} opens a ROOT transaction and inserts every item into the output handlers. If anything does not
- * fit, the method returns without committing; closing the transaction rolls every insertion back (NeoForge transfer
- * API, {@code SnapshotJournal}). Only after a successful commit does the machine count the batch's plots as harvested
+ * {@link #tryStore} plans every insertion on a {@link SlotTransaction} (1.21.1 has no NeoForge transactions: see that
+ * class). If anything does not fit, the method returns without committing: nothing was written, no change callback
+ * ran. Only after a successful commit does the machine count the batch's plots as harvested
  * ({@code GrowthCycle#harvestPlots}), on the same server thread, in the same tick — so a batch is stored exactly once:
  * never partially, never twice (fast clicks, automation or reconnects cannot interleave inside a tick). The one
  * exception, {@link #storeWhatFits}, is only used for a batch that could never fit, and the machine keeps the rest.
+ *
+ * <p>Targets and sources are always the machine's own buffers, so the transaction sees every slot involved. (On the
+ * 26.1 line these methods also refuse to run inside an open NeoForge transaction; 1.21.1 has no such global state.)
  */
 public final class Harvester {
     private Harvester() {
@@ -60,9 +63,9 @@ public final class Harvester {
         return tally.finish(main, secondary, context.random()::nextDouble);
     }
 
-    /** {@link #tryStore(List, List)} into a single handler. */
-    public static boolean tryStore(List<DropTally.Entry<ItemResource>> drops, ResourceHandler<ItemResource> output) {
-        return tryStore(drops, List.of(output));
+    /** {@link #tryStore(List, List)} into a single inventory (all its slots). */
+    public static boolean tryStore(List<DropTally.Entry<ItemResource>> drops, ItemSlots output) {
+        return tryStore(drops, List.of(SlotRange.all(output)));
     }
 
     /**
@@ -70,12 +73,9 @@ public final class Harvester {
      * buffer first, then the hidden one (owner design, step 8).
      *
      * @return true when everything was stored and committed (the machine may now count those plots as harvested);
-     *         false when it did not fit (nothing changed) or when a transaction is already open on this thread (never
-     *         expected during a block entity tick; refusing is safer than nesting, because an outer transaction could
-     *         still be rolled back after the machine had already counted the plots, which would void the harvest)
+     *         false when it did not fit (nothing changed)
      */
-    public static boolean tryStore(List<DropTally.Entry<ItemResource>> drops,
-                                   List<ResourceHandler<ItemResource>> targets) {
+    public static boolean tryStore(List<DropTally.Entry<ItemResource>> drops, List<SlotRange> targets) {
         return tryTakeAndStore(Map.of(), List.of(), drops, targets);
     }
 
@@ -84,81 +84,67 @@ public final class Harvester {
      * the autocrafter used items already in the output and its results replace them (owner, 2026-09-29). Everything
      * happens, or nothing: a take that falls short or drops that do not fit roll the whole transaction back.
      */
-    public static boolean tryTakeAndStore(Map<ItemResource, Long> take, List<ResourceHandler<ItemResource>> sources,
-                                          List<DropTally.Entry<ItemResource>> drops,
-                                          List<ResourceHandler<ItemResource>> targets) {
-        if (Transaction.getLifecycle() != Transaction.Lifecycle.NONE) {
-            return false;
+    public static boolean tryTakeAndStore(Map<ItemResource, Long> take, List<? extends ItemSlots> sources,
+                                          List<DropTally.Entry<ItemResource>> drops, List<SlotRange> targets) {
+        SlotTransaction transaction = new SlotTransaction();
+        if (!takeAll(take, sources, transaction)) {
+            return false; // not committed: nothing changed
         }
-        try (Transaction transaction = Transaction.openRoot()) {
-            if (!takeAll(take, sources, transaction)) {
-                return false; // not committed: leaving the try block rolls everything back
+        for (DropTally.Entry<ItemResource> drop : drops) {
+            if (insertInOrder(drop.key(), drop.amount(), targets, transaction) < drop.amount()) {
+                return false;
             }
-            for (DropTally.Entry<ItemResource> drop : drops) {
-                if (insertInOrder(drop.key(), drop.amount(), targets, transaction) < drop.amount()) {
-                    return false;
-                }
-            }
-            transaction.commit();
-            return true;
         }
+        transaction.commit();
+        return true;
     }
 
     /**
      * Extreme case only (a batch too big even for empty buffers, see the machine): stores as much of each drop as fits,
-     * commits it, and returns what is left, in the same order. Stores nothing (returns {@code drops}) when a transaction
-     * is already open on this thread, for the reason given in {@link #tryStore(List, List)}.
+     * commits it, and returns what is left, in the same order.
      */
     public static List<DropTally.Entry<ItemResource>> storeWhatFits(List<DropTally.Entry<ItemResource>> drops,
-                                                                    List<ResourceHandler<ItemResource>> targets) {
+                                                                    List<SlotRange> targets) {
         List<DropTally.Entry<ItemResource>> left = takeAndStoreWhatFits(Map.of(), List.of(), drops, targets);
         return left != null ? left : drops;
     }
 
     /**
      * {@link #storeWhatFits} that first takes {@code take} out of {@code sources} in the same transaction. Returns null,
-     * with nothing changed, when the take falls short or a transaction is already open: the caller must then keep its
-     * whole plan (the autocrafter's results may only exist once their ingredients are gone).
+     * with nothing changed, when the take falls short: the caller must then keep its whole plan (the autocrafter's
+     * results may only exist once their ingredients are gone).
      */
     public static @Nullable List<DropTally.Entry<ItemResource>> takeAndStoreWhatFits(
-            Map<ItemResource, Long> take, List<ResourceHandler<ItemResource>> sources,
-            List<DropTally.Entry<ItemResource>> drops, List<ResourceHandler<ItemResource>> targets) {
-        if (Transaction.getLifecycle() != Transaction.Lifecycle.NONE) {
-            return null;
-        }
+            Map<ItemResource, Long> take, List<? extends ItemSlots> sources,
+            List<DropTally.Entry<ItemResource>> drops, List<SlotRange> targets) {
         if (take.isEmpty() && drops.isEmpty()) {
             return drops;
         }
-        List<DropTally.Entry<ItemResource>> left = new ArrayList<>();
-        try (Transaction transaction = Transaction.openRoot()) {
-            if (!takeAll(take, sources, transaction)) {
-                return null;
-            }
-            for (DropTally.Entry<ItemResource> drop : drops) {
-                long stored = insertInOrder(drop.key(), drop.amount(), targets, transaction);
-                if (stored < drop.amount()) {
-                    left.add(new DropTally.Entry<>(drop.key(), drop.amount() - stored));
-                }
-            }
-            transaction.commit();
+        SlotTransaction transaction = new SlotTransaction();
+        if (!takeAll(take, sources, transaction)) {
+            return null;
         }
+        List<DropTally.Entry<ItemResource>> left = new ArrayList<>();
+        for (DropTally.Entry<ItemResource> drop : drops) {
+            long stored = insertInOrder(drop.key(), drop.amount(), targets, transaction);
+            if (stored < drop.amount()) {
+                left.add(new DropTally.Entry<>(drop.key(), drop.amount() - stored));
+            }
+        }
+        transaction.commit();
         return List.copyOf(left);
     }
 
-    /** Extracts every amount of {@code take} from the sources in order; false when one falls short. */
-    private static boolean takeAll(Map<ItemResource, Long> take, List<ResourceHandler<ItemResource>> sources,
-                                   Transaction transaction) {
+    /** Takes every amount of {@code take} out of the sources in order; false when one falls short. */
+    private static boolean takeAll(Map<ItemResource, Long> take, List<? extends ItemSlots> sources,
+                                   SlotTransaction transaction) {
         for (Map.Entry<ItemResource, Long> wanted : take.entrySet()) {
             long missing = wanted.getValue();
-            for (ResourceHandler<ItemResource> source : sources) {
-                while (missing > 0) {
-                    int chunk = (int) Math.min(missing, Integer.MAX_VALUE);
-                    int got = source.extract(wanted.getKey(), chunk, transaction);
-                    missing -= got;
-                    if (got < chunk) {
-                        break; // this source has no more of it: try the next one
-                    }
+            for (ItemSlots source : sources) {
+                if (missing <= 0) {
+                    break;
                 }
+                missing -= transaction.extract(source, wanted.getKey(), missing);
             }
             if (missing > 0) {
                 return false;
@@ -188,29 +174,22 @@ public final class Harvester {
 
     /**
      * Inserts up to {@code amount} into the targets in order, completing existing stacks of the same item before using
-     * empty slots in each target (the plain handler insert would take the first slot with room and fragment the
-     * buffer). Returns how much was inserted, inside {@code transaction}.
+     * empty slots in each target (inserting into the first slot with room would fragment the buffer). Returns how much
+     * was inserted, inside {@code transaction}.
      */
-    private static long insertInOrder(ItemResource resource, long amount, List<ResourceHandler<ItemResource>> targets,
-                                      Transaction transaction) {
+    private static long insertInOrder(ItemResource resource, long amount, List<SlotRange> targets,
+                                      SlotTransaction transaction) {
         long inserted = 0;
-        for (ResourceHandler<ItemResource> target : targets) {
-            while (inserted < amount) {
-                int chunk = (int) Math.min(amount - inserted, Integer.MAX_VALUE);
-                int moved = ResourceHandlerUtil.insertStacking(target, resource, chunk, transaction);
-                inserted += moved;
-                if (moved < chunk) {
-                    break; // this target is full for this item: try the next one
-                }
-            }
-            if (inserted == amount) {
+        for (SlotRange target : targets) {
+            inserted += transaction.insertStacking(target, resource, amount - inserted);
+            if (inserted >= amount) {
                 break;
             }
         }
         return inserted;
     }
 
-    /** Items per slot, as the output handlers count it (never 0; capped like ItemStacksResourceHandler). */
+    /** Items per slot, as the output handlers count it (never 0; capped like NeoForge's ItemStackHandler). */
     private static int maxStack(ItemResource resource) {
         return Math.clamp(resource.getMaxStackSize(), 1, Item.ABSOLUTE_MAX_STACK_SIZE);
     }

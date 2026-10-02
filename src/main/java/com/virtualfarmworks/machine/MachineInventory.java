@@ -14,14 +14,14 @@ import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.plant.VfwTags;
 
+import com.virtualfarmworks.transfer.ItemSlots;
+
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
 /**
- * Transaction-aware item storage for the machine's inputs, built on NeoForge's {@link ItemStacksResourceHandler}.
- * Slot order: see {@link MachineLayout}.
+ * Item storage for the machine's inputs, built on VFW's {@link ItemSlots} (NeoForge 1.21.1's item handler). Slot order:
+ * see {@link MachineLayout}.
  *
  * <p>Slot rules (owner specs, {@code docs/specs/}):
  * <ul>
@@ -38,10 +38,10 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
  * These checks run on every insertion attempt (player clicks, automation), not per tick. They use synced data only
  * (tags, server config), so client and server agree.
  *
- * <p>Every change calls {@code onChange} (the machine marks itself for revalidation). NeoForge calls it at the end of
- * the transaction, once per changed slot.
+ * <p>Every change calls {@code onChange} (the machine marks itself for revalidation): at once for single changes, once
+ * per changed slot when a {@code SlotTransaction} (pipe input routing) commits.
  */
-public final class MachineInventory extends ItemStacksResourceHandler {
+public final class MachineInventory extends ItemSlots {
     private final MachineTier tier;
     private final MachineLayout layout;
     private final Runnable onChange;
@@ -58,11 +58,10 @@ public final class MachineInventory extends ItemStacksResourceHandler {
     }
 
     @Override
-    public boolean isValid(int index, ItemResource resource) {
-        if (resource.isEmpty()) {
+    public boolean isItemValid(int index, ItemStack stack) {
+        if (stack.isEmpty()) {
             return false;
         }
-        ItemStack stack = resource.toStack();
         if (layout.isSeedSlot(index)) {
             return PlantRules.isPlantable(stack) && !VfwConfig.isSeedBlacklisted(stack, tier);
         }
@@ -90,12 +89,17 @@ public final class MachineInventory extends ItemStacksResourceHandler {
     }
 
     @Override
-    protected int getCapacity(int index, ItemResource resource) {
+    public int getSlotLimit(int index) {
+        return slotLimit(index);
+    }
+
+    @Override
+    protected int getStackLimit(int index, ItemStack stack) {
         int limit = slotLimit(index);
         if (layout.groups() > 1 && (layout.isSeedSlot(index) || layout.isSoilSlot(index))) {
             return limit; // grid slots count plants, not stacks: a pack maker may allow more than a stack
         }
-        return resource.isEmpty() ? limit : Math.min(limit, resource.getMaxStackSize());
+        return Math.min(limit, stack.getMaxStackSize());
     }
 
     /** Maximum item count of a slot, before the item's own max stack size (Starter) or regardless of it (grids). */
@@ -125,13 +129,13 @@ public final class MachineInventory extends ItemStacksResourceHandler {
     }
 
     @Override
-    protected void onContentsChanged(int index, ItemStack previousContents) {
+    protected void onContentsChanged(int index) {
         onChange.run();
     }
 
     /** A copy of the stack in a slot (safe to read; changing it does not change the inventory). */
     public ItemStack stackInSlot(int index) {
-        return getResource(index).toStack(getAmountAsInt(index));
+        return getStackInSlot(index).copy();
     }
 
     /**

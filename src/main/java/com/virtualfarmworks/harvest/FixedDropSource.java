@@ -7,8 +7,7 @@ package com.virtualfarmworks.harvest;
 import com.virtualfarmworks.plant.VfwTags;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.DropTally.Category;
-
-import net.neoforged.neoforge.transfer.item.ItemResource;
+import com.virtualfarmworks.transfer.ItemResource;
 
 /**
  * Each harvested plot yields {@code perPlot} of {@code product}; nothing is random, nothing is paid back (the plant
@@ -28,7 +27,7 @@ public record FixedDropSource(ItemResource product, int perPlot) implements Drop
         if (plots <= 0 || perPlot <= 0 || product.isEmpty()) {
             return;
         }
-        Category category = product.typeHolder().is(VfwTags.HARVEST_BYPRODUCTS) ? Category.SECONDARY : Category.MAIN;
+        Category category = product.is(VfwTags.HARVEST_BYPRODUCTS) ? Category.SECONDARY : Category.MAIN;
         tally.add(product, (double) plots * perPlot, category);
     }
 }

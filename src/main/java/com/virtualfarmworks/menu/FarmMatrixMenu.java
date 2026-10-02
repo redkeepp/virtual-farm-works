@@ -21,7 +21,6 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
-import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
 
 /**
  * The Starter's menu.
@@ -69,12 +68,11 @@ public class FarmMatrixMenu extends AbstractFarmMatrixMenu {
 
         // Inputs, in MachineSlots order: 4 slots on the texture, then the side column (4 growth + crux).
         for (int i = 0; i < 4; i++) {
-            addSlot(new ResourceHandlerSlot(inputs, inputs::set, i, FarmMatrixLayout.TOP_SLOT_X[i],
-                    FarmMatrixLayout.TOP_SLOT_Y));
+            addSlot(new HandlerSlot(inputs, i, FarmMatrixLayout.TOP_SLOT_X[i], FarmMatrixLayout.TOP_SLOT_Y));
         }
         for (int i = 0; i < FarmMatrixLayout.UPGRADE_SLOTS; i++) {
-            addSlot(new ResourceHandlerSlot(inputs, inputs::set, MachineSlots.GROWTH_FIRST + i,
-                    FarmMatrixLayout.PANEL_INTERIOR_X, FarmMatrixLayout.upgradeSlotY(i)));
+            addSlot(new HandlerSlot(inputs, MachineSlots.GROWTH_FIRST + i, FarmMatrixLayout.PANEL_INTERIOR_X,
+                    FarmMatrixLayout.upgradeSlotY(i)));
         }
         // Output buffer: a plain inventory for the player (owner revision, step 8: take AND put items by hand).
         // Automation still only extracts (the capability is extract-only), and shift-click never fills it (see
@@ -85,7 +83,7 @@ public class FarmMatrixMenu extends AbstractFarmMatrixMenu {
             addSlot(new OutputSlot(output, i, FarmMatrixLayout.OUTPUT_X + i * FarmMatrixLayout.SLOT_SPACING,
                     FarmMatrixLayout.OUTPUT_Y, onPlayerPut));
         }
-        addStandardInventorySlots(playerInventory, FarmMatrixLayout.PLAYER_INVENTORY_X,
+        addPlayerInventorySlots(playerInventory, FarmMatrixLayout.PLAYER_INVENTORY_X,
                 FarmMatrixLayout.PLAYER_INVENTORY_Y);
         addFilterSlots(FarmMatrixLayout::filterSlotX, FarmMatrixLayout::filterSlotY);
         addDataSlots(data);
