@@ -31,29 +31,35 @@ enum FarmMatrixJadeTooltip implements IBlockComponentProvider {
         if (!data.contains(FarmMatrixJadeData.STATUS)) {
             return;
         }
-        MachineStatus status = MachineStatus.byOrdinal(data.getIntOr(FarmMatrixJadeData.STATUS, 0));
-        double progress = data.getDoubleOr(FarmMatrixJadeData.PROGRESS, 0.0);
-        int plots = data.getIntOr(FarmMatrixJadeData.PLOTS, 0);
+        // 1.21.1's CompoundTag getters answer 0 for a missing key; the keys with another default use doubleOr.
+        MachineStatus status = MachineStatus.byOrdinal(data.getInt(FarmMatrixJadeData.STATUS));
+        double progress = data.getDouble(FarmMatrixJadeData.PROGRESS);
+        int plots = data.getInt(FarmMatrixJadeData.PLOTS);
 
         tooltip.add(Component.translatable(status.translationKey())
                 .withStyle(style -> style.withColor(TextColor.fromRgb(status.tone().rgb()))));
         tooltip.add(Component.translatable("gui.virtualfarmworks.hydration",
-                DisplayFormats.multiplier(data.getDoubleOr(FarmMatrixJadeData.HYDRATION, 1.0))));
+                DisplayFormats.multiplier(doubleOr(data, FarmMatrixJadeData.HYDRATION, 1.0))));
         if (data.contains(FarmMatrixJadeData.CAPACITY)) {
             tooltip.add(Component.translatable("gui.virtualfarmworks.plots_active", plots,
-                    data.getIntOr(FarmMatrixJadeData.CAPACITY, 0)));
+                    data.getInt(FarmMatrixJadeData.CAPACITY)));
             tooltip.add(Component.translatable("gui.virtualfarmworks.plots_waiting",
-                    data.getIntOr(FarmMatrixJadeData.WAITING, 0)));
+                    data.getInt(FarmMatrixJadeData.WAITING)));
         } else {
             tooltip.add(Component.translatable("gui.virtualfarmworks.seeds", plots, MachineSlots.SEED_SOIL_LIMIT));
         }
         tooltip.add(Component.translatable("gui.virtualfarmworks.growth", DisplayFormats.growthPercent(progress, plots),
-                DisplayFormats.multiplier(data.getDoubleOr(FarmMatrixJadeData.GROWTH, 1.0))));
+                DisplayFormats.multiplier(doubleOr(data, FarmMatrixJadeData.GROWTH, 1.0))));
         if (data.contains(FarmMatrixJadeData.ENERGY)) {
             tooltip.add(Component.translatable("gui.virtualfarmworks.energy",
-                    data.getLongOr(FarmMatrixJadeData.ENERGY, 0L),
-                    data.getLongOr(FarmMatrixJadeData.ENERGY_CAPACITY, 0L)));
+                    data.getLong(FarmMatrixJadeData.ENERGY),
+                    data.getLong(FarmMatrixJadeData.ENERGY_CAPACITY)));
         }
+    }
+
+    /** The double under {@code key}, or {@code fallback} when the server did not send it. */
+    private static double doubleOr(CompoundTag data, String key, double fallback) {
+        return data.contains(key) ? data.getDouble(key) : fallback;
     }
 
     @Override

@@ -327,6 +327,26 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
 - Found while checking assets: the owner's block models use 26.1's multi-axis element rotations (90 / 180 degrees),
   which 1.21.1's model reader refuses ("Missing axis"). Left for the owner (rule 7), see the plan.
 
+### Step 7 — integrations
+- JEI 19: the recipe type is `mezz.jei.api.recipe.RecipeType` (26.1's JEI calls it `IRecipeType`); the crafting type
+  is the same `RecipeHolder<CraftingRecipe>`. JEI 19 marks the 6-argument `transferRecipe` for removal but still
+  declares it abstract (its context form calls it): implemented, with the warning suppressed and explained. The "+"
+  refuses what the autocrafter refuses (`isSpecial() || isIncomplete()`).
+- Jade 15: same provider API; the tooltip reads the server data with 1.21.1's `CompoundTag` getters (0 when missing)
+  and its own default for the two multipliers.
+- Mystical Agriculture 8.0.28 (ATM10's), checked in its bytecode with `javap -c` (no sources jar on its maven):
+  `MysticalCropBlock#getDrops` and `InferiumCropBlock#getDrops` are exactly the formulas `MysticalDropSource`
+  reproduces; `Crop#getSecondaryChance` adds the tier's base (0.1 by default) on essence farmland and 0.1 more on the
+  effective one, capped at 1; `canGrow` checks the crux two blocks down and, with `requiresEffectiveFarmland`, the
+  tier's farmland: in MA 8 `CropTier#isEffectiveFarmland` is an exact match only (MA 9's always-effective tag does not
+  exist yet), and VFW calls MA's own method, so it follows the installed version. The Master Infusion Crystal extends
+  Cucumber's `BaseReusableItem` (unbreakable: its remainder is itself), so the catalyst rule holds. Farmland classes
+  extend `FarmBlock`. MA 8 has no Awakened Supremium farmland: its `soil_properties` entry would make NeoForge log an
+  error on every reload (`DataMapLoader` resolves values as required), so the 1.21.1 data map leaves it out.
+- Area 11 (config): NeoForge 21.1 loads SERVER configs from `config/` with an optional per-world override in
+  `<world>/serverconfig/` (`ServerLifecycleHooks`), so the file is where main has it. The pack-maker comments now name
+  MA 8.0.x and drop the always-effective tag lines.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

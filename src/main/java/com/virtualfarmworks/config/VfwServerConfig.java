@@ -18,9 +18,10 @@ import com.virtualfarmworks.machine.MachineTier;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
- * The SERVER config. On NeoForge 26.1.2 the file is {@code config/virtualfarmworks-server.toml} (verified in a dev run;
- * older NeoForge versions used {@code <world>/serverconfig/}). Server type because every value is gameplay/balance:
- * NeoForge syncs it to clients on login, so GUIs and tooltips show the server's numbers.
+ * The SERVER config. On NeoForge 21.1 (this 1.21.1 line) the file is {@code config/virtualfarmworks-server.toml}, and a
+ * world may override it with its own copy in {@code <world>/serverconfig/} (NeoForge's {@code ServerLifecycleHooks},
+ * read in the 21.1 sources). Server type because every value is gameplay/balance: NeoForge syncs it to clients on
+ * login, so GUIs and tooltips show the server's numbers.
  *
  * <p>Requirement (owner): pack makers must be able to rebalance everything WITHOUT touching Java. Nothing that is a
  * balance number may be hard-coded elsewhere; read it from here. Full list and rationale:
@@ -248,13 +249,14 @@ public final class VfwServerConfig {
                         "Agriculture. The production multipliers apply on top.")
                 .defineInRange("otherPlantYield", 10, 0, 1_000_000);
         b.push("mysticalagriculture");
-        // Base chances below were read from Mystical Agriculture 9.0.9 (Crop#getSecondaryChance): 10% on any
-        // essence farmland, +10% more when the farmland matches the crop tier, 0% on non-essence soil. They can differ
-        // if MA changes them or a crop overrides its base chance. Keep the examples in sync if that happens.
+        // Base chances below were read from Mystical Agriculture (Crop#getSecondaryChance, 9.0.9 on main and 8.0.28
+        // on this line: the same): 10% on any essence farmland, +10% more when the farmland matches the crop tier, 0%
+        // on non-essence soil. They can differ if MA changes them or a crop overrides its base chance. Keep the
+        // examples in sync if that happens.
         MYSTICAL_SECONDARY_SEED_MULTIPLIER = b
                 .comment("MULTIPLIES Mystical Agriculture's own chance of dropping an extra seed. It is NOT a chance",
                         "by itself: final chance = MA chance x this value (capped at 100%).",
-                        "MA's chances (MA 9.0.x defaults):",
+                        "MA's chances (MA 8.0.x defaults):",
                         "  - soil is not an essence farmland ............. 0%  (no multiplier can raise it)",
                         "  - any essence farmland ........................ 10%",
                         "  - farmland of the SAME tier as the crop ....... 20% (e.g. Inferium crop on Inferium Farmland)",
@@ -276,7 +278,8 @@ public final class VfwServerConfig {
 
         b.comment("Mystical Agriculture crops (ignored when Mystical Agriculture is not installed)")
                 .push("mysticalagriculture");
-        // Mirrors MA 9.0.9's own rule (MysticalCropBlock#canGrow, applied when MA's option of the same name is on).
+        // Mirrors MA's own rule (MysticalCropBlock#canGrow, applied when MA's option of the same name is on; read in
+        // MA 8.0.28, which has no always-effective farmland tag, unlike MA 9 on main).
         // VFW has its OWN switch on purpose (owner decision): machines ignore MA's setting unless the pack maker turns
         // this one on too. Same key name as MA's so a search for it in the config folder finds both.
         MYSTICAL_REQUIRES_EFFECTIVE_FARMLAND = b
@@ -285,8 +288,6 @@ public final class VfwServerConfig {
                         "for them). Any other soil shows INVALID SOIL. Same rule as Mystical Agriculture's own option",
                         "requiresEffectiveFarmland for crops planted in the world, with the same exceptions:",
                         "  - Inferium Seeds are exempt and grow on any farmland.",
-                        "  - Blocks in the block tag #mysticalagriculture:always_effective_farmland count as the right",
-                        "    farmland for every tier (Awakened Supremium Farmland by default).",
                         "This is VFW's own switch: machines do NOT follow Mystical Agriculture's option automatically.",
                         "Set both to true to apply the rule in the world and in the machines.")
                 .define("requiresEffectiveFarmland", false);

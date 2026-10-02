@@ -174,6 +174,10 @@ Filled in as the port goes (`docs/port-1.21.1.md`); the sections below still des
   tooltips come from `FarmMatrixBlock#appendHoverText`; item models in `models/item` (the `items/` folder is ignored).
 - OPEN (owner): the owner's block models use 26.1's multi-axis element rotations, which 1.21.1 refuses: missing model
   on 1.21.1 until the owner exports compatible ones (see `docs/port-1.21.1.md`).
+- Integrations: JEI 19 (`RecipeType`, the 6-argument `transferRecipe`), Jade 15, Mystical Agriculture 8.0.28 (same
+  formulas as 9.0.9, checked in its bytecode; no always-effective farmland tag, no Awakened Supremium farmland, so the
+  `soil_properties` data map has no entry for it). Server config: `config/virtualfarmworks-server.toml`, overridable per
+  world in `<world>/serverconfig/`.
 
 ## Core design (owner's spec, source of truth)
 

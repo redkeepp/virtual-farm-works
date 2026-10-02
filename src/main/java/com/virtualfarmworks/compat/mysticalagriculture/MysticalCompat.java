@@ -53,7 +53,7 @@ public final class MysticalCompat {
 
     /**
      * Mystical Agriculture's "effective farmland" rule: whether {@code ground} (the block the plant stands on) is the
-     * farmland of the seed's own tier, or a block in {@code #mysticalagriculture:always_effective_farmland}. True for
+     * farmland of the seed's own tier (MA 8, this line; MA 9 also accepts its always-effective farmland tag). True for
      * everything the rule does not cover: MA absent, non-MA seeds and the Inferium crop (MA exempts it). Only asked when
      * VFW's {@code mysticalagriculture.requiresEffectiveFarmland} switch is on.
      */

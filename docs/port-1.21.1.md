@@ -99,7 +99,14 @@ list: after each step, no error is left in the files and areas it covers.
    `{"origin", "axis", "angle"}` with one axis and an angle of 0, +-22.5 or +-45 (it throws "Missing axis"), so on
    1.21.1 the machines show the missing model until the owner exports 1.21.1-compatible models (rule 7: art is not
    changed by Claude without the owner).
-7. Integrations.
+7. Integrations. **DONE** (2026-10-02): JEI 19 (`mezz.jei.api.recipe.RecipeType`; the 6-argument `transferRecipe`
+   is the one JEI 19 still declares abstract), Jade 15 (same API; `CompoundTag` getters with defaults), Mystical
+   Agriculture 8.0.28 re-read from its bytecode: drop formulas (resource and Inferium crops), secondary chance, crux,
+   effective farmland (tier's own farmland only: MA 8 has no always-effective tag), config fields, Master Infusion
+   Crystal (Cucumber's `BaseReusableItem`, unbreakable, gives itself back) all as VFW reproduces them; no Awakened
+   Supremium farmland in MA 8 (its `soil_properties` entry is left out on this line). Area 11: the server config is
+   still `config/virtualfarmworks-server.toml`; a world may override it in `<world>/serverconfig/`. `src/main`
+   compiles with no error or warning.
 8. Game tests, JUnit and the load benchmark; then the owner's in-game test in ATM10.
 
 Commit on this branch after every finished step; the owner pushes the branch.

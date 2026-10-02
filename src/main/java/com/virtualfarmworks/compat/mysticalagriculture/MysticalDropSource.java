@@ -31,7 +31,7 @@ import net.minecraft.world.level.block.Block;
  * test {@code mystical_drops_match_ma} compares this class against MA's real {@code getDrops} (with a real farmland in
  * the test world) so an MA update that changes the formula is caught.
  *
- * <h2>MA 9.0.9 formula, per mature crop (read from its bytecode)</h2>
+ * <h2>MA formula, per mature crop (read from the bytecode of MA 8.0.28, this line's version: the same as 9.0.9's)</h2>
  * With {@code c = crop.getSecondaryChance(soilBlock)} (0 on plain soil, 10% on any essence farmland, +10% on the
  * crop's own tier farmland):
  * <ul>

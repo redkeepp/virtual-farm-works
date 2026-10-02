@@ -30,10 +30,10 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandlerHelper;
-import mezz.jei.api.recipe.types.IRecipeType;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
 import mezz.jei.api.registration.IRecipeTransferRegistration;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -154,16 +154,22 @@ public final class VfwJeiPlugin implements IModPlugin {
         }
 
         @Override
-        public IRecipeType<RecipeHolder<CraftingRecipe>> getRecipeType() {
+        public RecipeType<RecipeHolder<CraftingRecipe>> getRecipeType() {
             return RecipeTypes.CRAFTING;
         }
 
+        /**
+         * JEI 19 marks this form for removal but still declares it abstract (its newer context form calls it), so it is
+         * the one to implement on this line.
+         */
+        @SuppressWarnings("removal")
         @Override
         public @Nullable IRecipeTransferError transferRecipe(EntropicFarmMatrixMenu menu,
                                                               RecipeHolder<CraftingRecipe> recipe,
                                                               IRecipeSlotsView slots, Player player,
                                                               boolean maxTransfer, boolean doTransfer) {
-            if (recipe.value().isSpecial() || recipe.value().placementInfo().isImpossibleToPlace()) {
+            // The autocrafter's own test (MachineCrafter#find): recipes the recipe book would list.
+            if (recipe.value().isSpecial() || recipe.value().isIncomplete()) {
                 return helper.createUserErrorWithTooltip(
                         Component.translatable("gui.virtualfarmworks.crafter.jei_unsupported"));
             }

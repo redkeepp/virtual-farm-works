@@ -39,10 +39,11 @@ final class MysticalCompatImpl {
     }
 
     /**
-     * Same test as MA 9.0.9's {@code MysticalCropBlock#canGrow} when MA's {@code requiresEffectiveFarmland} is on:
-     * every crop except Inferium needs {@code crop.getTier().isEffectiveFarmland(blockBelow)} (the tier's own farmland,
-     * or the always-effective block tag). MA compares with its internal {@code ModCrops.INFERIUM} constant; the crop id
-     * is the same crop through the public API only.
+     * Same test as MA's {@code MysticalCropBlock#canGrow} when MA's {@code requiresEffectiveFarmland} is on: every crop
+     * except Inferium needs {@code crop.getTier().isEffectiveFarmland(blockBelow)}. On this line (MA 8.0.28, read from
+     * its bytecode) that is the tier's own farmland only; MA 9 (main) also accepts its always-effective block tag. VFW
+     * calls MA's own method, so it follows whichever MA is installed. MA compares with its internal
+     * {@code ModCrops.INFERIUM} constant; the crop id is the same crop through the public API only.
      */
     static boolean isEffectiveFarmland(ItemStack seed, Block ground) {
         Crop crop = cropOf(seed);

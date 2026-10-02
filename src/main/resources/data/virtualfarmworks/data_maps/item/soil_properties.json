@@ -20,10 +20,6 @@
       "neoforge:conditions": [{ "type": "neoforge:mod_loaded", "modid": "mysticalagriculture" }],
       "growth_bonus": 0.35
     },
-    "mysticalagriculture:awakened_supremium_farmland": {
-      "neoforge:conditions": [{ "type": "neoforge:mod_loaded", "modid": "mysticalagriculture" }],
-      "growth_bonus": 0.40
-    },
     "mysticalagradditions:insanium_farmland": {
       "neoforge:conditions": [{ "type": "neoforge:mod_loaded", "modid": "mysticalagradditions" }],
       "growth_bonus": 0.40
