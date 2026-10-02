@@ -51,7 +51,7 @@ import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.MenuProvider;
@@ -60,7 +60,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -1729,7 +1728,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /** SET CRAFT without a selected recipe: adds one. Server side only. */
-    public void addCrafterRecipe(List<ItemStack> grid, @Nullable ResourceKey<Recipe<?>> recipeId) {
+    public void addCrafterRecipe(List<ItemStack> grid, @Nullable ResourceLocation recipeId) {
         if (crafter != null) {
             crafter.add(grid, recipeId);
             crafterEdited();
@@ -1737,7 +1736,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /** SET CRAFT with a selected recipe: replaces it. Server side only. */
-    public void replaceCrafterRecipe(int index, List<ItemStack> grid, @Nullable ResourceKey<Recipe<?>> recipeId) {
+    public void replaceCrafterRecipe(int index, List<ItemStack> grid, @Nullable ResourceLocation recipeId) {
         if (crafter != null) {
             crafter.replace(index, grid, recipeId);
             crafterEdited();

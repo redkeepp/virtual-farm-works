@@ -266,6 +266,19 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
 - The energy amount is restored as saved: the capacity is set by the first revalidation, which also trims an amount
   above a lowered capacity (clamping at load, before the capacity is known, would empty every buffer).
 
+### Step 4 — recipes and autocrafter
+- 1.21.1 identifies recipes by `ResourceLocation` (`RecipeHolder#id`), not by `ResourceKey<Recipe<?>>`: the
+  autocrafter's recipe hint and its saved form (`ResourceLocation.CODEC`, key "recipe") follow. The lookup is
+  `level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, input, level, hint)`, which prefers the hinted recipe
+  while it still matches, as 26.1's `recipeAccess()` did. `assemble` takes the registries.
+- 26.1 refused recipes whose `placementInfo()` is impossible to place. 1.21.1 has no placement info; its recipe book
+  shows a recipe when `!isSpecial() && !isIncomplete()` (`ClientRecipeBook`), i.e. it has ingredients and every one of
+  them has items. The autocrafter uses that same test.
+- `CraftingInput.ofPositioned` and `getRemainingItems` exist in 1.21.1 as in 26.1: the catalyst bookkeeping (remainders
+  indexed by the TRIMMED input) is unchanged.
+- Recipe JSONs: 1.21.1 reads ingredient objects (`{"item": ...}`), checked against vanilla 1.21.1's own recipes; the
+  results already used `{"id": ...}`. Advancements are unchanged (same format in vanilla 1.21.1).
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

@@ -2,8 +2,12 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "key": {
-    "N": "minecraft:netherite_block",
-    "S": "minecraft:nether_star"
+    "N": {
+      "item": "minecraft:netherite_block"
+    },
+    "S": {
+      "item": "minecraft:nether_star"
+    }
   },
   "pattern": [
     "NNN",

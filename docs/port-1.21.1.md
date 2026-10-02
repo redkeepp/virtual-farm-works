@@ -76,7 +76,10 @@ list: after each step, no error is left in the files and areas it covers.
 3. Saving. **DONE** (2026-10-02): `saveAdditional` / `loadAdditional(CompoundTag, HolderLookup.Provider)` in the
    machine, `save` / `load` with `CompoundTag` in the crafter, the filter and the energy buffer; `machine/Saves` keeps
    26.1's conveniences (a codec value under a key with registry ops, booleans with a default). Same keys as main.
-4. Recipes and autocrafter.
+4. Recipes and autocrafter. **DONE** (2026-10-02): `getRecipeManager().getRecipeFor(..., ResourceLocation hint)`,
+   recipe ids are `ResourceLocation`s, `assemble(input, registries)`; "placeable by a player" = what the recipe book
+   lists in 1.21.1 (`!isSpecial() && !isIncomplete()`, `ClientRecipeBook`'s own test). The 7 recipe JSONs use
+   ingredient objects. JEI's side is step 7.
 5. Plants and tags.
 6. GUI (with area 6, blocks and items, where it touches screens).
 7. Integrations.

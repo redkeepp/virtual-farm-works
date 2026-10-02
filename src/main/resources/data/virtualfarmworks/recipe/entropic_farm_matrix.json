@@ -2,10 +2,18 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "key": {
-    "N": "minecraft:netherite_ingot",
-    "R": "minecraft:redstone",
-    "D": "minecraft:diamond",
-    "S": "virtualfarmworks:starter_farm_matrix"
+    "N": {
+      "item": "minecraft:netherite_ingot"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "S": {
+      "item": "virtualfarmworks:starter_farm_matrix"
+    }
   },
   "pattern": [
     "NRD",

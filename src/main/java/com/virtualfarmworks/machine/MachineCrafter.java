@@ -29,12 +29,11 @@ import com.virtualfarmworks.transfer.ItemResource;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 
@@ -44,8 +43,8 @@ import net.minecraft.world.item.crafting.RecipeType;
  * <h2>Recipes</h2>
  * A recipe is the 3x3 grid the player arranged (by hand or with JEI's "+") plus the id of the recipe it made when it
  * was set; the id is only a hint that keeps the same recipe when a modpack has two matching one grid. Only
- * crafting-table recipes a player could place are accepted: special recipes (map cloning, firework stars...) are
- * refused. The grid decides WHICH recipe; crafting then takes, in each cell, any item that recipe accepts there, like a
+ * crafting-table recipes a player could place are accepted (the ones the recipe book lists: not special, not
+ * incomplete): special recipes (map cloning, firework stars...) are refused. The grid decides WHICH recipe; crafting then takes, in each cell, any item that recipe accepts there, like a
  * real crafting table (sticks set with oak planks also take birch planks).
  *
  * <h2>Crafting ({@link #plan})</h2>
@@ -92,7 +91,7 @@ public final class MachineCrafter {
      * A recipe as the player set it: the grid (9 cells, one item or empty each) and the recipe it made then. Compared
      * by content (an ItemStack has no equals of its own), as the machine item's {@link CrafterRecipes} needs.
      */
-    public record Pattern(List<ItemStack> grid, Optional<ResourceKey<Recipe<?>>> recipeId) {
+    public record Pattern(List<ItemStack> grid, Optional<ResourceLocation> recipeId) {
         @Override
         public boolean equals(Object other) {
             return other instanceof Pattern pattern && ItemStack.listMatches(grid, pattern.grid)
@@ -107,7 +106,7 @@ public final class MachineCrafter {
 
     private static final Codec<Pattern> PATTERN_CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ItemStack.OPTIONAL_CODEC.listOf().fieldOf("grid").forGetter(Pattern::grid),
-            Recipe.KEY_CODEC.optionalFieldOf("recipe").forGetter(Pattern::recipeId))
+            ResourceLocation.CODEC.optionalFieldOf("recipe").forGetter(Pattern::recipeId))
             .apply(instance, Pattern::new));
 
     /** Saved form of a recipe list: the machine's save and its item's {@link CrafterRecipes}. */
@@ -228,7 +227,7 @@ public final class MachineCrafter {
     }
 
     /** Adds a recipe at the end of the list (ignored beyond {@link #MAX_RECIPES}). Resolve before crafting. */
-    public void add(List<ItemStack> grid, @Nullable ResourceKey<Recipe<?>> recipeId) {
+    public void add(List<ItemStack> grid, @Nullable ResourceLocation recipeId) {
         if (patterns.size() < MAX_RECIPES) {
             patterns.add(new Pattern(normalize(grid), Optional.ofNullable(recipeId)));
             recipesChanged();
@@ -236,7 +235,7 @@ public final class MachineCrafter {
     }
 
     /** Replaces a recipe (SET CRAFT with a recipe selected). Resolve before crafting. */
-    public void replace(int index, List<ItemStack> grid, @Nullable ResourceKey<Recipe<?>> recipeId) {
+    public void replace(int index, List<ItemStack> grid, @Nullable ResourceLocation recipeId) {
         if (index >= 0 && index < patterns.size()) {
             patterns.set(index, new Pattern(normalize(grid), Optional.ofNullable(recipeId)));
             recipesChanged();
@@ -298,7 +297,8 @@ public final class MachineCrafter {
         List<Resolved> list = new ArrayList<>(patterns.size());
         for (Pattern pattern : patterns) {
             Optional<RecipeHolder<CraftingRecipe>> holder = find(pattern.grid(), pattern.recipeId().orElse(null), level);
-            ItemStack result = holder.map(h -> h.value().assemble(input(pattern.grid()))).orElse(ItemStack.EMPTY);
+            ItemStack result = holder.map(h -> h.value().assemble(input(pattern.grid()), level.registryAccess()))
+                    .orElse(ItemStack.EMPTY);
             list.add(new Resolved(pattern.grid(), result.isEmpty() ? null : holder.get(), result));
         }
         recipes = list;
@@ -331,25 +331,27 @@ public final class MachineCrafter {
     }
 
     /**
-     * The crafting-table recipe a grid makes, if it is one the autocrafter accepts: placeable by a player and not
-     * special (map cloning, firework stars, banner copying: their result depends on the exact items, which a stored
-     * recipe cannot follow). {@code hint}: preferred while it still matches.
+     * The crafting-table recipe a grid makes, if it is one the autocrafter accepts: one a player could place, i.e. one
+     * the recipe book lists (1.21.1's test: not special, not incomplete — every ingredient has items). Special recipes
+     * (map cloning, firework stars, banner copying) are refused: their result depends on the exact items, which a stored
+     * recipe cannot follow. {@code hint}: preferred while it still matches.
      */
-    public static Optional<RecipeHolder<CraftingRecipe>> find(List<ItemStack> grid, @Nullable ResourceKey<Recipe<?>> hint,
+    public static Optional<RecipeHolder<CraftingRecipe>> find(List<ItemStack> grid, @Nullable ResourceLocation hint,
                                                               ServerLevel level) {
         List<ItemStack> cells = normalize(grid);
         CraftingInput input = input(cells);
         if (input.isEmpty()) {
             return Optional.empty();
         }
-        return level.recipeAccess().getRecipeFor(RecipeType.CRAFTING, input, level, hint)
-                .filter(holder -> !holder.value().isSpecial() && !holder.value().placementInfo().isImpossibleToPlace());
+        return level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, input, level, hint)
+                .filter(holder -> !holder.value().isSpecial() && !holder.value().isIncomplete());
     }
 
     /** What a grid would make (the result preview of the crafting table), or empty when it is no accepted recipe. */
     public static ItemStack preview(List<ItemStack> grid, ServerLevel level) {
         List<ItemStack> cells = normalize(grid);
-        return find(cells, null, level).map(holder -> holder.value().assemble(input(cells))).orElse(ItemStack.EMPTY);
+        return find(cells, null, level).map(holder -> holder.value().assemble(input(cells), level.registryAccess()))
+                .orElse(ItemStack.EMPTY);
     }
 
     /** Exactly 9 cells, each one item or empty. */
@@ -638,7 +640,7 @@ public final class MachineCrafter {
             if (crafts <= 0 || crafts == Long.MAX_VALUE || !value.matches(input, level)) {
                 return; // a mix the recipe refuses as a whole (rare shapeless recipes), or catalysts only: no craft
             }
-            ItemStack result = value.assemble(input);
+            ItemStack result = value.assemble(input, level.registryAccess());
             if (result.isEmpty()) {
                 return;
             }

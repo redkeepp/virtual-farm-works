@@ -2,9 +2,15 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "key": {
-    "D": "minecraft:diamond",
-    "I": "minecraft:iron_ingot",
-    "W": "minecraft:water_bucket"
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "W": {
+      "item": "minecraft:water_bucket"
+    }
   },
   "pattern": [
     "DID",

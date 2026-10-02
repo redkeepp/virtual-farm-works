@@ -59,11 +59,15 @@ Crafting grid slots are numbered 1-9 left to right, top to bottom.
 Like every shaped recipe, each one also crafts from its mirror image (left and right swapped). Voltaic, Ionic and
 Resonant have no recipes yet (their machines and upgrades are not built).
 
+1.21.1 line: every key of a recipe is an ingredient object (`{"item": "minecraft:diamond"}`, or `{"tag": ...}`), the
+format 1.21.1 reads; main writes plain ids (`"minecraft:diamond"`), which 1.21.1 refuses. The result is
+`{"id": ...}` on both.
+
 ## Other non-Java files
 
 | File | Purpose |
 |---|---|
-| `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template; Gradle fills `${...}` from `gradle.properties`: description, author (Redkeep), home page and issue links (left out while empty), and JEI, Jade and Mystical Agriculture as optional dependencies (the built-against versions as minimums). The logo line waits for the owner's logo. |
+| `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template; Gradle fills `${...}` from `gradle.properties`: the language loader and its version range (`modLoader`, `loaderVersion`: required by FML 4 on the 1.21.1 line), description, author (Redkeep), home page and issue links (left out while empty), the owner's logo, and JEI, Jade and Mystical Agriculture as optional dependencies (the built-against versions as minimums). |
 | `src/main/resources/virtualfarmworks_logo2.png` | The owner's logo (512x512): `logoFile` in the mod metadata (mods list, no blur), the README header, the CurseForge/Modrinth icon. |
 | `docs/images/*.png` | The owner's screenshots (Starter, Entropic, autocrafter), shown in the README and the platform galleries. |
 | `docs/publishing.md` | CurseForge and Modrinth page texts and settings, ready to paste. |
