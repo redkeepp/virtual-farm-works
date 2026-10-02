@@ -5,27 +5,35 @@
  */
 package com.virtualfarmworks.block;
 
+import java.util.List;
+
 import org.jetbrains.annotations.Nullable;
 
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.virtualfarmworks.item.CruxProviderUpgradeItem;
 import com.virtualfarmworks.item.TieredUpgradeItem;
+import com.virtualfarmworks.machine.CrafterRecipes;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.registry.ModBlockEntities;
+import com.virtualfarmworks.registry.ModDataComponents;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
@@ -92,28 +100,29 @@ public class FarmMatrixBlock extends HorizontalDirectionalBlock implements Entit
     /**
      * Right-click holding an upgrade (Water Provider, Growth Speed or Crux Provider — owner spec): the machine pulls
      * as many as fit straight from the hand, no GUI needed. Anything else, or an upgrade that does not fit (slots full,
-     * tier too low), falls through to {@link #useWithoutItem} and opens the GUI, so the player can see why.
+     * tier too low), falls through to {@link #useWithoutItem} ({@code PASS_TO_DEFAULT_BLOCK_INTERACTION}) and opens the
+     * GUI, so the player can see why.
      *
      * <p>The server decides; the client only predicts a swing. Creative players (infinite materials) keep their items,
      * like vanilla containers such as the composter.
      */
     @Override
-    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player,
-                                          InteractionHand hand, BlockHitResult hitResult) {
+    protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
+                                              Player player, InteractionHand hand, BlockHitResult hitResult) {
         boolean isUpgrade = stack.getItem() instanceof TieredUpgradeItem
                 || stack.getItem() instanceof CruxProviderUpgradeItem;
         if (!isUpgrade) {
-            return InteractionResult.TRY_WITH_EMPTY_HAND;
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
         if (level.isClientSide()) {
-            return InteractionResult.SUCCESS;
+            return ItemInteractionResult.SUCCESS;
         }
         if (level.getBlockEntity(pos) instanceof FarmMatrixBlockEntity machine
                 && machine.insertUpgradesFrom(stack, !player.hasInfiniteMaterials()) > 0) {
             level.playSound(null, pos, SoundEvents.ITEM_FRAME_ADD_ITEM, SoundSource.BLOCKS, 0.8F, 1.0F);
-            return InteractionResult.SUCCESS;
+            return ItemInteractionResult.CONSUME;
         }
-        return InteractionResult.TRY_WITH_EMPTY_HAND;
+        return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
     }
 
     /**
@@ -128,7 +137,34 @@ public class FarmMatrixBlock extends HorizontalDirectionalBlock implements Entit
                 && level.getBlockEntity(pos) instanceof FarmMatrixBlockEntity machine) {
             serverPlayer.openMenu(machine, buf -> FarmMatrixMenu.writeOpenData(buf, pos, tier));
         }
-        return InteractionResult.SUCCESS;
+        return InteractionResult.sidedSuccess(level.isClientSide());
+    }
+
+    /**
+     * The block is being removed (broken, replaced): the machine drops its inputs and visible output first (1.21.1 calls
+     * this before the block entity goes; 26.1 called the block entity's {@code preRemoveSideEffects}). A state change of
+     * the same block (turning it) drops nothing.
+     */
+    @Override
+    protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
+        if (!state.is(newState.getBlock()) && level.getBlockEntity(pos) instanceof FarmMatrixBlockEntity machine) {
+            machine.dropContents(pos);
+        }
+        super.onRemove(state, level, pos, newState, movedByPiston);
+    }
+
+    /**
+     * The machine item's tooltip: "Autocrafter recipes: N" when it kept an autocrafter's recipes ({@link CrafterRecipes},
+     * owner, 2026-09-30). 1.21.1 shows no tooltip for modded item components on its own; a block item asks its block.
+     */
+    @Override
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip,
+                                TooltipFlag flag) {
+        super.appendHoverText(stack, context, tooltip, flag);
+        CrafterRecipes recipes = stack.get(ModDataComponents.CRAFTER_RECIPES.get());
+        if (recipes != null) {
+            recipes.addToTooltip(context, tooltip::add, flag);
+        }
     }
 
     @Override

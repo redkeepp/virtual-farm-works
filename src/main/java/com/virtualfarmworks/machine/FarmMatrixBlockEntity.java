@@ -46,7 +46,6 @@ import com.virtualfarmworks.transfer.SlotTransaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.component.DataComponentGetter;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -1427,7 +1426,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Placed from an item that kept autocrafter recipes: they are the machine's again (matched on the next tick). */
     @Override
-    protected void applyImplicitComponents(DataComponentGetter components) {
+    protected void applyImplicitComponents(BlockEntity.DataComponentInput components) {
         super.applyImplicitComponents(components);
         if (crafter != null) {
             CrafterRecipes recipes = components.get(ModDataComponents.CRAFTER_RECIPES.get());
@@ -1459,14 +1458,12 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * The block is being removed (broken, replaced): drop the inputs and the visible output slots. The hidden output
-     * slots, held drops, stored energy and ripe plots are deleted (owner rule, step 8). A rolled but unstored batch was
-     * never produced. The autocrafter's recipes leave with the machine's own item (the loot table copies them, see
-     * {@link #collectImplicitComponents}).
+     * The block is being removed (broken, replaced; called by {@code FarmMatrixBlock#onRemove}): drop the inputs and the
+     * visible output slots. The hidden output slots, held drops, stored energy and ripe plots are deleted (owner rule,
+     * step 8). A rolled but unstored batch was never produced. The autocrafter's recipes leave with the machine's own
+     * item (the loot table copies them, see {@link #collectImplicitComponents}).
      */
-    @Override
-    public void preRemoveSideEffects(BlockPos pos, BlockState state) {
-        super.preRemoveSideEffects(pos, state);
+    public void dropContents(BlockPos pos) {
         if (level == null) {
             return;
         }

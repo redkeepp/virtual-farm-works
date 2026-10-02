@@ -11,7 +11,6 @@ import java.util.function.Consumer;
 import com.mojang.serialization.Codec;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.component.DataComponentGetter;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -37,10 +36,12 @@ public record CrafterRecipes(List<MachineCrafter.Pattern> patterns) implements T
         patterns = MachineCrafter.trim(patterns);
     }
 
-    /** "Autocrafter recipes: N" on the item, so a player knows the machine kept them. */
+    /**
+     * "Autocrafter recipes: N" on the item, so a player knows the machine kept them. Called by the machine block's
+     * {@code appendHoverText} (1.21.1 shows modded components through their item or block only).
+     */
     @Override
-    public void addToTooltip(Item.TooltipContext context, Consumer<Component> consumer, TooltipFlag flag,
-                             DataComponentGetter components) {
+    public void addToTooltip(Item.TooltipContext context, Consumer<Component> consumer, TooltipFlag flag) {
         consumer.accept(Component.translatable("tooltip.virtualfarmworks.crafter_recipes", patterns.size())
                 .withStyle(ChatFormatting.GRAY));
     }

@@ -4,7 +4,7 @@
  */
 package com.virtualfarmworks.item;
 
-import java.util.function.Consumer;
+import java.util.List;
 
 import com.virtualfarmworks.config.VfwConfig;
 import com.virtualfarmworks.machine.MachineTier;
@@ -15,7 +15,6 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.component.TooltipDisplay;
 
 /**
  * A tiered machine upgrade (Water Provider or Growth Speed).
@@ -48,8 +47,8 @@ public class TieredUpgradeItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display,
-                                Consumer<Component> builder, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip,
+                                TooltipFlag flag) {
         // Effect line. The growth bonus comes from the (server-synced) config so the tooltip matches what the pack
         // maker configured, e.g. "+50% growth speed".
         Component effect = switch (type) {
@@ -57,7 +56,7 @@ public class TieredUpgradeItem extends Item {
                     formatPercent(VfwConfig.growthBonusForDisplay()));
             case WATER_PROVIDER -> Component.translatable("tooltip.virtualfarmworks." + type.registrySuffix());
         };
-        builder.accept(effect.copy().withStyle(ChatFormatting.GRAY));
+        tooltip.add(effect.copy().withStyle(ChatFormatting.GRAY));
 
         // Compatibility line: list every existing machine tier this upgrade fits, e.g. "Fits: Starter, Entropic".
         MutableComponent fits = Component.empty();
@@ -72,7 +71,7 @@ public class TieredUpgradeItem extends Item {
             fits.append(Component.translatable(machineTier.translationKey()));
             first = false;
         }
-        builder.accept(Component.translatable("tooltip.virtualfarmworks.fits", fits).withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.add(Component.translatable("tooltip.virtualfarmworks.fits", fits).withStyle(ChatFormatting.DARK_GRAY));
     }
 
     /** 0.5 -> "50", 0.125 -> "12.5": a fraction as a percentage without useless trailing zeros. */

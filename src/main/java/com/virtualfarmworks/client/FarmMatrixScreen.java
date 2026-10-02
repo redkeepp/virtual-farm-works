@@ -23,16 +23,15 @@ import com.virtualfarmworks.network.SetFilterGhostPayload;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.MachineStatus;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.Util;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.Rect2i;
-import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -43,11 +42,12 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * Draws only; every action is sent to the server as a menu button click ({@link FarmMatrixMenu#clickMenuButton}),
  * and every number comes from the menu's synced data. Nothing here decides gameplay.
  *
- * <p>Render order inside a frame (26.1 "extract" GUI API): {@link #extractBackground} (texture, bar, side panel, face
- * box, ghost items) -> slots and their items (vanilla) -> {@link #extractLabels} (texts, translated to the GUI
- * origin) -> tooltips. Ghost items are covered by a translucent rectangle drawn right after them; the GUI renderer puts
- * an element that overlaps an earlier item on a higher layer, which is what makes the item look 40% opaque (vanilla
- * recipe-book technique).
+ * <p>Render order inside a frame (1.21.1 {@code AbstractContainerScreen}): {@link #renderBg} (texture, bar, side panel,
+ * face box, ghost items) -> slots and their items (vanilla) -> {@link #renderLabels} (texts, translated to the GUI
+ * origin) -> {@link #renderTooltip}, which {@link #render} calls last. Items are drawn in front of the flat GUI (depth),
+ * so a plain fill after an item does not cover it: ghost items get their translucent cover twice, as a plain fill (the
+ * slot around the item) and through vanilla's ghost-recipe overlay, which only draws where an item is in front (the
+ * recipe book's own technique). Together they make the item look 40% opaque ({@link #coverItem}).
  */
 public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
         implements FarmMatrixJeiTargets {
@@ -65,7 +65,9 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
     private double shownProgress;
 
     public FarmMatrixScreen(FarmMatrixMenu menu, Inventory playerInventory, Component title) {
-        super(menu, playerInventory, title, FarmMatrixLayout.GUI_WIDTH, FarmMatrixLayout.GUI_HEIGHT);
+        super(menu, playerInventory, title);
+        this.imageWidth = FarmMatrixLayout.GUI_WIDTH;
+        this.imageHeight = FarmMatrixLayout.GUI_HEIGHT;
         MachineTier tier = menu.tier();
         this.texture = ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID,
                 "textures/gui/" + tier.getSerializedName() + "_farm_matrix_gui.png");
@@ -86,31 +88,37 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
     // Background layer
     // =================================================================================================================
 
+    /** Draws everything, then the tooltips on top (1.21.1 screens call {@link #renderTooltip} themselves). */
     @Override
-    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
-        super.extractBackground(graphics, mouseX, mouseY, a);
-        // Once per frame, before the bar (here) and the Growth line (extractLabels, drawn later in the same frame). Until
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.render(graphics, mouseX, mouseY, partialTick);
+        renderTooltip(graphics, mouseX, mouseY);
+    }
+
+    @Override
+    protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
+        // Once per frame, before the bar (here) and the Growth line (renderLabels, drawn later in the same frame). Until
         // the server's first value arrives the menu reads 0: show nothing rather than animating up from that 0.
         shownProgress = menu.isDataSynced()
                 ? smoothProgress.update(menu.progress(), menu.harvestCount(), Util.getMillis())
                 : 0.0;
         int x0 = leftPos;
         int y0 = topPos;
-        graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x0, y0, 0.0F, 0.0F, FarmMatrixLayout.GUI_WIDTH,
+        graphics.blit(texture, x0, y0, 0.0F, 0.0F, FarmMatrixLayout.GUI_WIDTH,
                 FarmMatrixLayout.GUI_HEIGHT, FarmMatrixLayout.TEXTURE_SIZE, FarmMatrixLayout.TEXTURE_SIZE);
-        extractProgressBar(graphics, x0, y0);
-        extractSidePanel(graphics, x0, y0, mouseX, mouseY);
+        drawProgressBar(graphics, x0, y0);
+        drawSidePanel(graphics, x0, y0, mouseX, mouseY);
         if (faceBoxOpen) {
-            extractFaceBox(graphics, x0, y0, mouseX, mouseY);
+            drawFaceBox(graphics, x0, y0, mouseX, mouseY);
         }
         if (filterBoxOpen) {
-            extractFilterBox(graphics, x0, y0, mouseX, mouseY); // its 9 ghost slots are drawn by vanilla on top
+            drawFilterBox(graphics, x0, y0, mouseX, mouseY); // its 9 ghost slots are drawn by vanilla on top
         }
-        extractGhosts(graphics, x0, y0);
+        drawGhosts(graphics, x0, y0);
     }
 
     /** Green fill of the owner's bar area, proportional to the (smoothed) cycle progress. */
-    private void extractProgressBar(GuiGraphicsExtractor graphics, int x0, int y0) {
+    private void drawProgressBar(GuiGraphics graphics, int x0, int y0) {
         int filled = (int) Math.round(shownProgress * FarmMatrixLayout.BAR_WIDTH);
         if (filled > 0) {
             int x = x0 + FarmMatrixLayout.BAR_X;
@@ -124,27 +132,27 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
      * Fertilized Essence ON/OFF box, the harvest filter button and the machine ON/OFF box. No theme border on the
      * right: the texture's own white border is the column's right edge.
      */
-    private void extractSidePanel(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
+    private void drawSidePanel(GuiGraphics graphics, int x0, int y0, int mouseX, int mouseY) {
         int outputTop = y0 + FarmMatrixLayout.OUTPUT_BOX_TOP;
         boolean outputActive = faceBoxOpen || isOverBox(FarmMatrixLayout.OUTPUT_BOX_TOP, 1, mouseX, mouseY);
-        extractPanelBox(graphics, x0, outputTop, 1,
+        drawPanelBox(graphics, x0, outputTop, 1,
                 outputActive ? FarmMatrixLayout.COLOR_BUTTON_ACTIVE : FarmMatrixLayout.COLOR_BACKGROUND);
-        extractCellLabel(graphics, Component.literal("O"), x0, FarmMatrixLayout.cellY(outputTop, 0), themeColor);
+        drawCellLabel(graphics, Component.literal("O"), x0, FarmMatrixLayout.cellY(outputTop, 0), themeColor);
 
-        extractPanelBox(graphics, x0, y0 + FarmMatrixLayout.UPGRADE_BOX_TOP, FarmMatrixLayout.UPGRADE_SLOTS,
+        drawPanelBox(graphics, x0, y0 + FarmMatrixLayout.UPGRADE_BOX_TOP, FarmMatrixLayout.UPGRADE_SLOTS,
                 FarmMatrixLayout.COLOR_BACKGROUND);
 
         // Fertilized Essence switch: light pink = generated, dark pink = not generated (owner spec).
         int fertilizedTop = y0 + FarmMatrixLayout.FERTILIZED_BOX_TOP;
         boolean fertilized = menu.isFertilizedEssenceEnabled();
-        extractPanelBox(graphics, x0, fertilizedTop, 1,
+        drawPanelBox(graphics, x0, fertilizedTop, 1,
                 fertilized ? FarmMatrixLayout.COLOR_FERTILIZED_ON : FarmMatrixLayout.COLOR_FERTILIZED_OFF);
-        extractCellLabel(graphics, Component.translatable(fertilized ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off"),
+        drawCellLabel(graphics, Component.translatable(fertilized ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off"),
                 x0, FarmMatrixLayout.cellY(fertilizedTop, 0), 0xFFFFFFFF);
 
         // Harvest filter button (owner spec): half white, half black.
         int filterTop = y0 + FarmMatrixLayout.FILTER_BUTTON_TOP;
-        extractPanelBox(graphics, x0, filterTop, 1, FarmMatrixLayout.COLOR_BLACK);
+        drawPanelBox(graphics, x0, filterTop, 1, FarmMatrixLayout.COLOR_BLACK);
         int cellX = x0 + FarmMatrixLayout.PANEL_INTERIOR_X;
         int cellY = FarmMatrixLayout.cellY(filterTop, 0);
         graphics.fill(cellX, cellY, cellX + FarmMatrixLayout.CELL / 2, cellY + FarmMatrixLayout.CELL,
@@ -152,8 +160,8 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
 
         int powerTop = y0 + FarmMatrixLayout.POWER_BOX_TOP;
         boolean on = menu.isEnabled();
-        extractPanelBox(graphics, x0, powerTop, 1, on ? FarmMatrixLayout.COLOR_ON : FarmMatrixLayout.COLOR_OFF);
-        extractCellLabel(graphics, Component.translatable(on ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off"),
+        drawPanelBox(graphics, x0, powerTop, 1, on ? FarmMatrixLayout.COLOR_ON : FarmMatrixLayout.COLOR_OFF);
+        drawCellLabel(graphics, Component.translatable(on ? "gui.virtualfarmworks.on" : "gui.virtualfarmworks.off"),
                 x0, FarmMatrixLayout.cellY(powerTop, 0), 0xFFFFFFFF);
     }
 
@@ -163,7 +171,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
      * (whose right column is x = -1, touching the texture's white border at x = 0), then each 16x16 interior. The blue
      * rows left between two interiors are the single shared separator line the owner asked for.
      */
-    private void extractPanelBox(GuiGraphicsExtractor graphics, int x0, int top, int cells, int interior) {
+    private void drawPanelBox(GuiGraphics graphics, int x0, int top, int cells, int interior) {
         int bottom = top + FarmMatrixLayout.boxHeight(cells); // exclusive
         int right = x0; // exclusive: x = 0 belongs to the texture
         graphics.fill(x0 + FarmMatrixLayout.PANEL_BORDER_X, top, right, bottom, themeColor);
@@ -176,7 +184,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
     }
 
     /** The auto-output face box, owner layout (see {@link FarmMatrixLayout#FACE_GRID}). */
-    private void extractFaceBox(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
+    private void drawFaceBox(GuiGraphics graphics, int x0, int y0, int mouseX, int mouseY) {
         int boxX = x0 + FarmMatrixLayout.FACE_BOX_X;
         int boxY = y0 + FarmMatrixLayout.FACE_BOX_Y;
         int size = FarmMatrixLayout.FACE_BOX_SIZE;
@@ -200,7 +208,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
                 }
                 Component label = Component.translatable(side.translationKey() + ".short");
                 int textX = cx + (cell - font.width(label)) / 2;
-                graphics.text(font, label, textX, cy + 4, 0xFFFFFFFF, false);
+                graphics.drawString(font, label, textX, cy + 4, 0xFFFFFFFF, false);
             }
         }
     }
@@ -209,7 +217,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
      * The harvest filter box (owner mockup): mode strip, 3x3 ghost-slot block drawn like the upgrade block, page row.
      * The ghost items themselves are real menu slots, drawn by vanilla on top of this.
      */
-    private void extractFilterBox(GuiGraphicsExtractor graphics, int x0, int y0, int mouseX, int mouseY) {
+    private void drawFilterBox(GuiGraphics graphics, int x0, int y0, int mouseX, int mouseY) {
         int boxX = x0 + FarmMatrixLayout.FILTER_BOX_X;
         int boxY = y0 + FarmMatrixLayout.FILTER_BOX_Y;
         int width = FarmMatrixLayout.FILTER_BOX_WIDTH;
@@ -226,7 +234,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
         int stripY = y0 + FarmMatrixLayout.FILTER_STRIP_Y;
         graphics.fill(contentX, stripY, contentX + grid, stripY + FarmMatrixLayout.FILTER_STRIP_HEIGHT,
                 whitelist ? FarmMatrixLayout.COLOR_WHITE : FarmMatrixLayout.COLOR_BLACK);
-        extractFittedCentered(graphics, Component.translatable(whitelist ? "gui.virtualfarmworks.filter.whitelisted"
+        drawFittedCentered(graphics, Component.translatable(whitelist ? "gui.virtualfarmworks.filter.whitelisted"
                         : "gui.virtualfarmworks.filter.blacklisted"), contentX + 1, stripY, grid - 2,
                 FarmMatrixLayout.FILTER_STRIP_HEIGHT,
                 whitelist ? FarmMatrixLayout.COLOR_BLACK : FarmMatrixLayout.COLOR_WHITE);
@@ -244,37 +252,37 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
         int rowY = y0 + FarmMatrixLayout.FILTER_PAGE_ROW_Y;
         int arrow = FarmMatrixLayout.FILTER_ARROW_SIZE;
         int page = menu.filterPage();
-        extractArrow(graphics, "<", contentX, rowY, page > 0, mouseX, mouseY);
-        extractArrow(graphics, ">", contentX + grid - arrow, rowY, page < MachineFilter.MAX_PAGES - 1, mouseX, mouseY);
-        extractFittedCentered(graphics, Component.translatable("gui.virtualfarmworks.filter.page", page + 1,
+        drawArrow(graphics, "<", contentX, rowY, page > 0, mouseX, mouseY);
+        drawArrow(graphics, ">", contentX + grid - arrow, rowY, page < MachineFilter.MAX_PAGES - 1, mouseX, mouseY);
+        drawFittedCentered(graphics, Component.translatable("gui.virtualfarmworks.filter.page", page + 1,
                         menu.filterPageCount()), contentX + arrow + 1, rowY, grid - 2 * arrow - 2,
                 FarmMatrixLayout.FILTER_PAGE_ROW_HEIGHT, FarmMatrixLayout.COLOR_TEXT);
     }
 
     /** A page button of the filter box; dimmed when there is no page in that direction. */
-    private void extractArrow(GuiGraphicsExtractor graphics, String label, int x, int y, boolean enabled, int mouseX,
+    private void drawArrow(GuiGraphics graphics, String label, int x, int y, boolean enabled, int mouseX,
                               int mouseY) {
         int size = FarmMatrixLayout.FILTER_ARROW_SIZE;
         boolean hovered = enabled && isInside(mouseX, mouseY, x, y, size, size);
         graphics.fill(x, y, x + size, y + size, hovered ? FarmMatrixLayout.COLOR_BUTTON_ACTIVE : FarmMatrixLayout.COLOR_FRAME);
-        extractFittedCentered(graphics, Component.literal(label), x, y, size, size,
+        drawFittedCentered(graphics, Component.literal(label), x, y, size, size,
                 enabled ? 0xFFFFFFFF : 0x80FFFFFF);
     }
 
     /** Text centered in a box (absolute screen coordinates), shrunk if wider than the box. */
-    private void extractFittedCentered(GuiGraphicsExtractor graphics, Component text, int x, int y, int width, int height,
+    private void drawFittedCentered(GuiGraphics graphics, Component text, int x, int y, int width, int height,
                                        int color) {
         int textWidth = font.width(text);
         float scale = textWidth > width ? (float) width / textWidth : 1.0F;
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(x + (width - textWidth * scale) / 2.0F, y + (height - 8 * scale) / 2.0F);
-        graphics.pose().scale(scale, scale);
-        graphics.text(font, text, 0, 0, color, false);
-        graphics.pose().popMatrix();
+        graphics.pose().pushPose();
+        graphics.pose().translate(x + (width - textWidth * scale) / 2.0F, y + (height - 8 * scale) / 2.0F, 0.0F);
+        graphics.pose().scale(scale, scale, 1.0F);
+        graphics.drawString(font, text, 0, 0, color, false);
+        graphics.pose().popPose();
     }
 
     /** 40% placeholders in empty machine input slots. */
-    private void extractGhosts(GuiGraphicsExtractor graphics, int x0, int y0) {
+    private void drawGhosts(GuiGraphics graphics, int x0, int y0) {
         for (int i = 0; i < MachineSlots.INPUT_COUNT; i++) {
             Slot slot = menu.slots.get(FarmMatrixMenu.INPUT_START + i);
             if (slot.hasItem()) {
@@ -282,24 +290,34 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
             }
             int x = x0 + slot.x;
             int y = y0 + slot.y;
-            graphics.fakeItem(ghosts[i], x, y);
-            graphics.fill(x, y, x + 16, y + 16, FarmMatrixLayout.COLOR_GHOST_COVER);
+            graphics.renderFakeItem(ghosts[i], x, y);
+            coverItem(graphics, x, y, FarmMatrixLayout.COLOR_GHOST_COVER);
         }
     }
 
+    /**
+     * A translucent cover over a 16x16 cell holding an item drawn just before: a plain fill for the cell around the item
+     * (the item, drawn in front, keeps its pixels from it) and vanilla's ghost-recipe overlay, which draws only where an
+     * item is in front. One cover over the whole cell, as the 26.1 line draws it.
+     */
+    static void coverItem(GuiGraphics graphics, int x, int y, int color) {
+        graphics.fill(x, y, x + 16, y + 16, color);
+        graphics.fill(RenderType.guiGhostRecipeOverlay(), x, y, x + 16, y + 16, color);
+    }
+
     /** Text centered in a side-panel cell (16x16 interior at y {@code cellY}), shrunk if wider than the cell. */
-    private void extractCellLabel(GuiGraphicsExtractor graphics, Component text, int x0, int cellY, int color) {
+    private void drawCellLabel(GuiGraphics graphics, Component text, int x0, int cellY, int color) {
         int cell = FarmMatrixLayout.CELL;
         int width = font.width(text);
         float scale = width > cell ? (float) cell / width : 1.0F;
         float drawnWidth = width * scale;
         float drawnHeight = 8 * scale;
-        graphics.pose().pushMatrix();
+        graphics.pose().pushPose();
         graphics.pose().translate(x0 + FarmMatrixLayout.PANEL_INTERIOR_X + (cell - drawnWidth) / 2.0F,
-                cellY + (cell - drawnHeight) / 2.0F);
-        graphics.pose().scale(scale, scale);
-        graphics.text(font, text, 0, 0, color, false);
-        graphics.pose().popMatrix();
+                cellY + (cell - drawnHeight) / 2.0F, 0.0F);
+        graphics.pose().scale(scale, scale, 1.0F);
+        graphics.drawString(font, text, 0, 0, color, false);
+        graphics.pose().popPose();
     }
 
     // =================================================================================================================
@@ -307,38 +325,38 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
     // =================================================================================================================
 
     @Override
-    protected void extractLabels(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
+    protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         // Title: centered, theme color (owner spec). No "Inventory" label: the owner's layout only has these texts.
         Component title = getTitle();
-        graphics.text(font, title, (FarmMatrixLayout.GUI_WIDTH - font.width(title)) / 2, FarmMatrixLayout.TITLE_Y,
+        graphics.drawString(font, title, (FarmMatrixLayout.GUI_WIDTH - font.width(title)) / 2, FarmMatrixLayout.TITLE_Y,
                 themeColor, false);
 
         MachineStatus status = menu.status();
         int[] lineY = FarmMatrixLayout.INFO_LINE_Y;
-        extractFittedText(graphics, Component.translatable(status.translationKey()), lineY[0],
+        drawFittedText(graphics, Component.translatable(status.translationKey()), lineY[0],
                 0xFF000000 | status.tone().rgb());
-        extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.hydration",
+        drawFittedText(graphics, Component.translatable("gui.virtualfarmworks.hydration",
                 DisplayFormats.multiplier(menu.hydrationMultiplier())), lineY[1], FarmMatrixLayout.COLOR_TEXT);
-        extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.seeds", menu.plots(),
+        drawFittedText(graphics, Component.translatable("gui.virtualfarmworks.seeds", menu.plots(),
                 MachineSlots.SEED_SOIL_LIMIT), lineY[2], FarmMatrixLayout.COLOR_TEXT);
-        extractFittedText(graphics, Component.translatable("gui.virtualfarmworks.growth",
+        drawFittedText(graphics, Component.translatable("gui.virtualfarmworks.growth",
                 DisplayFormats.growthPercent(shownProgress, menu.plots()),
                 DisplayFormats.multiplier(menu.growthMultiplier())), lineY[3], FarmMatrixLayout.COLOR_TEXT);
     }
 
     /** Info line at {@link FarmMatrixLayout#INFO_X}, shrunk to the panel width if needed (long translations). */
-    private void extractFittedText(GuiGraphicsExtractor graphics, Component text, int y, int color) {
+    private void drawFittedText(GuiGraphics graphics, Component text, int y, int color) {
         int width = font.width(text);
         if (width <= FarmMatrixLayout.INFO_WIDTH) {
-            graphics.text(font, text, FarmMatrixLayout.INFO_X, y, color, false);
+            graphics.drawString(font, text, FarmMatrixLayout.INFO_X, y, color, false);
             return;
         }
         float scale = (float) FarmMatrixLayout.INFO_WIDTH / width;
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(FarmMatrixLayout.INFO_X, y + (1.0F - scale) * 4.0F);
-        graphics.pose().scale(scale, scale);
-        graphics.text(font, text, 0, 0, color, false);
-        graphics.pose().popMatrix();
+        graphics.pose().pushPose();
+        graphics.pose().translate(FarmMatrixLayout.INFO_X, y + (1.0F - scale) * 4.0F, 0.0F);
+        graphics.pose().scale(scale, scale, 1.0F);
+        graphics.drawString(font, text, 0, 0, color, false);
+        graphics.pose().popPose();
     }
 
     // =================================================================================================================
@@ -370,14 +388,14 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
     // =================================================================================================================
 
     @Override
-    protected void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
-        super.extractTooltip(graphics, mouseX, mouseY);
+    protected void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        super.renderTooltip(graphics, mouseX, mouseY);
         if (hoveredSlot != null && hoveredSlot.hasItem()) {
             return; // the item's own tooltip is shown
         }
         List<Component> lines = tooltipAt(mouseX, mouseY);
         if (!lines.isEmpty()) {
-            graphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
+            graphics.renderComponentTooltip(font, lines, mouseX, mouseY);
         }
     }
 
@@ -446,10 +464,8 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
     // =================================================================================================================
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.button() == 0) {
-            double mouseX = event.x();
-            double mouseY = event.y();
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
             if (isOverBox(FarmMatrixLayout.OUTPUT_BOX_TOP, 1, mouseX, mouseY)) {
                 faceBoxOpen = !faceBoxOpen;
                 playClick();
@@ -495,7 +511,7 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
                 }
             }
         }
-        return super.mouseClicked(event, doubleClick);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     /**
@@ -503,12 +519,12 @@ public class FarmMatrixScreen extends AbstractContainerScreen<FarmMatrixMenu>
      * "outside the GUI" and throw the carried item on the ground.
      */
     @Override
-    protected boolean hasClickedOutside(double mouseX, double mouseY, int left, int top) {
+    protected boolean hasClickedOutside(double mouseX, double mouseY, int left, int top, int button) {
         if (isInSidePanel(mouseX, mouseY) || (faceBoxOpen && isInFaceBox(mouseX, mouseY))
                 || (filterBoxOpen && isInFilterBox(mouseX, mouseY))) {
             return false;
         }
-        return super.hasClickedOutside(mouseX, mouseY, left, top);
+        return super.hasClickedOutside(mouseX, mouseY, left, top, button);
     }
 
     /** Opens/closes the filter box; its ghost slots become active (drawn, clickable) only while it is open. */

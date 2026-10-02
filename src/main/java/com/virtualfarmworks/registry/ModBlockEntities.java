@@ -26,8 +26,8 @@ public final class ModBlockEntities {
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<FarmMatrixBlockEntity>> FARM_MATRIX =
             BLOCK_ENTITY_TYPES.register("farm_matrix",
-                    () -> new BlockEntityType<>(FarmMatrixBlockEntity::new, ModBlocks.STARTER_FARM_MATRIX.get(),
-                            ModBlocks.ENTROPIC_FARM_MATRIX.get()));
+                    () -> BlockEntityType.Builder.of(FarmMatrixBlockEntity::new, ModBlocks.STARTER_FARM_MATRIX.get(),
+                            ModBlocks.ENTROPIC_FARM_MATRIX.get()).build(null));
 
     private ModBlockEntities() {
     }

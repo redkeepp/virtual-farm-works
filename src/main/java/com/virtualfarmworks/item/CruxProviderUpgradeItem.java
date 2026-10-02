@@ -4,14 +4,13 @@
  */
 package com.virtualfarmworks.item;
 
-import java.util.function.Consumer;
+import java.util.List;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.component.TooltipDisplay;
 
 /**
  * The single, untiered Crux Provider Upgrade.
@@ -26,9 +25,9 @@ public class CruxProviderUpgradeItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display,
-                                Consumer<Component> builder, TooltipFlag flag) {
-        builder.accept(Component.translatable("tooltip.virtualfarmworks.crux_provider_upgrade")
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip,
+                                TooltipFlag flag) {
+        tooltip.add(Component.translatable("tooltip.virtualfarmworks.crux_provider_upgrade")
                 .withStyle(ChatFormatting.GRAY));
     }
 }

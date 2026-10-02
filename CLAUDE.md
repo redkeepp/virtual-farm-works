@@ -167,6 +167,13 @@ Filled in as the port goes (`docs/port-1.21.1.md`); the sections below still des
   `#jungle_logs`, end stone, soul sand, any `FarmBlock`); NeoForge's `TriState`; farmland class `FarmBlock`; VFW tag
   defaults use 1.21.1 tags (`#minecraft:dirt`, `#minecraft:mushroom_grow_block`). `VirtualLevel` must override
   `getMinBuildHeight` (the default asks the dimension).
+- GUI: `GuiGraphics` (`renderBg`, `renderLabels`, `renderTooltip` called from `render`), depth instead of 26.1's
+  layering by overlap: cover an item with `FarmMatrixScreen#coverItem` (fill + ghost-recipe overlay), not a plain
+  fill. `mouseClicked(double, double, int)` (no double-click flag), `hasClickedOutside(..., button)`.
+- Blocks/items: `useItemOn` -> `ItemInteractionResult`; contents drop in `FarmMatrixBlock#onRemove`; modded component
+  tooltips come from `FarmMatrixBlock#appendHoverText`; item models in `models/item` (the `items/` folder is ignored).
+- OPEN (owner): the owner's block models use 26.1's multi-axis element rotations, which 1.21.1 refuses: missing model
+  on 1.21.1 until the owner exports compatible ones (see `docs/port-1.21.1.md`).
 
 ## Core design (owner's spec, source of truth)
 

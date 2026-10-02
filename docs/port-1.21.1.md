@@ -86,7 +86,19 @@ list: after each step, no error is left in the files and areas it covers.
    on 1.21.1's level interfaces; the three block tags' defaults (`universal_soils`, `supports_mushrooms`,
    `supports_glow_berries`). The reflected fields and methods (stem fruit, tree growers, fungi) have the same names in
    1.21.1. The plants newer than 1.21.1 in `PlantablesGameTests` are step 8.
-6. GUI (with area 6, blocks and items, where it touches screens).
+6. GUI (with area 6, blocks and items, where it touches screens). **DONE** (2026-10-02): both screens on 1.21.1's
+   `GuiGraphics` (`renderBg` / `renderLabels` / `renderTooltip` called from `render`, `blit(texture, ...)`,
+   `drawString`, `PoseStack`, ghost items covered with a fill plus vanilla's ghost-recipe overlay, `mouseClicked(x, y,
+   button)` with the recipe list's double click measured by the screen, `hasClickedOutside` with the button, the GUI
+   scale fit on a double scale and `resize(Minecraft, w, h)`); blocks and items (`useItemOn` returns an
+   `ItemInteractionResult`, contents dropped in `Block#onRemove`, the "Autocrafter recipes" line from
+   `FarmMatrixBlock#appendHoverText`, `applyImplicitComponents(DataComponentInput)`, `BlockEntityType.Builder`, item
+   models for the machines in `models/item`).
+   **Open (owner):** the owner's Blockbench block models (`models/block/*_farm_matrix.json`) use 26.1's element
+   rotation format (`"rotation": {"origin", "x", "y", "z"}`, 90 and 180 degrees, two axes at once). 1.21.1 only reads
+   `{"origin", "axis", "angle"}` with one axis and an angle of 0, +-22.5 or +-45 (it throws "Missing axis"), so on
+   1.21.1 the machines show the missing model until the owner exports 1.21.1-compatible models (rule 7: art is not
+   changed by Claude without the owner).
 7. Integrations.
 8. Game tests, JUnit and the load benchmark; then the owner's in-game test in ATM10.
 

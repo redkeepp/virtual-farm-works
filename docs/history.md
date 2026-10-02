@@ -298,6 +298,35 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   `SaplingBlock#treeGrower`, `FungusBlock#feature` / `requiredBlock`, `TreeGrower#getConfiguredFeature` /
   `getConfiguredMegaFeature`).
 
+### Step 6 — GUI, blocks and items
+- 26.1 draws through an "extract" API that layers elements by overlap in drawing order; 1.21.1 draws at once through
+  `GuiGraphics`, with depth. `AbstractContainerScreen#render` draws the background (`renderBg`), then the active slots,
+  then `renderLabels` translated to the GUI origin; screens call `renderTooltip` themselves at the end of `render`. The
+  code keeps 26.1's structure: `extractBackground` -> `renderBg`, `extractLabels` -> `renderLabels`,
+  `extractTooltip` -> `renderTooltip`; the private helpers are `draw*`.
+- Items are drawn in front of the flat GUI (z 150), so a fill drawn after an item does not cover it. The 40% ghost
+  items (and the greyed-out replant icon) get their cover twice: a plain fill for the cell around the item, and the
+  same color through `RenderType.guiGhostRecipeOverlay()`, which only draws where something is in front (vanilla's
+  recipe-book ghost technique). Together they equal 26.1's single cover over the whole cell.
+- The Entropic's crafter panel still works as a modal: vanilla does not draw inactive slots, so the grid items under
+  the panel are not drawn and the panel's own slots, drawn after the background, are on top.
+- Input: `mouseClicked(double, double, int)`; 1.21.1 passes no double-click flag, so the Entropic screen measures it
+  (two left clicks within vanilla's 250 ms) and still requires both clicks on the same recipe.
+  `hasClickedOutside` takes the button too.
+- GUI scale fit (owner, 2026-09-30): same flow as 26.1 (`Minecraft#setScreen` calls the old screen's `removed()`, then
+  the new one's `added()`, then sizes it), with 1.21.1's `double` scale and `resize(Minecraft, int, int)`.
+- Blocks and items: `useItemOn` returns an `ItemInteractionResult` (`PASS_TO_DEFAULT_BLOCK_INTERACTION` opens the GUI as
+  26.1's `TRY_WITH_EMPTY_HAND` did); the contents drop in `FarmMatrixBlock#onRemove` (26.1:
+  `BlockEntity#preRemoveSideEffects`), before the block entity goes, only when the block itself changes; the loot table
+  still reads the captured block entity, so the recipes stay on the item. 1.21.1 shows no tooltip for modded item
+  components and has no `RegisterTooltipAppendersEvent`: a block item asks its block, so `FarmMatrixBlock#appendHoverText`
+  adds "Autocrafter recipes: N" (no client event needed). `applyImplicitComponents(DataComponentInput)`,
+  `BlockEntityType.Builder.of(...).build(null)`, `registerBlock(name, factory, Properties)`.
+- Item models: 1.21.1 reads `models/item/<id>.json` only (26.1's `items/` definitions are ignored), so the two machines
+  got `models/item/*_farm_matrix.json` with the block model as parent.
+- Found while checking assets: the owner's block models use 26.1's multi-axis element rotations (90 / 180 degrees),
+  which 1.21.1's model reader refuses ("Missing axis"). Left for the owner (rule 7), see the plan.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

@@ -17,7 +17,8 @@ drop entries (see NeoForge data map docs).
 | `blockstates/starter_farm_matrix.json`, `blockstates/entropic_farm_matrix.json` | Claude | Maps the block's `facing` property (north/east/south/west) to the owner's block model, rotated 0/90/180/270 degrees around Y. The model's front is its north side (confirmed in game by the owner). Add one per new tier. |
 | `items/entropic_farm_matrix.json` | Claude | Item definition of the Entropic machine (the owner's drop had none): points at the owner's block model. |
 | `models/block/*_farm_matrix.json` | owner | Blockbench models of the five Farm Matrix tiers. Reference the Portuguese-named textures in `textures/block/`. |
-| `items/*_farm_matrix.json`, `items/{starter,voltaic,ionic,resonant}_water_provider_upgrade.json` | owner | 26.1 item definitions (item -> model). Farm Matrix items reuse the block model. |
+| `items/*_farm_matrix.json`, `items/{starter,voltaic,ionic,resonant}_water_provider_upgrade.json` | owner | 26.1 item definitions (item -> model). Farm Matrix items reuse the block model. 1.21.1 does not read the `items/` folder (kept as the owner shipped it); it reads `models/item/` only. |
+| `models/item/{starter,entropic}_farm_matrix.json` | Claude | 1.21.1 line only: the machine items' models, parent = the owner's block model (what `items/*_farm_matrix.json` say on main). |
 | `items/entropic_water_provider_upgrade.json`, `items/*_growth_upgrade.json`, `items/crux_provider_upgrade.json` | Claude | Same, for items the owner's drop did not define. Point at `models/item/<same name>`. |
 | `models/item/*_water_provider_upgrade.json` | owner | Flat item models (`minecraft:item/generated`) for the Water Provider textures. |
 | `models/item/*_growth_upgrade.json`, `models/item/crux_provider_upgrade.json` | Claude | Flat item models pointing at the owner's textures `textures/item/<same name>.png`. |
