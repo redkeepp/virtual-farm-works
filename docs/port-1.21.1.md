@@ -107,25 +107,30 @@ list: after each step, no error is left in the files and areas it covers.
    Supremium farmland in MA 8 (its `soil_properties` entry is left out on this line). Area 11: the server config is
    still `config/virtualfarmworks-server.toml`; a world may override it in `<world>/serverconfig/`. `src/main`
    compiles with no error or warning.
-8. Game tests, JUnit and the load benchmark; then the owner's in-game test in ATM10. **IN PROGRESS** (2026-10-02):
-   JUnit passes unchanged (86 tests, Java 21). `src/gametest` does not compile yet (236 errors in 9 files). Findings
-   for the rest of the step, all read in the 1.21.1 sources:
+8. Game tests, JUnit and the load benchmark; then the owner's in-game test in ATM10. **DONE** (2026-10-02) up to the
+   owner's in-game test: JUnit passes unchanged (86 tests, Java 21); the 45 game tests (every VFW test of main) pass
+   with Mystical Agriculture 8.0.28 loaded; the load benchmark runs (3 runs, every game closed; numbers and the
+   comparison with main in `docs/history.md`). How the tests were ported, all read in the 1.21.1 sources:
    - Registration: no test-function registry. `RegisterGameTestsEvent#register(VfwGameTests.class)` and a static
      `@GameTestGenerator` method returning `TestFunction(batch, name, structure, maxTicks, 0, true, function)` (with
      `neoforge.enabledGameTestNamespaces` set, generated tests are kept by their structure's namespace).
-   - Structure: none is built in. Ship an empty 8x4x8 template (DataVersion 3955) as
-     `src/gametest/resources/data/virtualfarmworks/structure/empty.nbt`, use `virtualfarmworks:empty`, and document it
-     in `docs/resources.md`.
+   - Structure: none is built in. VFW ships an empty 8x4x8 template (DataVersion 3955) as
+     `src/gametest/resources/data/virtualfarmworks/structure/empty.nbt` (`virtualfarmworks:empty`, documented in
+     `docs/resources.md`).
    - Positions: relative (0, 0, 0) is the test's STRUCTURE BLOCK (the test area starts at y 1), so every `MACHINE`
-     becomes (0, 1, 0); the Entropic test's extra machines (2, 1, 0) and (4, 1, 0); the MA test's farmland too.
+     is (0, 1, 0); the Entropic test's extra machines (2, 1, 0) and (4, 1, 0); the MA test's farmland too.
    - `GameTestHelper`: `assertTrue(boolean, String)`, `getBlockEntity(pos)` (generic, no class), `fail(String)`.
-   - Transfer calls become `IItemHandler` / `IEnergyStorage` calls (simulate where only the answer matters);
+   - Transfer calls became `IItemHandler` / `IEnergyStorage` calls (simulated where only the answer matters);
      `ItemStacksResourceHandler` -> `ItemSlots` (`OutputBuffer` for the plain 9-slot buffer); `useItemOn` returns an
      `ItemInteractionResult` (`PASS_TO_DEFAULT_BLOCK_INTERACTION` = falls through to the GUI); recipes as in step 4.
-   - Remove the plants newer than 1.21.1 (cactus flower, pale hanging moss, pale oak, golden dandelion, open
+   - The plants newer than 1.21.1 left the tests (cactus flower, pale hanging moss, pale oak, golden dandelion, open
      eyeblossom, leaf litter, dry short grass, firefly bush, pale moss block and carpet).
    - MA 8 in the MA tests: `CropTier#getFarmland()` (not `getFarmlandBlock()`); no Awakened Supremium farmland and no
-     always-effective tag, so that check goes.
-   - Already added to `src/main` for the tests: `ItemResource#is(Item)`, `MachineEnergy#set(int)`.
+     always-effective tag, so that check went.
+   - Added to `src/main` for the tests: `ItemResource#is(Item)`, `MachineEnergy#set(int)`.
+
+   **Left for the owner** (nothing on the client was run by Claude): the in-game test — both screens, JEI's "+" and
+   drag and drop, Jade, tooltips, the GUI scale fit, a dedicated server, ATM10's pipes and FE sources — in a copy of
+   the ATM10 instance or a new world with a backup; and the block models of step 6 (missing model until then).
 
 Commit on this branch after every finished step; the owner pushes the branch.

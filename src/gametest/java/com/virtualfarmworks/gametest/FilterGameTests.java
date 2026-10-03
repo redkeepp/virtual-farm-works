@@ -20,11 +20,11 @@ import com.virtualfarmworks.menu.FarmMatrixMenu;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.DropTally;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ClickType;
@@ -33,10 +33,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 final class FilterGameTests {
-    private static final BlockPos MACHINE = BlockPos.ZERO;
+    /** Where the machine stands: y 1, the test area's first layer (relative y 0 is the test's structure block). */
+    private static final BlockPos MACHINE = new BlockPos(0, 1, 0);
 
     private FilterGameTests() {
     }
@@ -74,7 +74,7 @@ final class FilterGameTests {
      */
     static void menuEditsTheFilter(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.STARTER_FARM_MATRIX.get().defaultBlockState());
-        FarmMatrixBlockEntity machine = helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+        FarmMatrixBlockEntity machine = helper.<FarmMatrixBlockEntity>getBlockEntity(MACHINE);
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         FarmMatrixMenu menu = new FarmMatrixMenu(1, player.getInventory(), machine);
         int first = FarmMatrixMenu.FILTER_START;
@@ -151,7 +151,7 @@ final class FilterGameTests {
      */
     static void filterPurgesTheOutput(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.STARTER_FARM_MATRIX.get().defaultBlockState());
-        FarmMatrixBlockEntity machine = helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+        FarmMatrixBlockEntity machine = helper.<FarmMatrixBlockEntity>getBlockEntity(MACHINE);
         for (RelativeSide side : RelativeSide.all()) {
             if (machine.isOutputEnabled(side)) {
                 machine.toggleOutput(side);
@@ -218,6 +218,6 @@ final class FilterGameTests {
     }
 
     private static void check(GameTestHelper helper, boolean condition, String message) {
-        helper.assertTrue(condition, Component.literal(message));
+        helper.assertTrue(condition, message);
     }
 }

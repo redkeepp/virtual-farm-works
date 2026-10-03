@@ -1,7 +1,7 @@
 /*
  * MysticalFarmlandTests — game test for VFW's mysticalagriculture.requiresEffectiveFarmland switch, against Mystical
- * Agriculture's real crop tiers, farmlands and block tags. References MA classes, so it is only called when MA is
- * installed.
+ * Agriculture's real crop tiers and farmlands (MA 8 on the 1.21.1 line: no always-effective farmland tag yet).
+ * References MA classes, so it is only called when MA is installed.
  */
 package com.virtualfarmworks.gametest;
 
@@ -15,7 +15,6 @@ import com.virtualfarmworks.plant.PlantAnalysis.Status;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -35,10 +34,9 @@ final class MysticalFarmlandTests {
         // A tier-2 (Prudentium) crop: lower AND higher tier farmlands exist to test that only its own one counts.
         Crop crop = firstTierTwoResourceCrop(helper);
         Item seed = crop.getSeedsItem();
-        Item ownFarmland = crop.getTier().getFarmlandBlock().asItem();                    // Prudentium Farmland
-        Item lowerFarmland = CropTier.ONE.getFarmlandBlock().asItem();                     // Inferium Farmland
-        Item higherFarmland = CropTier.FIVE.getFarmlandBlock().asItem();                   // Supremium Farmland
-        Item awakenedFarmland = item("mysticalagriculture:awakened_supremium_farmland");   // always-effective tag
+        Item ownFarmland = crop.getTier().getFarmland().asItem();      // Prudentium Farmland
+        Item lowerFarmland = CropTier.ONE.getFarmland().asItem();       // Inferium Farmland
+        Item higherFarmland = CropTier.FIVE.getFarmland().asItem();     // Supremium Farmland
         Item inferiumSeeds = item("mysticalagriculture:inferium_seeds");
 
         var option = VfwServerConfig.MYSTICAL_REQUIRES_EFFECTIVE_FARMLAND;
@@ -56,7 +54,6 @@ final class MysticalFarmlandTests {
             expect(helper, seed, higherFarmland, Status.INVALID_SOIL);
             expect(helper, seed, Items.FARMLAND, Status.INVALID_SOIL);
             expect(helper, seed, Items.DIRT, Status.INVALID_SOIL);   // tilled dirt is vanilla farmland
-            expect(helper, seed, awakenedFarmland, Status.VALID);   // #mysticalagriculture:always_effective_farmland
             expect(helper, inferiumSeeds, ownFarmland, Status.VALID);     // Inferium is exempt (MA rule)
             expect(helper, inferiumSeeds, Items.FARMLAND, Status.VALID);
             expect(helper, Items.WHEAT_SEEDS, Items.FARMLAND, Status.VALID); // non-MA seeds are not affected
@@ -69,10 +66,10 @@ final class MysticalFarmlandTests {
 
     private static void expect(GameTestHelper helper, Item seed, Item soil, Status status) {
         PlantAnalysis analysis = PlantAnalysis.analyze(new ItemStack(seed), new ItemStack(soil), MachineTier.STARTER);
-        helper.assertTrue(analysis.status() == status, Component.literal(BuiltInRegistries.ITEM.getKey(seed) + " on "
+        helper.assertTrue(analysis.status() == status, BuiltInRegistries.ITEM.getKey(seed) + " on "
                 + BuiltInRegistries.ITEM.getKey(soil) + " (requiresEffectiveFarmland="
                 + VfwServerConfig.MYSTICAL_REQUIRES_EFFECTIVE_FARMLAND.get() + "): expected " + status + ", got "
-                + analysis.status()));
+                + analysis.status());
     }
 
     /** An enabled tier-2 resource crop whose seed is a placeable seed item. */

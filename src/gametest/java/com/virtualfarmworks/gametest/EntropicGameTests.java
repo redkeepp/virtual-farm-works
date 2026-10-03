@@ -15,11 +15,11 @@ import com.virtualfarmworks.menu.AbstractFarmMatrixMenu;
 import com.virtualfarmworks.menu.EntropicFarmMatrixMenu;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.sim.MachineStatus;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -28,13 +28,12 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.energy.EnergyHandler;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.transaction.Transaction;
+import net.neoforged.neoforge.energy.IEnergyStorage;
+import net.neoforged.neoforge.items.IItemHandler;
 
 final class EntropicGameTests {
-    private static final BlockPos MACHINE = BlockPos.ZERO;
+    /** Where the machine stands: y 1, the test area's first layer (relative y 0 is the test's structure block). */
+    private static final BlockPos MACHINE = new BlockPos(0, 1, 0);
     private static final MachineLayout LAYOUT = MachineLayout.ENTROPIC;
 
     private EntropicGameTests() {
@@ -107,7 +106,7 @@ final class EntropicGameTests {
         var level = helper.getLevel();
         FarmMatrixBlockEntity machine = placeMachine(helper);
         helper.setBlock(MACHINE.above(), Blocks.CHEST);
-        ChestBlockEntity chest = helper.getBlockEntity(MACHINE.above(), ChestBlockEntity.class);
+        ChestBlockEntity chest = helper.<ChestBlockEntity>getBlockEntity(MACHINE.above());
         chest.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 30));
         chest.setItem(1, new ItemStack(Items.FARMLAND, 30));
         chest.setItem(2, new ItemStack(Items.DIAMOND, 5));
@@ -148,13 +147,10 @@ final class EntropicGameTests {
         check(helper, machine.status() == MachineStatus.MISSING_FE && machine.progress() == 0.0,
                 "without energy the bar must not move: " + machine.status() + " " + machine.progress());
 
-        EnergyHandler cable = helper.getLevel().getCapability(Capabilities.Energy.BLOCK, helper.absolutePos(MACHINE),
-                Direction.UP);
+        IEnergyStorage cable = helper.getLevel().getCapability(Capabilities.EnergyStorage.BLOCK,
+                helper.absolutePos(MACHINE), Direction.UP);
         check(helper, cable != null, "energy capability on every face");
-        try (Transaction transaction = Transaction.openRoot()) {
-            cable.insert(100_000, transaction);
-            transaction.commit();
-        }
+        cable.receiveEnergy(100_000, false);
         machine.serverTick(helper.getLevel());
         check(helper, machine.status() == MachineStatus.RUNNING, "with energy it runs: " + machine.status());
         check(helper, energy.getAmountAsLong() == 100_000 - 20 * 90, "one tick costs 20 x 90 FE, left "
@@ -210,14 +206,12 @@ final class EntropicGameTests {
         machine.cycleFaceMode(RelativeSide.TOP, true); // OUTPUT ALL -> INPUT
         check(helper, machine.faceMode(RelativeSide.TOP) == FaceMode.INPUT, "next mode is INPUT");
 
-        ResourceHandler<ItemResource> input = itemHandler(helper, Direction.UP);
+        IItemHandler input = itemHandler(helper, Direction.UP);
         check(helper, input != null, "INPUT face has a capability");
-        try (Transaction transaction = Transaction.openRoot()) {
-            check(helper, input.insert(ItemResource.of(Items.WHEAT_SEEDS), 70, transaction) == 70, "70 seeds go in");
-            check(helper, input.insert(ItemResource.of(Items.FARMLAND), 70, transaction) == 70, "70 soils go in");
-            check(helper, input.insert(ItemResource.of(Items.DIAMOND), 1, transaction) == 0, "a diamond is refused");
-            transaction.commit();
-        }
+        // Pipes name a slot; the grids route every stack whatever the slot (1.21.1 has no index-less insertion).
+        check(helper, input.insertItem(0, new ItemStack(Items.WHEAT_SEEDS, 70), false).isEmpty(), "70 seeds go in");
+        check(helper, input.insertItem(5, new ItemStack(Items.FARMLAND, 70), false).isEmpty(), "70 soils go in");
+        check(helper, input.insertItem(0, new ItemStack(Items.DIAMOND), false).getCount() == 1, "a diamond is refused");
         MachineInventory inputs = machine.inputs();
         check(helper, inputs.getAmountAsInt(LAYOUT.seedSlot(0)) == 64 && inputs.getAmountAsInt(LAYOUT.seedSlot(1)) == 6,
                 "seeds fill slot 0 then slot 1");
@@ -231,11 +225,10 @@ final class EntropicGameTests {
 
         // OUTPUT (NONE -> OUTPUT): extract-only.
         machine.cycleFaceMode(RelativeSide.TOP, true);
-        ResourceHandler<ItemResource> out = itemHandler(helper, Direction.UP);
+        IItemHandler out = itemHandler(helper, Direction.UP);
         check(helper, out != null, "OUTPUT face has a capability");
-        try (Transaction transaction = Transaction.openRoot()) {
-            check(helper, out.insert(ItemResource.of(Items.WHEAT_SEEDS), 1, transaction) == 0, "outputs refuse input");
-        }
+        check(helper, out.insertItem(0, new ItemStack(Items.WHEAT_SEEDS), false).getCount() == 1,
+                "outputs refuse input");
         helper.succeed();
     }
 
@@ -354,7 +347,7 @@ final class EntropicGameTests {
                         + machine.pendingPlots() + " pending");
 
         // The machine's switch off: the seeds go to the output.
-        FarmMatrixBlockEntity other = placeMachineAt(helper, new BlockPos(2, 0, 0));
+        FarmMatrixBlockEntity other = placeMachineAt(helper, new BlockPos(2, 1, 0));
         MachineInventory otherInputs = other.inputs();
         put(otherInputs, LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
         put(otherInputs, LAYOUT.soilSlot(0), Items.FARMLAND, 64);
@@ -370,7 +363,7 @@ final class EntropicGameTests {
 
         // Replanting off in the config: DISABLED, and the switch cannot turn it on (config restored in the same tick:
         // tests of a batch run together).
-        FarmMatrixBlockEntity third = placeMachineAt(helper, new BlockPos(4, 0, 0));
+        FarmMatrixBlockEntity third = placeMachineAt(helper, new BlockPos(4, 1, 0));
         put(third.inputs(), LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 10);
         put(third.inputs(), LAYOUT.soilSlot(0), Items.FARMLAND, 64);
         noFaces(third);
@@ -396,7 +389,7 @@ final class EntropicGameTests {
 
     private static FarmMatrixBlockEntity placeMachineAt(GameTestHelper helper, BlockPos pos) {
         helper.setBlock(pos, ModBlocks.ENTROPIC_FARM_MATRIX.get().defaultBlockState());
-        return helper.getBlockEntity(pos, FarmMatrixBlockEntity.class);
+        return helper.<FarmMatrixBlockEntity>getBlockEntity(pos);
     }
 
     /** Ticks the machine directly until its due harvest is complete (at most 40 ticks, all in this game tick). */
@@ -417,7 +410,7 @@ final class EntropicGameTests {
 
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.ENTROPIC_FARM_MATRIX.get().defaultBlockState());
-        return helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+        return helper.<FarmMatrixBlockEntity>getBlockEntity(MACHINE);
     }
 
     private static void put(MachineInventory inputs, int slot, Item item, int count) {
@@ -431,8 +424,8 @@ final class EntropicGameTests {
         }
     }
 
-    private static ResourceHandler<ItemResource> itemHandler(GameTestHelper helper, Direction side) {
-        return helper.getLevel().getCapability(Capabilities.Item.BLOCK, helper.absolutePos(MACHINE), side);
+    private static IItemHandler itemHandler(GameTestHelper helper, Direction side) {
+        return helper.getLevel().getCapability(Capabilities.ItemHandler.BLOCK, helper.absolutePos(MACHINE), side);
     }
 
     /** Amount of an item in the visible and hidden output slots. */
@@ -452,6 +445,6 @@ final class EntropicGameTests {
     }
 
     private static void check(GameTestHelper helper, boolean condition, String message) {
-        helper.assertTrue(condition, Component.literal(message));
+        helper.assertTrue(condition, message);
     }
 }

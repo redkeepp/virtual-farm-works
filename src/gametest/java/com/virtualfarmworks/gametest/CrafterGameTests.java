@@ -25,6 +25,7 @@ import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModDataComponents;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.DropTally;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -52,11 +53,11 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.item.ItemResource;
+import net.neoforged.neoforge.items.IItemHandler;
 
 final class CrafterGameTests {
-    private static final BlockPos MACHINE = BlockPos.ZERO;
+    /** Where the machine stands: y 1, the test area's first layer (relative y 0 is the test's structure block). */
+    private static final BlockPos MACHINE = new BlockPos(0, 1, 0);
     private static final MachineLayout LAYOUT = MachineLayout.ENTROPIC;
     private static final Item NONE = Items.AIR;
 
@@ -150,11 +151,11 @@ final class CrafterGameTests {
         // Faces: OUTPUT shows what the plants produce, OUTPUT CRAFTED what the crafter made.
         machine.cycleFaceMode(RelativeSide.TOP, true); // NONE -> OUTPUT
         check(helper, machine.faceMode(RelativeSide.TOP) == FaceMode.OUTPUT, "NONE -> OUTPUT");
-        ResourceHandler<ItemResource> produced = itemHandler(helper, Direction.UP);
+        IItemHandler produced = itemHandler(helper, Direction.UP);
         check(helper, shows(produced, Items.WHEAT_SEEDS) && !shows(produced, Items.HAY_BLOCK),
                 "OUTPUT: produced items only");
         machine.cycleFaceMode(RelativeSide.TOP, true); // OUTPUT -> OUTPUT CRAFTED
-        ResourceHandler<ItemResource> crafted = itemHandler(helper, Direction.UP);
+        IItemHandler crafted = itemHandler(helper, Direction.UP);
         check(helper, shows(crafted, Items.HAY_BLOCK) && !shows(crafted, Items.WHEAT_SEEDS),
                 "OUTPUT CRAFTED: crafted items only");
 
@@ -309,8 +310,8 @@ final class CrafterGameTests {
         MachineCrafter crafter = machine.crafter();
         MachineInventory inputs = machine.inputs();
         int slot = LAYOUT.catalystSlot();
-        check(helper, inputs.isValid(slot, ItemResource.of(master)) && !inputs.isValid(slot, ItemResource.of(crystal))
-                && !inputs.isValid(slot, ItemResource.of(Items.IRON_HOE)), "the catalyst slot takes the Master "
+        check(helper, inputs.isItemValid(slot, new ItemStack(master)) && !inputs.isItemValid(slot, new ItemStack(crystal))
+                && !inputs.isItemValid(slot, new ItemStack(Items.IRON_HOE)), "the catalyst slot takes the Master "
                 + "Infusion Crystal only");
 
         setRecipes(helper, machine, grid(NONE, inferium, NONE, inferium, master, inferium, NONE, inferium, NONE));
@@ -373,7 +374,7 @@ final class CrafterGameTests {
 
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.ENTROPIC_FARM_MATRIX.get().defaultBlockState());
-        return helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+        return helper.<FarmMatrixBlockEntity>getBlockEntity(MACHINE);
     }
 
     /** Places the machine from an item as a player does ({@link BlockItem#place}, which hands the item's data over). */
@@ -385,7 +386,7 @@ final class CrafterGameTests {
         InteractionResult result = ((BlockItem) stack.getItem())
                 .place(new BlockPlaceContext(player, InteractionHand.MAIN_HAND, player.getMainHandItem(), hit));
         check(helper, result.consumesAction(), "the machine item must place: " + result);
-        return helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+        return helper.<FarmMatrixBlockEntity>getBlockEntity(MACHINE);
     }
 
     /** Breaks the machine as a player does, block drops included (GameTestHelper#destroyBlock drops nothing). */
@@ -477,17 +478,17 @@ final class CrafterGameTests {
         }
     }
 
-    private static ResourceHandler<ItemResource> itemHandler(GameTestHelper helper, Direction side) {
-        return helper.getLevel().getCapability(Capabilities.Item.BLOCK, helper.absolutePos(MACHINE), side);
+    private static IItemHandler itemHandler(GameTestHelper helper, Direction side) {
+        return helper.getLevel().getCapability(Capabilities.ItemHandler.BLOCK, helper.absolutePos(MACHINE), side);
     }
 
     /** Whether a face's handler shows (and would give) an item. */
-    private static boolean shows(ResourceHandler<ItemResource> handler, Item item) {
+    private static boolean shows(IItemHandler handler, Item item) {
         if (handler == null) {
             return false;
         }
-        for (int i = 0; i < handler.size(); i++) {
-            if (handler.getResource(i).is(item) && handler.getAmountAsLong(i) > 0) {
+        for (int i = 0; i < handler.getSlots(); i++) {
+            if (handler.getStackInSlot(i).is(item)) {
                 return true;
             }
         }
@@ -511,6 +512,6 @@ final class CrafterGameTests {
     }
 
     private static void check(GameTestHelper helper, boolean condition, String message) {
-        helper.assertTrue(condition, Component.literal(message));
+        helper.assertTrue(condition, message);
     }
 }

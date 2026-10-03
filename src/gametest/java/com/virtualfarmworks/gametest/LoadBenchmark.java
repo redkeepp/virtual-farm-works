@@ -26,11 +26,12 @@ import com.virtualfarmworks.machine.RelativeSide;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.MachineStatus;
+import com.virtualfarmworks.transfer.ItemResource;
+import com.virtualfarmworks.transfer.ItemSlots;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
@@ -40,9 +41,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.fml.loading.FMLPaths;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
-import net.neoforged.neoforge.transfer.transaction.Transaction;
+import net.neoforged.neoforge.items.IItemHandler;
 
 /**
  * How it measures: most scenarios create hundreds of machines as detached block entities (real
@@ -305,16 +304,12 @@ final class LoadBenchmark {
 
     /** A slow pipe: takes one item from the first filled visible slot, through the capability. */
     private static void pipePullOne(FarmMatrixBlockEntity machine) {
-        var external = machine.externalOutput();
-        try (Transaction transaction = Transaction.openRoot()) {
-            for (int i = 0; i < external.size(); i++) {
-                ItemResource resource = external.getResource(i);
-                if (!resource.isEmpty()) {
-                    external.extract(i, resource, 1, transaction);
-                    break;
-                }
+        IItemHandler external = machine.externalOutput();
+        for (int i = 0; i < external.getSlots(); i++) {
+            if (!external.getStackInSlot(i).isEmpty()) {
+                external.extractItem(i, 1, false);
+                break;
             }
-            transaction.commit();
         }
     }
 
@@ -340,8 +335,8 @@ final class LoadBenchmark {
         BlockPos chestPos = machinePos.east(); // the machine's left side (front faces north): export enabled
         helper.setBlock(machinePos, ModBlocks.STARTER_FARM_MATRIX.get().defaultBlockState());
         helper.setBlock(chestPos, Blocks.CHEST);
-        FarmMatrixBlockEntity machine = helper.getBlockEntity(machinePos, FarmMatrixBlockEntity.class);
-        ChestBlockEntity chest = helper.getBlockEntity(chestPos, ChestBlockEntity.class);
+        FarmMatrixBlockEntity machine = helper.<FarmMatrixBlockEntity>getBlockEntity(machinePos);
+        ChestBlockEntity chest = helper.<ChestBlockEntity>getBlockEntity(chestPos);
 
         long total = 0;
         int windows = 0;
@@ -590,7 +585,7 @@ final class LoadBenchmark {
         return System.nanoTime() - start;
     }
 
-    private static void fill(ItemStacksResourceHandler handler) {
+    private static void fill(ItemSlots handler) {
         for (int i = 0; i < handler.size(); i++) {
             handler.set(i, ItemResource.of(Items.DIRT), 64);
         }
@@ -601,7 +596,7 @@ final class LoadBenchmark {
         clear(machine.internalOutput());
     }
 
-    private static void clear(ItemStacksResourceHandler handler) {
+    private static void clear(ItemSlots handler) {
         for (int i = 0; i < handler.size(); i++) {
             if (handler.getAmountAsLong(i) > 0) {
                 handler.set(i, ItemResource.EMPTY, 0);
@@ -614,7 +609,7 @@ final class LoadBenchmark {
     }
 
     private static void expect(GameTestHelper helper, boolean condition, String message) {
-        helper.assertTrue(condition, Component.literal("benchmark setup: " + message));
+        helper.assertTrue(condition, "benchmark setup: " + message);
     }
 
     private static String row(String scenario, String result) {

@@ -19,10 +19,10 @@ import com.virtualfarmworks.harvest.Harvester;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.DropTally.Category;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -35,7 +35,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.transfer.item.ItemResource;
 
 /**
  * Statistical comparison, per case, over {@link #SAMPLES} harvested plots: average essence, extra seeds and Fertilized
@@ -64,7 +63,7 @@ final class MysticalHarvestTests {
         // A regular tier-1 resource crop: on its own farmland (20% chances), on another essence farmland (10%) and on
         // vanilla farmland (0%).
         Item resourceSeeds = firstTierOneResourceSeed(helper);
-        compare(helper, resourceSeeds, CropTier.ONE.getFarmlandBlock());
+        compare(helper, resourceSeeds, CropTier.ONE.getFarmland());
         compare(helper, resourceSeeds, block("mysticalagriculture:supremium_farmland"));
         compare(helper, resourceSeeds, block("minecraft:farmland"));
         helper.succeed();
@@ -72,7 +71,7 @@ final class MysticalHarvestTests {
 
     private static void compare(GameTestHelper helper, Item seedItem, Block farmland) {
         ServerLevel level = helper.getLevel();
-        BlockPos farmlandPos = helper.absolutePos(BlockPos.ZERO);
+        BlockPos farmlandPos = helper.absolutePos(new BlockPos(0, 1, 0)); // y 0 is the test's structure block
         level.setBlock(farmlandPos, farmland.defaultBlockState(), Block.UPDATE_CLIENTS);
 
         Crop crop = cropOf(seedItem);
@@ -103,7 +102,7 @@ final class MysticalHarvestTests {
 
         // --- VFW's reproduction, fed with the same farmland as a soil ITEM.
         DropSource source = HarvestPlans.create(new ItemStack(seedItem), new ItemStack(farmland.asItem()));
-        helper.assertTrue(source != null, Component.literal("no drop source for " + seedItem));
+        helper.assertTrue(source != null, "no drop source for " + seedItem);
         DropTally<ItemResource> tally = new DropTally<>();
         source.roll(SAMPLES, new DropSource.Context(level, farmlandPos, level.getRandom(), 64, true), tally);
         double vfwEssence = tally.raw(ItemResource.of(essence), Category.MAIN);
@@ -119,7 +118,7 @@ final class MysticalHarvestTests {
         DropTally<ItemResource> switchedOff = new DropTally<>();
         source.roll(SAMPLES, new DropSource.Context(level, farmlandPos, level.getRandom(), 64, false), switchedOff);
         helper.assertTrue(switchedOff.raw(ItemResource.of(fertilized), Category.SECONDARY) == 0.0,
-                Component.literal(label + ": Fertilized Essence switch OFF must produce none"));
+                label + ": Fertilized Essence switch OFF must produce none");
         assertClose(helper, label + " essence/plot with the switch OFF", maEssence,
                 switchedOff.raw(ItemResource.of(essence), Category.MAIN));
     }
@@ -134,8 +133,8 @@ final class MysticalHarvestTests {
         Item fertilized = BuiltInRegistries.ITEM.get(FERTILIZED_ESSENCE);
         // The crop's own farmland: 20% extra-seed chance, so the unfiltered roll surely has every kind of drop.
         DropSource source = HarvestPlans.create(new ItemStack(seedItem),
-                new ItemStack(CropTier.ONE.getFarmlandBlock().asItem()));
-        helper.assertTrue(source != null, Component.literal("no drop source for " + seedItem));
+                new ItemStack(CropTier.ONE.getFarmland().asItem()));
+        helper.assertTrue(source != null, "no drop source for " + seedItem);
         ServerLevel level = helper.getLevel();
         BlockPos pos = helper.absolutePos(BlockPos.ZERO);
 
@@ -143,21 +142,20 @@ final class MysticalHarvestTests {
                 new DropSource.Context(level, pos, level.getRandom(), 64, true));
         helper.assertTrue(everything.stream().anyMatch(drop -> drop.key().is(seedItem))
                         && everything.stream().anyMatch(drop -> drop.key().is(fertilized)),
-                Component.literal("without a filter the crop must drop extra seeds and Fertilized Essence: " + everything));
+                "without a filter the crop must drop extra seeds and Fertilized Essence: " + everything);
 
         List<DropTally.Entry<ItemResource>> essenceOnly = Harvester.roll(source, 2_000, MachineTier.STARTER,
                 new DropSource.Context(level, pos, level.getRandom(), 64, true,
                         new HarvestFilter(true, Set.of(essence))));
         helper.assertTrue(!essenceOnly.isEmpty() && essenceOnly.stream().allMatch(drop -> drop.key().is(essence)),
-                Component.literal("a whitelist of the essence must produce essence only: " + essenceOnly));
+                "a whitelist of the essence must produce essence only: " + essenceOnly);
         helper.succeed();
     }
 
     private static void assertClose(GameTestHelper helper, String what, double maTotal, double vfwTotal) {
         double ma = maTotal / SAMPLES;
         double vfw = vfwTotal / SAMPLES;
-        helper.assertTrue(Math.abs(ma - vfw) <= TOLERANCE,
-                Component.literal(what + ": Mystical Agriculture " + ma + " vs VFW " + vfw));
+        helper.assertTrue(Math.abs(ma - vfw) <= TOLERANCE, what + ": Mystical Agriculture " + ma + " vs VFW " + vfw);
     }
 
     /** A crux-free, enabled tier-1 resource crop that is not Inferium (its drop rules differ). */

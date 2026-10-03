@@ -5,6 +5,7 @@
  */
 package com.virtualfarmworks.gametest;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -14,32 +15,26 @@ import com.virtualfarmworks.data.ModDataMaps;
 import com.virtualfarmworks.harvest.DropSource;
 import com.virtualfarmworks.harvest.HarvestPlans;
 import com.virtualfarmworks.harvest.Harvester;
+import com.virtualfarmworks.machine.OutputBuffer;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.plant.PlantAnalysis;
 import com.virtualfarmworks.plant.PlantAnalysis.Status;
 import com.virtualfarmworks.plant.PlantRules;
 import com.virtualfarmworks.plant.SoilRules;
+import com.virtualfarmworks.transfer.ItemResource;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.gametest.framework.FunctionGameTestInstance;
+import net.minecraft.gametest.framework.GameTestGenerator;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.gametest.framework.TestData;
-import net.minecraft.gametest.framework.TestEnvironmentDefinition;
-import net.minecraft.network.chat.Component;
+import net.minecraft.gametest.framework.TestFunction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
 /**
  * Automated in-game tests, run headless with {@code gradlew runGameTestServer} (boots a real server with every mod in
@@ -50,16 +45,26 @@ import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
  * up in players' {@code /test} lists. Each test is a plain function: it runs checks against real registries/tags/config and calls
  * {@code helper.succeed()}; a failed {@link #check} fails the test with a readable message.
  *
+ * <h2>Registration (1.21.1)</h2>
+ * 1.21.1 has no test-function registry: NeoForge's {@link RegisterGameTestsEvent} registers this class, and the game
+ * test registry calls {@link #testFunctions()} ({@link GameTestGenerator}), which turns the list below into
+ * {@link TestFunction}s. Every test runs in VFW's own empty template ({@link #STRUCTURE}, 8 x 4 x 8: 1.21.1 ships no
+ * empty one), which keeps the generated tests in the {@code virtualfarmworks} namespace the runs enable
+ * ({@code neoforge.enabledGameTestNamespaces}). Positions in a 1.21.1 test are relative to its STRUCTURE BLOCK, one
+ * block below the template, so the tests place their blocks from y 1 up.
+ *
  * <p>Add a test: write a {@code static void name(GameTestHelper)} and add one {@link #test} line to {@link #TESTS}
  * with the maximum number of ticks it may take (logic-only tests finish on their first tick; machine tests that wait
  * for real growth need more).
  */
 public final class VfwGameTests {
-    private static final DeferredRegister<Consumer<GameTestHelper>> FUNCTIONS =
-            DeferredRegister.create(Registries.TEST_FUNCTION, VirtualFarmWorks.MODID);
+    /** The empty template every test runs in: src/gametest/resources/data/virtualfarmworks/structure/empty.nbt. */
+    private static final String STRUCTURE = VirtualFarmWorks.MODID + ":empty";
+    /** One batch: the tests run together (config changes are restored within the tick that makes them). */
+    private static final String BATCH = VirtualFarmWorks.MODID;
 
-    /** A registered test function and how many ticks it may run before it counts as failed. */
-    private record Spec(DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> function, int maxTicks) {
+    /** A test function, its name and how many ticks it may run before it counts as failed. */
+    private record Spec(String name, Consumer<GameTestHelper> function, int maxTicks) {
     }
 
     private static final List<Spec> TESTS = List.of(
@@ -129,24 +134,26 @@ public final class VfwGameTests {
     }
 
     private static Spec test(String name, Consumer<GameTestHelper> function, int maxTicks) {
-        return new Spec(FUNCTIONS.register(name, () -> function), maxTicks);
+        return new Spec(name, function, maxTicks);
     }
 
     public static void register(IEventBus modEventBus) {
         if (FMLEnvironment.production) {
             return;
         }
-        FUNCTIONS.register(modEventBus);
-        modEventBus.addListener(RegisterGameTestsEvent.class, event -> {
-            Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(id("default"));
-            List<Spec> specs = Boolean.getBoolean(LoadBenchmark.PROPERTY) ? List.of(BENCHMARK) : TESTS;
-            for (Spec spec : specs) {
-                // Vanilla's empty structure; "required" so a failure fails the whole run (non-zero exit code).
-                event.registerTest(spec.function().getId(), new FunctionGameTestInstance(spec.function().getKey(),
-                        new TestData<>(environment, ResourceLocation.withDefaultNamespace("empty"), spec.maxTicks(), 0,
-                                true)));
-            }
-        });
+        modEventBus.addListener(RegisterGameTestsEvent.class, event -> event.register(VfwGameTests.class));
+    }
+
+    /**
+     * Called by the game test registry (see the class doc). The benchmark run gets the benchmark alone. Every test is
+     * "required", so a failure fails the whole run (non-zero exit code).
+     */
+    @GameTestGenerator
+    public static Collection<TestFunction> testFunctions() {
+        List<Spec> specs = Boolean.getBoolean(LoadBenchmark.PROPERTY) ? List.of(BENCHMARK) : TESTS;
+        return specs.stream()
+                .map(spec -> new TestFunction(BATCH, spec.name(), STRUCTURE, spec.maxTicks(), 0L, true, spec.function()))
+                .toList();
     }
 
     // --- tests ------------------------------------------------------------------------------------------------------
@@ -300,11 +307,12 @@ public final class VfwGameTests {
     }
 
     /**
-     * The output buffer receives a harvest completely or not at all (anti-dupe / anti-void). Uses a plain 9-slot
-     * handler like the machine's buffer.
+     * The output buffer receives a harvest completely or not at all (anti-dupe / anti-void). Uses a 9-slot buffer of
+     * the machine's own type, not placed in a machine.
      */
     private static void harvestIsAllOrNothing(GameTestHelper helper) {
-        ItemStacksResourceHandler buffer = new ItemStacksResourceHandler(9);
+        OutputBuffer buffer = new OutputBuffer(9, () -> {
+        });
         ItemResource dirt = ItemResource.of(Items.DIRT);
         ItemResource wheat = ItemResource.of(Items.WHEAT);
         for (int slot = 0; slot < 8; slot++) {
@@ -389,7 +397,7 @@ public final class VfwGameTests {
     }
 
     private static void check(GameTestHelper helper, boolean condition, String message) {
-        helper.assertTrue(condition, Component.literal(message));
+        helper.assertTrue(condition, message);
     }
 
     private static ItemStack stack(net.minecraft.world.item.Item item) {
@@ -400,7 +408,4 @@ public final class VfwGameTests {
         return new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(id)));
     }
 
-    private static ResourceLocation id(String path) {
-        return ResourceLocation.fromNamespaceAndPath(VirtualFarmWorks.MODID, path);
-    }
 }

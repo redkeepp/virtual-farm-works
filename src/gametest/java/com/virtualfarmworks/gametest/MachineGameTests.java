@@ -26,19 +26,18 @@ import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.MachineStatus;
+import com.virtualfarmworks.transfer.ItemResource;
+import com.virtualfarmworks.transfer.ItemSlots;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
+import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.phys.BlockHitResult;
@@ -57,17 +56,15 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
-import net.neoforged.neoforge.transfer.transaction.Transaction;
+import net.neoforged.neoforge.items.IItemHandler;
 
 /**
  * Every test places a real Starter Farm Matrix (front facing north) at the test origin and drives it through its
  * block entity. Slots are filled with {@code set} (as the menu will do); gameplay then runs through the real ticker.
  */
 final class MachineGameTests {
-    private static final BlockPos MACHINE = BlockPos.ZERO;
+    /** Where the machine stands: y 1, the test area's first layer (relative y 0 is the test's structure block). */
+    private static final BlockPos MACHINE = new BlockPos(0, 1, 0);
 
     private MachineGameTests() {
     }
@@ -291,20 +288,17 @@ final class MachineGameTests {
         }
 
         // A pipe takes two stacks of dirt; on the next tick two stacks of wheat move up.
-        var external = machine.externalOutput();
-        try (Transaction tx = Transaction.openRoot()) {
-            external.extract(0, ItemResource.of(Items.DIRT), 64, tx);
-            external.extract(1, ItemResource.of(Items.DIRT), 64, tx);
-            tx.commit();
-        }
+        IItemHandler external = machine.externalOutput();
+        external.extractItem(0, 64, false);
+        external.extractItem(1, 64, false);
         machine.serverTick(helper.getLevel());
 
         check(helper, count(machine, Items.WHEAT) == 128, "two stacks must move up, have " + count(machine, Items.WHEAT));
         check(helper, countIn(machine.internalOutput(), Items.WHEAT) == 192, "three stacks must stay hidden");
-        check(helper, external.size() == MachineSlots.OUTPUT_COUNT, "the capability must only show the 9 visible slots");
-        try (Transaction tx = Transaction.openRoot()) {
-            check(helper, external.insert(ItemResource.of(Items.WHEAT), 1, tx) == 0, "nothing may be inserted");
-        }
+        check(helper, external.getSlots() == MachineSlots.OUTPUT_COUNT,
+                "the capability must only show the 9 visible slots");
+        check(helper, external.insertItem(8, new ItemStack(Items.WHEAT), false).getCount() == 1,
+                "nothing may be inserted");
         helper.succeed();
     }
 
@@ -347,7 +341,7 @@ final class MachineGameTests {
         FarmMatrixBlockEntity machine = placeMachine(helper);
         BlockPos chestPos = MACHINE.east(); // left side, seen from the front of a north-facing machine
         helper.setBlock(chestPos, Blocks.CHEST);
-        ChestBlockEntity chest = helper.getBlockEntity(chestPos, ChestBlockEntity.class);
+        ChestBlockEntity chest = helper.<ChestBlockEntity>getBlockEntity(chestPos);
 
         machine.toggleOutput(RelativeSide.LEFT); // disabled first
         machine.output().set(0, ItemResource.of(Items.WHEAT), 5);
@@ -391,28 +385,28 @@ final class MachineGameTests {
         Item starterWater = ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.STARTER).get();
         Item entropicGrowth = ModItems.GROWTH_SPEED_UPGRADES.get(MachineTier.ENTROPIC).get();
 
-        try (Transaction tx = Transaction.openRoot()) { // never committed: only the answers matter
-            check(helper, insert(inputs, MachineSlots.SEED, Items.STONE, 1, tx) == 0, "stone is not a seed");
-            check(helper, insert(inputs, MachineSlots.SEED, Items.WHEAT_SEEDS, 64, tx) == 64, "64 seeds fit");
-            check(helper, insert(inputs, MachineSlots.SOIL, Items.WHEAT_SEEDS, 1, tx) == 0, "seeds are not a soil");
-            check(helper, insert(inputs, MachineSlots.SOIL, Items.DIRT, 64, tx) == 64, "64 dirt fit");
-            check(helper, insert(inputs, MachineSlots.WATER_PROVIDER, starterWater, 2, tx) == 1, "one water provider");
-            check(helper, insert(inputs, MachineSlots.HOE, Items.STICK, 1, tx) == 0, "a stick is not a hoe");
-            check(helper, insert(inputs, MachineSlots.HOE, Items.WOODEN_HOE, 1, tx) == 1, "any hoe fits");
-            check(helper, insert(inputs, MachineSlots.GROWTH_FIRST, starterWater, 1, tx) == 0,
-                    "a water provider is not a growth upgrade");
-            check(helper, insert(inputs, MachineSlots.GROWTH_FIRST, entropicGrowth, 3, tx) == 1,
-                    "one growth upgrade per slot (default config); Entropic fits the Starter");
-            check(helper, insert(inputs, MachineSlots.CRUX_PROVIDER, entropicGrowth, 1, tx) == 0,
-                    "only the crux provider fits the crux slot");
-            check(helper, insert(inputs, MachineSlots.CRUX_PROVIDER, ModItems.CRUX_PROVIDER_UPGRADE.get(), 1, tx) == 1,
-                    "the crux provider fits");
+        // Simulated insertions: only the answers matter, nothing changes.
+        check(helper, insert(inputs, MachineSlots.SEED, Items.STONE, 1) == 0, "stone is not a seed");
+        check(helper, insert(inputs, MachineSlots.SEED, Items.WHEAT_SEEDS, 64) == 64, "64 seeds fit");
+        check(helper, insert(inputs, MachineSlots.SOIL, Items.WHEAT_SEEDS, 1) == 0, "seeds are not a soil");
+        check(helper, insert(inputs, MachineSlots.SOIL, Items.DIRT, 64) == 64, "64 dirt fit");
+        check(helper, insert(inputs, MachineSlots.WATER_PROVIDER, starterWater, 2) == 1, "one water provider");
+        check(helper, insert(inputs, MachineSlots.HOE, Items.STICK, 1) == 0, "a stick is not a hoe");
+        check(helper, insert(inputs, MachineSlots.HOE, Items.WOODEN_HOE, 1) == 1, "any hoe fits");
+        check(helper, insert(inputs, MachineSlots.GROWTH_FIRST, starterWater, 1) == 0,
+                "a water provider is not a growth upgrade");
+        check(helper, insert(inputs, MachineSlots.GROWTH_FIRST, entropicGrowth, 3) == 1,
+                "one growth upgrade per slot (default config); Entropic fits the Starter");
+        check(helper, insert(inputs, MachineSlots.CRUX_PROVIDER, entropicGrowth, 1) == 0,
+                "only the crux provider fits the crux slot");
+        check(helper, insert(inputs, MachineSlots.CRUX_PROVIDER, ModItems.CRUX_PROVIDER_UPGRADE.get(), 1) == 1,
+                "the crux provider fits");
 
-            machine.output().set(0, ItemResource.of(Items.WHEAT), 5);
-            var external = machine.externalOutput();
-            check(helper, external.insert(ItemResource.of(Items.WHEAT), 1, tx) == 0, "the buffer refuses insertion");
-            check(helper, external.extract(ItemResource.of(Items.WHEAT), 5, tx) == 5, "the buffer allows extraction");
-        }
+        machine.output().set(0, ItemResource.of(Items.WHEAT), 5);
+        IItemHandler external = machine.externalOutput();
+        check(helper, external.insertItem(0, new ItemStack(Items.WHEAT), true).getCount() == 1,
+                "the buffer refuses insertion");
+        check(helper, external.extractItem(0, 5, true).getCount() == 5, "the buffer allows extraction");
         helper.succeed();
     }
 
@@ -484,13 +478,15 @@ final class MachineGameTests {
         BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(pos), Direction.NORTH, pos, false);
 
         ItemStack growth = new ItemStack(ModItems.GROWTH_SPEED_UPGRADES.get(MachineTier.STARTER).get(), 6);
-        InteractionResult first = state.useItemOn(growth, helper.getLevel(), player, InteractionHand.MAIN_HAND, hit);
+        ItemInteractionResult first = state.useItemOn(growth, helper.getLevel(), player, InteractionHand.MAIN_HAND,
+                hit);
         check(helper, first.consumesAction(), "a growth upgrade in hand must be pulled in");
         check(helper, growth.getCount() == 2, "4 slots x 1 upgrade: 4 pulled, 2 left in hand, got " + growth.getCount());
         check(helper, machine.inputs().getAmountAsInt(MachineSlots.GROWTH_FIRST + 3) == 1, "last growth slot filled");
 
-        InteractionResult full = state.useItemOn(growth, helper.getLevel(), player, InteractionHand.MAIN_HAND, hit);
-        check(helper, full instanceof InteractionResult.TryEmptyHandInteraction && growth.getCount() == 2,
+        ItemInteractionResult full = state.useItemOn(growth, helper.getLevel(), player, InteractionHand.MAIN_HAND,
+                hit);
+        check(helper, full == ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION && growth.getCount() == 2,
                 "when nothing fits, the click must fall through to the GUI and keep the items");
 
         ItemStack water = new ItemStack(ModItems.WATER_PROVIDER_UPGRADES.get(MachineTier.ENTROPIC).get(), 3);
@@ -504,8 +500,9 @@ final class MachineGameTests {
                 "the crux provider must be pulled in");
 
         ItemStack seeds = new ItemStack(Items.WHEAT_SEEDS, 10);
-        InteractionResult other = state.useItemOn(seeds, helper.getLevel(), player, InteractionHand.MAIN_HAND, hit);
-        check(helper, other instanceof InteractionResult.TryEmptyHandInteraction && seeds.getCount() == 10
+        ItemInteractionResult other = state.useItemOn(seeds, helper.getLevel(), player, InteractionHand.MAIN_HAND,
+                hit);
+        check(helper, other == ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION && seeds.getCount() == 10
                         && machine.inputs().getAmountAsInt(MachineSlots.SEED) == 0,
                 "non-upgrade items must not be pulled in (the GUI opens instead)");
         helper.succeed();
@@ -573,7 +570,7 @@ final class MachineGameTests {
 
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.STARTER_FARM_MATRIX.get().defaultBlockState());
-        return helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+        return helper.<FarmMatrixBlockEntity>getBlockEntity(MACHINE);
     }
 
     /** Crafts {@code cells} (grid cells 1-9) in a crafting table: recipe {@code virtualfarmworks:<name>}, one {@code result}. */
@@ -584,11 +581,11 @@ final class MachineGameTests {
             stacks.add(new ItemStack(item));
         }
         CraftingInput input = CraftingInput.of(3, 3, stacks);
-        Optional<RecipeHolder<CraftingRecipe>> recipe = level.recipeAccess().getRecipeFor(RecipeType.CRAFTING, input, level);
-        ResourceKey<Recipe<?>> key = ResourceKey.create(Registries.RECIPE,
-                ResourceLocation.fromNamespaceAndPath("virtualfarmworks", name));
-        check(helper, recipe.isPresent() && recipe.get().id().equals(key), "the grid does not make recipe " + name);
-        ItemStack crafted = recipe.get().value().assemble(input);
+        Optional<RecipeHolder<CraftingRecipe>> recipe =
+                level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, input, level);
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath("virtualfarmworks", name);
+        check(helper, recipe.isPresent() && recipe.get().id().equals(id), "the grid does not make recipe " + name);
+        ItemStack crafted = recipe.get().value().assemble(input, level.registryAccess());
         check(helper, crafted.is(result) && crafted.getCount() == 1, name + " crafts " + crafted);
     }
 
@@ -605,8 +602,9 @@ final class MachineGameTests {
         inputs.set(slot, ItemResource.of(item), count);
     }
 
-    private static int insert(MachineInventory inputs, int slot, Item item, int count, Transaction tx) {
-        return inputs.insert(slot, ItemResource.of(item), count, tx);
+    /** How many of {@code count} a slot would take (a simulated insertion: nothing changes). */
+    private static int insert(MachineInventory inputs, int slot, Item item, int count) {
+        return count - inputs.insertItem(slot, new ItemStack(item, count), true).getCount();
     }
 
     private static void expectStatus(GameTestHelper helper, FarmMatrixBlockEntity machine, MachineStatus expected) {
@@ -627,7 +625,7 @@ final class MachineGameTests {
         return (int) countIn(machine.output(), item);
     }
 
-    private static long countIn(ItemStacksResourceHandler handler, Item item) {
+    private static long countIn(ItemSlots handler, Item item) {
         long total = 0;
         for (int i = 0; i < handler.size(); i++) {
             if (handler.getResource(i).is(item)) {
@@ -652,7 +650,7 @@ final class MachineGameTests {
         return total;
     }
 
-    private static int emptySlots(ItemStacksResourceHandler handler) {
+    private static int emptySlots(ItemSlots handler) {
         int empty = 0;
         for (int i = 0; i < handler.size(); i++) {
             if (handler.getAmountAsLong(i) == 0) {
@@ -662,37 +660,31 @@ final class MachineGameTests {
         return empty;
     }
 
-    private static void fill(ItemStacksResourceHandler handler, Item item) {
+    private static void fill(ItemSlots handler, Item item) {
         for (int i = 0; i < handler.size(); i++) {
             handler.set(i, ItemResource.of(item), 64);
         }
     }
 
-    private static void clear(ItemStacksResourceHandler handler) {
+    private static void clear(ItemSlots handler) {
         for (int i = 0; i < handler.size(); i++) {
             handler.set(i, ItemResource.EMPTY, 0);
         }
     }
 
     /**
-     * Empties the visible output through the capability, like a pipe, in one committed transaction.
+     * Empties the visible output through the capability, like a pipe, slot by slot.
      *
      * @return how many of {@code counted} were taken out
      */
     private static long drainVisible(FarmMatrixBlockEntity machine, Item counted) {
-        ResourceHandler<ItemResource> external = machine.externalOutput();
+        IItemHandler external = machine.externalOutput();
         long taken = 0;
-        try (Transaction tx = Transaction.openRoot()) {
-            for (int i = 0; i < external.size(); i++) {
-                ItemResource resource = external.getResource(i);
-                if (!resource.isEmpty()) {
-                    int amount = external.extract(i, resource, external.getAmountAsInt(i), tx);
-                    if (resource.is(counted)) {
-                        taken += amount;
-                    }
-                }
+        for (int i = 0; i < external.getSlots(); i++) {
+            ItemStack stack = external.extractItem(i, Integer.MAX_VALUE, false);
+            if (stack.is(counted)) {
+                taken += stack.getCount();
             }
-            tx.commit();
         }
         return taken;
     }
@@ -718,6 +710,6 @@ final class MachineGameTests {
     }
 
     private static void check(GameTestHelper helper, boolean condition, String message) {
-        helper.assertTrue(condition, Component.literal(message));
+        helper.assertTrue(condition, message);
     }
 }

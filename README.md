@@ -6,7 +6,8 @@
 and soils in, take the harvest out. Every machine runs one shared growth cycle instead of thousands of individual
 crops, so even huge farms cost almost nothing in server tick time.
 
-Made by **Redkeep** for Minecraft **26.1.2** and NeoForge.
+Made by **Redkeep** for NeoForge. This branch is the **Minecraft 1.21.1** version (NeoForge 21.1, e.g. All the
+Mods 10); the `main` branch is Minecraft 26.1.2. Both get the same features and the same mod version numbers.
 
 ## Machines
 
@@ -79,37 +80,40 @@ Grid cells 1-9, left to right, top to bottom (JEI shows them all).
 
 ## Mod support (all optional)
 
-- **Mystical Agriculture** (9.0.9+): essence yields from Mystical Agriculture's own formula, cruxes, its farmland
+- **Mystical Agriculture** (8.0.28+): essence yields from Mystical Agriculture's own formula, cruxes, its farmland
   bonuses, a Fertilized Essence switch on every machine, and the Master Infusion Crystal as the autocrafter catalyst.
-- **JEI** (29.34.0.90+): the "+" button fills the Entropic's autocrafter; items drag and drop onto the harvest filter
+- **JEI** (19.57.0.446+): the "+" button fills the Entropic's autocrafter; items drag and drop onto the harvest filter
   and the crafting grid.
-- **Jade** (26.1.10+): status, water, plots, growth and FE when you look at a machine.
+- **Jade** (15.10.6+): status, water, plots, growth and FE when you look at a machine.
 
 ## Performance
 
-The whole point of the mod. Measured with the built-in load benchmark on a desktop PC (numbers vary with hardware):
+The whole point of the mod. Measured on this 1.21.1 version with the built-in load benchmark on a desktop PC
+(average of 3 runs; numbers vary with hardware):
 
 | Situation | Cost per machine per server tick |
 |---|---|
-| Starter growing | 0.011 µs |
-| Starter, 64 wheat plots at 3x, harvests included | 0.30 µs (1,000 such machines: 0.6% of a tick) |
-| Entropic growing, 3,840 plots | 0.031 µs |
-| Entropic, 3,840 wheat plots at 3x, harvests included | 4.8 µs |
+| Starter growing | 0.025 µs |
+| Starter, 64 wheat plots at 3x, harvests included | 0.24 µs (1,000 such machines: 0.5% of a tick) |
+| Entropic growing, 3,840 plots | 0.027 µs |
+| Entropic, 3,840 wheat plots at 3x, harvests included | 2.4 µs |
 
 A growing machine costs the same with 1 plot or 3,840: plots are counters, not objects. Machines never tick plants
 one by one, never load chunks and do nothing while their chunk is unloaded.
 
 ## For server owners and pack makers
 
-- Server config `virtualfarmworks-server.toml`: growth time, speed and yield multipliers, FE per plot, plot limits,
-  hidden output size, autocrafter limits, replanting, hoe wear, auto-export interval, and seed/soil blacklists (global
-  and per machine). Changes apply without a restart.
+- Server config `config/virtualfarmworks-server.toml`: growth time, speed and yield multipliers, FE per plot, plot
+  limits, hidden output size, autocrafter limits, replanting, hoe wear, auto-export interval, and seed/soil blacklists
+  (global and per machine). Changes apply without a restart. On 1.21.1 a world can also have its own copy in
+  `<world>/serverconfig/`, which then overrides the one in `config/` for that world.
 - Datapacks: tags for universal soils and autocrafter catalysts, and data maps for soil speed bonuses and fixed yields
   (`data/virtualfarmworks/`).
 
 ## Requirements and download
 
-- Minecraft 26.1.2 and NeoForge 26.1.2.109 or newer, on the client and on the server.
+- Minecraft 1.21.1 and NeoForge 21.1.251 or newer, on the client and on the server (this branch; the 26.1.2 version
+  is built from `main`).
 - Download: [GitHub Releases](https://github.com/redkeepp/virtual-farm-works/releases). CurseForge and Modrinth pages
   are coming.
 
@@ -120,7 +124,7 @@ and your `logs/latest.log` (or the crash report). The issue form asks for everyt
 
 ## Building from source
 
-Requires JDK 25.
+Requires JDK 21 (this branch; `main` needs JDK 25).
 
 ```
 ./gradlew build

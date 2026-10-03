@@ -347,6 +347,27 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   `<world>/serverconfig/` (`ServerLifecycleHooks`), so the file is where main has it. The pack-maker comments now name
   MA 8.0.x and drop the always-effective tag lines.
 
+### Step 8 — tests and benchmark
+- JUnit (the Minecraft-free core, `GuiScaleFit`, `SmoothProgress`, `ConfigFileLayout`) passed unchanged on Java 21:
+  86 tests.
+- Game tests: 1.21.1 has no test-function registry. NeoForge's `RegisterGameTestsEvent` registers `VfwGameTests`,
+  whose static `@GameTestGenerator` method turns main's list into `TestFunction`s, so the list and the test bodies
+  keep main's shape. Every 1.21.1 test needs a structure template and the game ships no empty one: VFW's
+  `virtualfarmworks:empty` (8 x 4 x 8 of air, written by a script with 1.21.1's DataVersion, 3955) lives in the
+  gametest source set, so it never reaches the release jar; its namespace also keeps the generated tests inside the
+  runs' `neoforge.enabledGameTestNamespaces` filter.
+- Positions: in 1.21.1, relative (0, 0, 0) is the test's structure block, one block BELOW the template, so the tests
+  place machines, chests and farmland from y 1.
+- The bodies follow the other steps: `IItemHandler` / `IEnergyStorage` calls (simulated where a test only needs the
+  answer, as main's never-committed transactions did), `ItemInteractionResult`, recipe ids as `ResourceLocation`s,
+  `assertTrue(boolean, String)`. The plants newer than 1.21.1 left `PlantablesGameTests`; the MA tests use MA 8's
+  `CropTier#getFarmland()` and lost the always-effective check (MA 8 has no such tag). Two small accessors were added
+  to `src/main` for the tests (`ItemResource#is(Item)`, `MachineEnergy#set(int)`).
+- Result: the 45 game tests (every VFW test of main; main's 46th is a vanilla one) pass with Mystical Agriculture
+  8.0.28 loaded, with no VFW warning and no data map error in the log. Load benchmark: 2026-10-02 in the log below.
+- Not run by Claude: anything on the client (screens, JEI, Jade, tooltips, the GUI scale fit, models) and a dedicated
+  server. That is the owner's in-game test, with the block models (step 6) still open.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game
@@ -396,3 +417,21 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   input change every tick 11.3 us. No regression: every row is within the ~10-20% run-to-run noise of the
   2026-09-29 reference (Starter revalidation read 3.3 us against 2.8, and 3.9 in another session of 2026-09-29;
   it runs only on changes).
+- 2026-10-02, the 1.21.1 line after the port (owner's PC, every game closed, Java 21, average of 3 runs by Claude):
+  Starter growing 0.025 us (64 plots; the runs read 0.012 / 0.041 / 0.022), OUTPUT FULL 0.030 us, harvest tick
+  76 us (64 wheat; median 71) / 3.3 us (1 wheat) / 3.8 us (64 MA) / 9.1 us (64 poppies) / 284 us (32 oak saplings;
+  median 277) / 83 us (8 crimson fungi), busy wheat farm 0.24 us (~4,200 busy machines per ms), busy oak farm
+  1.3 us, pipe 0.25 us with and without a filter, revalidation 2.8 us, export 52 us. Entropic: growing with 3,840
+  plots 0.027 us, busy 3,840 wheat plots 2.4 us (3.9 with the autocrafter), busy mixed farm of 60 plants 0.89 us,
+  revalidation of 60 groups 15.3 us (median 14.9), an input change every tick 11.4 us.
+  Against main's 2026-09-30 reference (Java 25): the harvest ticks, the busy oak farm, both revalidations, the
+  Entropic's growing and input rows are within noise (oak saplings +11% by the median: the tree features are 1.21.1's
+  own). The rows that store many items are cheaper: busy wheat farm 0.24 vs 0.30 us, pipe 0.25 vs 0.33, export 52 vs
+  94, busy Entropic 2.4 vs 4.8, mixed Entropic 0.89 vs 2.2. Probably (not profiled) because VFW's `SlotTransaction`
+  plans in plain arrays and writes each changed slot once, where 26.1's transfer API journals changes in its
+  transactions, and export is a plain `insertItemStacked`. For the same reason the autocrafter now adds 1.5 us
+  instead of saving 0.4: the crafting itself costs about the same, but the storing it saves is cheap here
+  (inference). The two nanosecond rows read higher (growing 0.025 vs 0.011, OUTPUT FULL 0.030 vs 0.014) and swing
+  2-3x between runs; their per-tick path is main's code (a few flag checks and one addition) and one run matched
+  main exactly, so Java 21's JIT or noise; ~15 ns per machine per tick (0.015 ms for 1,000 machines), not
+  investigated further.

@@ -23,19 +23,19 @@ import com.virtualfarmworks.plant.SoilRules;
 import com.virtualfarmworks.registry.ModBlocks;
 import com.virtualfarmworks.sim.DropTally;
 import com.virtualfarmworks.sim.MachineStatus;
+import com.virtualfarmworks.transfer.ItemResource;
+import com.virtualfarmworks.transfer.ItemSlots;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
 final class PlantablesGameTests {
-    private static final BlockPos MACHINE = BlockPos.ZERO;
+    /** Where the machine stands: y 1, the test area's first layer (relative y 0 is the test's structure block). */
+    private static final BlockPos MACHINE = new BlockPos(0, 1, 0);
 
     private PlantablesGameTests() {
     }
@@ -56,7 +56,6 @@ final class PlantablesGameTests {
         expect(helper, Items.AZALEA, Items.CLAY, Status.VALID, false);             // natural soil kept
         expect(helper, Items.WITHER_ROSE, Items.NETHERRACK, Status.VALID, false);  // natural soil kept
         expect(helper, Items.BIG_DRIPLEAF, Items.CLAY, Status.VALID, false);
-        expect(helper, Items.CACTUS_FLOWER, Items.DIRT, Status.VALID, false);
         // Conditions dropped: no water for aquatic plants, no nylium for the fungi, a soil is enough.
         expect(helper, Items.KELP, Items.DIRT, Status.VALID, false);
         expect(helper, Items.SEAGRASS, Items.GRASS_BLOCK, Status.VALID, false);
@@ -71,7 +70,7 @@ final class PlantablesGameTests {
         expect(helper, Items.PITCHER_POD, Items.DIRT, Status.VALID, true);
         // No soil needed: the soil slot is ignored, empty or not (owner).
         for (Item plant : List.of(Items.LILY_PAD, Items.SMALL_DRIPLEAF, Items.VINE, Items.WEEPING_VINES,
-                Items.SPORE_BLOSSOM, Items.HANGING_ROOTS, Items.PALE_HANGING_MOSS)) {
+                Items.SPORE_BLOSSOM, Items.HANGING_ROOTS)) {
             expect(helper, plant, Items.AIR, Status.VALID, false);
             expect(helper, plant, Items.SOUL_SAND, Status.VALID, false);
             PlantAnalysis analysis = PlantAnalysis.analyze(new ItemStack(plant), ItemStack.EMPTY, MachineTier.STARTER);
@@ -85,21 +84,20 @@ final class PlantablesGameTests {
 
     /** What the seed and soil slots accept now: every plantable, the new natural soils, still no ice, glass or stone. */
     static void slots(GameTestHelper helper) {
-        for (Item plantable : List.of(Items.OAK_SAPLING, Items.PALE_OAK_SAPLING, Items.MANGROVE_PROPAGULE,
-                Items.AZALEA, Items.CRIMSON_FUNGUS, Items.POPPY, Items.GOLDEN_DANDELION, Items.OPEN_EYEBLOSSOM,
-                Items.SUNFLOWER, Items.PINK_PETALS, Items.LEAF_LITTER, Items.TORCHFLOWER_SEEDS, Items.PITCHER_POD,
-                Items.DRY_SHORT_GRASS, Items.FIREFLY_BUSH, Items.KELP, Items.LILY_PAD, Items.NETHER_SPROUTS,
-                Items.TWISTING_VINES, Items.VINE, Items.GLOW_LICHEN, Items.SPORE_BLOSSOM, Items.BIG_DRIPLEAF,
-                Items.PALE_HANGING_MOSS)) {
+        // 1.21.1 has none of the later plants (pale garden, eyeblossoms, leaf litter, dry grass, firefly bush...).
+        for (Item plantable : List.of(Items.OAK_SAPLING, Items.MANGROVE_PROPAGULE, Items.AZALEA, Items.CRIMSON_FUNGUS,
+                Items.POPPY, Items.SUNFLOWER, Items.PINK_PETALS, Items.TORCHFLOWER_SEEDS, Items.PITCHER_POD,
+                Items.KELP, Items.LILY_PAD, Items.NETHER_SPROUTS, Items.TWISTING_VINES, Items.VINE, Items.GLOW_LICHEN,
+                Items.SPORE_BLOSSOM, Items.BIG_DRIPLEAF)) {
             check(helper, PlantRules.isPlantable(new ItemStack(plantable)), name(plantable) + " must be plantable");
         }
-        for (Item notAPlant : List.of(Items.MOSS_CARPET, Items.PALE_MOSS_CARPET, Items.TUBE_CORAL,
-                Items.TUBE_CORAL_FAN, Items.MOSS_BLOCK, Items.MANGROVE_ROOTS)) {
+        for (Item notAPlant : List.of(Items.MOSS_CARPET, Items.TUBE_CORAL, Items.TUBE_CORAL_FAN, Items.MOSS_BLOCK,
+                Items.MANGROVE_ROOTS)) {
             check(helper, !PlantRules.isPlantable(new ItemStack(notAPlant)), name(notAPlant) + " must not be plantable");
         }
         // Natural soils of the new plants become soils; "any solid surface" rules and soil-less plants add nothing.
         for (Item soil : List.of(Items.CLAY, Items.TERRACOTTA, Items.NETHERRACK, Items.SOUL_SOIL, Items.MUD,
-                Items.PALE_MOSS_BLOCK, Items.CRIMSON_NYLIUM)) {
+                Items.CRIMSON_NYLIUM)) {
             check(helper, SoilRules.isAcceptableSoil(new ItemStack(soil)), name(soil) + " must be a soil");
         }
         for (Item notASoil : List.of(Items.ICE, Items.GLASS, Items.DIAMOND_BLOCK, Items.COBBLESTONE, Items.OAK_LOG,
@@ -140,8 +138,8 @@ final class PlantablesGameTests {
     }
 
     /**
-     * Every vanilla tree plant grows a tree in memory and yields its wood (one sapling is enough, dark and pale oak
-     * included); oak leaves broken by hand give saplings; fungi grow on dirt (nylium condition dropped).
+     * Every vanilla tree plant grows a tree in memory and yields its wood (one sapling is enough, dark oak included);
+     * oak leaves broken by hand give saplings; fungi grow on dirt (nylium condition dropped).
      */
     static void treesGrow(GameTestHelper helper) {
         expectWood(helper, Items.OAK_SAPLING, Items.DIRT, Items.OAK_LOG);
@@ -150,7 +148,6 @@ final class PlantablesGameTests {
         expectWood(helper, Items.JUNGLE_SAPLING, Items.DIRT, Items.JUNGLE_LOG);
         expectWood(helper, Items.ACACIA_SAPLING, Items.DIRT, Items.ACACIA_LOG);
         expectWood(helper, Items.DARK_OAK_SAPLING, Items.DIRT, Items.DARK_OAK_LOG);
-        expectWood(helper, Items.PALE_OAK_SAPLING, Items.DIRT, Items.PALE_OAK_LOG);
         expectWood(helper, Items.CHERRY_SAPLING, Items.DIRT, Items.CHERRY_LOG);
         expectWood(helper, Items.MANGROVE_PROPAGULE, Items.MUD, Items.MANGROVE_LOG);
         expectWood(helper, Items.AZALEA, Items.DIRT, Items.OAK_LOG);
@@ -248,7 +245,7 @@ final class PlantablesGameTests {
 
     private static FarmMatrixBlockEntity placeMachine(GameTestHelper helper) {
         helper.setBlock(MACHINE, ModBlocks.STARTER_FARM_MATRIX.get().defaultBlockState());
-        return helper.getBlockEntity(MACHINE, FarmMatrixBlockEntity.class);
+        return helper.<FarmMatrixBlockEntity>getBlockEntity(MACHINE);
     }
 
     private static void put(MachineInventory inputs, int slot, Item item, int count) {
@@ -268,7 +265,7 @@ final class PlantablesGameTests {
         return countIn(machine.output(), item) + countIn(machine.internalOutput(), item);
     }
 
-    private static long countIn(ItemStacksResourceHandler handler, Item item) {
+    private static long countIn(ItemSlots handler, Item item) {
         long total = 0;
         for (int i = 0; i < handler.size(); i++) {
             if (handler.getResource(i).is(item)) {
@@ -283,6 +280,6 @@ final class PlantablesGameTests {
     }
 
     private static void check(GameTestHelper helper, boolean condition, String message) {
-        helper.assertTrue(condition, Component.literal(message));
+        helper.assertTrue(condition, message);
     }
 }
