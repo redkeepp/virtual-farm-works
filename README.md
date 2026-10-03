@@ -30,8 +30,10 @@ The endgame farm: up to 3,840 plots in one block.
 - 60 plant groups in two 4x15 grids (plantables on top, soils below), each up to 64 plots. No hoe needed.
 - Powered by FE: 90 FE per active plot per tick by default. With too little FE it keeps running, slower
   (RUNNING WITH LOW FE); at 0 FE it stops.
-- Five modes per face: NONE, OUTPUT (what the plants produce), OUTPUT CRAFTED, OUTPUT ALL and INPUT. INPUT faces accept
-  pipes and pull seeds and soils from adjacent inventories, pairing them into the grids.
+- Six modes per face: NONE, OUTPUT ONLY SEED PRODUCTION, OUTPUT ONLY CRAFTED, OUTPUT ALL PRODUCED (both, never the
+  grids' seeds and soils), INPUT SEEDS AND SOILS and OUTPUT ONLY SEEDS AND SOILS. INPUT faces accept pipes and pull
+  seeds and soils from adjacent inventories, pairing them into the grids; OUTPUT ONLY SEEDS AND SOILS gives the
+  planted seeds and soils back, to pipes or a chest glued to that face. Hovering a face explains its mode.
 - Replant: seeds and saplings from the harvest go into free soil first, before the output (a switch on each machine).
 - Built-in autocrafter: up to 100 crafting-table recipes, set by hand or with JEI's "+" button. Harvests are crafted as
   they come out, recipes chain (essence -> ingots -> blocks), and the machine also crafts from what its output holds. A

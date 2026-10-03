@@ -30,9 +30,10 @@ midgame is easier to balance.
   three times the highest possible consumption. The x 3 stays in code, not in the config (owner, 2026-09-30).
 - Hovering the FE bar shows current FE / total FE, e.g. 1000000/1000000.
 - Both grids accept automated INPUT (e.g. 3,000 Diamond Seeds piped in from a big chest instead of by hand).
-- The output box ("O") has 5 modes per face: NONE (gray, gives and takes nothing), OUTPUT (green, as now: only what
-  the seeds produce), OUTPUT CRAFTED (yellow: only what the autocrafter makes), OUTPUT ALL (pink: crafted and
-  produced), INPUT (blue).
+- The output box ("O") has 6 modes per face (names and the sixth mode: owner, 2026-10-02, see "Face modes" below):
+  NONE (gray, gives and takes nothing), OUTPUT ONLY SEED PRODUCTION (green: only what the seeds produce), OUTPUT ONLY
+  CRAFTED (yellow: only what the autocrafter makes), OUTPUT ALL PRODUCED (pink: produced and crafted), INPUT SEEDS AND
+  SOILS (blue), OUTPUT ONLY SEEDS AND SOILS (purple: the seeds and soils of the two grids).
 - Autocrafter (inspiration: RFTools Crafter tier 3):
   - An internal crafting table where the player arranges items and sees the result: purely visual, the machine does
     not use it.
@@ -172,6 +173,22 @@ button and the ON/OFF button (owner, 2026-09-29):
   Farm Matrix keeps them (tooltip "Autocrafter recipes: N") and a machine placed from it has them again. Only the
   recipes: the waiting ingredients are deleted with the machine (owner rule for hidden items) and CRAFT is ON again,
   as on any machine just placed. A machine without recipes drops a plain item, which stacks with new ones.
+
+### Face modes (owner, 2026-10-02)
+
+- New names, same colors and behavior: OUTPUT -> OUTPUT ONLY SEED PRODUCTION, OUTPUT CRAFTED -> OUTPUT ONLY CRAFTED,
+  OUTPUT ALL -> OUTPUT ALL PRODUCED ("what the seeds produced directly, not through the crafter, and also what went
+  through the crafter; the seeds and soils are not exported here"), INPUT -> INPUT SEEDS AND SOILS. NONE stays.
+- New mode OUTPUT ONLY SEEDS AND SOILS (purple): the face outputs only the plantables and soils in the two 4x15 grids.
+  Like the other output modes (Claude: the same two ways out), the machine's auto-export pushes them into the
+  inventory glued to that face and pipes can take them; nothing goes in through it; the water provider, upgrades and
+  catalyst never leave. Taking them out is like a player taking them by hand: the plots go with their seeds, waiting
+  plots first. Uses: empty a machine into a chest, move seeds and soils to another machine's INPUT face.
+- Each face's tooltip explains its mode in one short line, between the mode's name and "Click: next mode...".
+- Click order (Claude): NONE -> OUTPUT ONLY SEED PRODUCTION -> OUTPUT ONLY CRAFTED -> OUTPUT ALL PRODUCED -> INPUT
+  SEEDS AND SOILS -> OUTPUT ONLY SEEDS AND SOILS, right click backwards. The new mode comes last because a machine
+  saves its face modes by number, so existing machines keep theirs. The default stays OUTPUT ALL PRODUCED.
+- Entropic only: the Starter keeps its OUTPUT ON/OFF switch per face, unchanged.
 
 ## Recipes (owner, 2026-09-30)
 

@@ -86,7 +86,8 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
  *   <li>RUNNING and bar below 100%: pay the energy, {@code cycle.advance(progressPerTick)} — one addition.</li>
  *   <li>Bar at 100%: harvest (see below). Otherwise the bar simply waits.</li>
  *   <li>Every {@code output.autoExportIntervalTicks}: push the visible output to adjacent inventories on the faces
- *       whose {@link FaceMode} exports, and pull from adjacent inventories on INPUT faces into the grids.</li>
+ *       whose {@link FaceMode} exports it, push the grids' seeds and soils out on OUTPUT ONLY SEEDS AND SOILS faces,
+ *       and pull from adjacent inventories on INPUT faces into the grids.</li>
  * </ol>
  *
  * <h2>Plot groups (multi-group tiers)</h2>
@@ -292,6 +293,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     private final ResourceHandler<ItemResource> craftedView;
     private final ResourceHandler<ItemResource> allOutputView;
     private final @Nullable GridInput gridInput;
+    private final @Nullable GridOutput gridOutput;
 
     /** What a drop source depends on: seed and soil types, config and tags. Upgrades do not matter. */
     private record SourceKey(@Nullable Item seed, @Nullable Item soil, int configGeneration, int tagGeneration) {
@@ -341,6 +343,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         this.craftedView = output.externalView(this::isCrafted);
         this.allOutputView = output.externalView();
         this.gridInput = layout.acceptsInput() ? new GridInput(inputs) : null;
+        this.gridOutput = layout.acceptsInput() ? new GridOutput(inputs) : null;
     }
 
     // =================================================================================================================
@@ -1088,10 +1091,11 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
 
     /**
      * Every {@link #exportInterval} ticks (config, 0 = never): pushes the output buffer into adjacent inventories on
-     * every face whose mode exports, and pulls from adjacent inventories on INPUT faces into the grids (owner: "a chest
-     * full of dirt glued to the machine must feed it too", like the output). Uses NeoForge capability caches, so a
-     * lookup is a field read until a neighbour changes. Exporting into another Farm Matrix does nothing (its buffer
-     * refuses insertion); pulling from one takes what its face gives (its output), never its inputs.
+     * every face whose mode exports it, pushes the grids' seeds and soils out on OUTPUT ONLY SEEDS AND SOILS faces
+     * (owner, 2026-10-02), and pulls from adjacent inventories on INPUT faces into the grids (owner: "a chest full of
+     * dirt glued to the machine must feed it too", like the output). Uses NeoForge capability caches, so a lookup is a
+     * field read until a neighbour changes. Exporting into another Farm Matrix's output does nothing (its buffer refuses
+     * insertion); pulling from one takes what its face gives, as a pipe would.
      */
     private void autoTransfer(ServerLevel level) {
         if (exportInterval <= 0) {
@@ -1106,7 +1110,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         for (RelativeSide side : RelativeSide.all()) {
             FaceMode mode = faceModes[side.ordinal()];
             boolean pulls = mode == FaceMode.INPUT && gridInput != null;
-            if (!pulls && !(exporting && mode.exports())) {
+            boolean emptiesGrids = mode.exportsGrids() && gridOutput != null;
+            if (!pulls && !emptiesGrids && !(exporting && mode.exportsOutput())) {
                 continue;
             }
             if (facing == null) {
@@ -1119,9 +1124,12 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             if (pulls) {
                 // Index-less insertion, so the grid's routing pairs seeds and soils (see GridInput).
                 ResourceHandlerUtil.move(neighbour, gridInput, resource -> true, Integer.MAX_VALUE, null);
+            } else if (emptiesGrids) {
+                // Like a player taking them out: the inventory reports it and the next tick re-validates the plots.
+                ResourceHandlerUtil.moveStacking(gridOutput, neighbour, resource -> true, Integer.MAX_VALUE, null);
             } else {
-                ResourceHandlerUtil.moveStacking(output, neighbour, resource -> mode.exports(isCrafted(resource)),
-                        Integer.MAX_VALUE, null);
+                ResourceHandlerUtil.moveStacking(output, neighbour,
+                        resource -> mode.exportsOutput(isCrafted(resource)), Integer.MAX_VALUE, null);
                 exporting = !output.isEmpty();
             }
         }
@@ -1155,7 +1163,8 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
     /**
      * The item capability of one face ({@code side} = world direction, null = no side). The Starter shows its
      * extract-only output on every face, whatever the auto-output switch (its original behavior). Multi-mode tiers
-     * follow the face's {@link FaceMode}: nothing, an extract-only view of the matching items, or the grid input.
+     * follow the face's {@link FaceMode}: nothing, an extract-only view of the matching output items, the grid input,
+     * or an extract-only view of the grids' seeds and soils.
      */
     public @Nullable ResourceHandler<ItemResource> itemHandler(@Nullable Direction side) {
         if (!layout.acceptsInput()) {
@@ -1171,6 +1180,7 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
             case OUTPUT_CRAFTED -> craftedView;
             case OUTPUT_ALL -> allOutputView;
             case INPUT -> gridInput;
+            case OUTPUT_SEEDS_AND_SOILS -> gridOutput;
         };
     }
 
@@ -1571,8 +1581,9 @@ public class FarmMatrixBlockEntity extends BlockEntity implements MenuProvider {
         return mask;
     }
 
+    /** Whether a face exports the output buffer (the Starter's auto-output switch is ON). */
     public boolean isOutputEnabled(RelativeSide side) {
-        return faceModes[side.ordinal()].exports();
+        return faceModes[side.ordinal()].exportsOutput();
     }
 
     /** Starter: toggles auto-output on one face. Server side only. */

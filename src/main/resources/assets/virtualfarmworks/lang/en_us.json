@@ -121,8 +121,15 @@
   "gui.virtualfarmworks.face_mode": "%s: %s",
   "gui.virtualfarmworks.face_mode.hint": "Click: next mode. Right click: previous mode.",
   "face_mode.virtualfarmworks.none": "NONE",
-  "face_mode.virtualfarmworks.output": "OUTPUT",
-  "face_mode.virtualfarmworks.output_crafted": "OUTPUT CRAFTED",
-  "face_mode.virtualfarmworks.output_all": "OUTPUT ALL",
-  "face_mode.virtualfarmworks.input": "INPUT"
+  "face_mode.virtualfarmworks.none.desc": "Gives and takes nothing.",
+  "face_mode.virtualfarmworks.output": "OUTPUT ONLY SEED PRODUCTION",
+  "face_mode.virtualfarmworks.output.desc": "Exports what the plants produced, not crafted items.",
+  "face_mode.virtualfarmworks.output_crafted": "OUTPUT ONLY CRAFTED",
+  "face_mode.virtualfarmworks.output_crafted.desc": "Exports only what the autocrafter made.",
+  "face_mode.virtualfarmworks.output_all": "OUTPUT ALL PRODUCED",
+  "face_mode.virtualfarmworks.output_all.desc": "Exports the harvest and the crafted items, never the grids' seeds and soils.",
+  "face_mode.virtualfarmworks.input": "INPUT SEEDS AND SOILS",
+  "face_mode.virtualfarmworks.input.desc": "Pipes and adjacent inventories fill the grids with seeds and soils.",
+  "face_mode.virtualfarmworks.output_seeds_and_soils": "OUTPUT ONLY SEEDS AND SOILS",
+  "face_mode.virtualfarmworks.output_seeds_and_soils.desc": "Exports the seeds and soils planted in the two grids."
 }
