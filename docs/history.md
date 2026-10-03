@@ -394,6 +394,22 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   exactly (angles that are not quarter turns, faces without UVs). When the owner re-exports a model on main, bring it
   here and run the script again.
 
+### Owner's in-game test (2026-10-02)
+- Dev client with the ATM10 mods: the Starter works in full, and both machines' converted block models look right.
+- The Entropic crashed when its GUI opened ("Rendering screen", `this.font` is null in `drawFittedCentered`). The
+  log showed the cause just before: NeoForge's "Failed to handle advanced open screen from server", a
+  NullPointerException on `this.minecraft` in `EntropicFarmMatrixScreen#added` -> `fitGuiScale`. In 1.21.1,
+  `Minecraft#setScreen` makes the new screen current, calls its `added()`, and only then `init(Minecraft, w, h)`, which
+  is what sets the screen's `minecraft` and `font` (26.1 screens have both from their constructor, which is why main
+  never hit it). The exception skipped `init`, NeoForge's payload handler only logged it, and the uninitialized screen
+  stayed current: the next frame crashed. Fix: `added()` (and `removed()`, for symmetry) use `Minecraft.getInstance()`;
+  `resize` already receives it. The rest of the screen only runs after `init`. Reviewed the whole Entropic screen for
+  other uses before `init`: none (the constructor only reads the menu, items and tags).
+- Also in the owner's crash reports, not VFW: on the first start of the new `run/` folder, closing the accessibility
+  onboarding screen opened the title screen, and Jade 15.10.6's screen-init handler (`JadeClient.onGui`) threw
+  `AssertionError: Missing config translation: config.jade.plugin_pipez.pipe` (Pipez's Jade plugin lacks a
+  translation). Nothing of VFW in that trace.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

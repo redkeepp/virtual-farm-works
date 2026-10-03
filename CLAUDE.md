@@ -180,6 +180,9 @@ The sections below describe main; where they differ, this list wins.
 - GUI: `GuiGraphics` (`renderBg`, `renderLabels`, `renderTooltip` called from `render`), depth instead of 26.1's
   layering by overlap: cover an item with `FarmMatrixScreen#coverItem` (fill + ghost-recipe overlay), not a plain
   fill. `mouseClicked(double, double, int)` (no double-click flag), `hasClickedOutside(..., button)`.
+  `Minecraft#setScreen` calls `added()` BEFORE `init(Minecraft, w, h)`, which is what sets a screen's `minecraft`
+  and `font` (26.1 sets both in the constructor): in `added()` use `Minecraft.getInstance()`. An exception there
+  leaves an uninitialized screen open and the next frame crashes on its null font (Entropic GUI, 2026-10-02).
 - Blocks/items: `useItemOn` -> `ItemInteractionResult`; contents drop in `FarmMatrixBlock#onRemove`; modded component
   tooltips come from `FarmMatrixBlock#appendHoverText`; item models in `models/item` (the `items/` folder is ignored).
 - Block models (owner OK, 2026-10-02, the one exception to rule 7 on this branch): main's Blockbench exports use 26.1's

@@ -137,18 +137,24 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
      * Opening (or coming back from JEI's recipe view), before the screen is sized: the automatic GUI scale never leaves
      * room for this 320 px GUI, so the scale drops to the largest one where the machine fits ({@link GuiScaleFit}),
      * only while the screen is open.
+     *
+     * <p>1.21.1: {@code Minecraft#setScreen} calls this BEFORE {@code init(Minecraft, int, int)}, which is what gives a
+     * screen its {@code minecraft} and {@code font} fields (26.1 screens get both in their constructor), so a new
+     * screen has neither yet: this method uses {@link Minecraft#getInstance()}. An exception here is fatal later:
+     * NeoForge's packet handler only logs it, but {@code setScreen} has already made this the current screen, never
+     * initialized, and the next frame crashes on its missing font (the owner's crash of 2026-10-02).
      */
     @Override
     public void added() {
         super.added();
-        fitGuiScale();
+        fitGuiScale(Minecraft.getInstance());
     }
 
     /** The window changed: Minecraft has just set the player's own scale again, so fit again before laying out. */
     @Override
     public void resize(Minecraft minecraft, int width, int height) {
         scaleLowered = false;
-        if (fitGuiScale()) {
+        if (fitGuiScale(minecraft)) {
             Window window = minecraft.getWindow();
             width = window.getGuiScaledWidth();
             height = window.getGuiScaledHeight();
@@ -164,8 +170,9 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
     public void removed() {
         super.removed();
         if (scaleLowered) {
-            Window window = minecraft.getWindow();
-            window.setGuiScale(window.calculateScale(minecraft.options.guiScale().get(), minecraft.isEnforceUnicode()));
+            Minecraft client = Minecraft.getInstance();
+            Window window = client.getWindow();
+            window.setGuiScale(window.calculateScale(client.options.guiScale().get(), client.isEnforceUnicode()));
             scaleLowered = false;
         }
     }
@@ -174,8 +181,8 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
      * Lowers the GUI scale when the machine does not fit at the current one; returns whether it did. 1.21.1 keeps the
      * scale as a double, always a whole number here (Minecraft's own {@code calculateScale} or ours).
      */
-    private boolean fitGuiScale() {
-        Window window = minecraft.getWindow();
+    private boolean fitGuiScale(Minecraft client) {
+        Window window = client.getWindow();
         int current = (int) window.getGuiScale();
         int scale = GuiScaleFit.fittingScale(window.getWidth(), window.getHeight(), current,
                 EntropicLayout.FIT_WIDTH, EntropicLayout.FIT_HEIGHT);

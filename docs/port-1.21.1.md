@@ -135,5 +135,8 @@ list: after each step, no error is left in the files and areas it covers.
    **Left for the owner** (nothing on the client was run by Claude): the in-game test — both screens, JEI's "+" and
    drag and drop, Jade, tooltips, the GUI scale fit, a dedicated server, ATM10's pipes and FE sources — in a copy of
    the ATM10 instance or a new world with a backup (the block models of step 6 are converted, see there).
+   Owner's test, 2026-10-02 (dev client with the ATM10 mods): the Starter works in full ("everything"), both block
+   models look right. The Entropic crashed on opening its GUI (`added()` used the screen's `minecraft` before 1.21.1
+   sets it; fixed, see `docs/history.md`); the Entropic is to be tested again, in full.
 
 Commit on this branch after every finished step; the owner pushes the branch.
