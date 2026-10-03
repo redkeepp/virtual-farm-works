@@ -4,46 +4,48 @@
 
 **Compact, server-friendly virtual farming for NeoForge.** A Farm Matrix grows plants inside a single block: put seeds
 and soils in, take the harvest out. Every machine runs one shared growth cycle instead of thousands of individual
-crops, so even huge farms cost almost nothing in server tick time.
+crops: 3,840 plots, the maximum capacity of an Entropic Farm Matrix, cost the same as a single seed in a Starter
+Farm Matrix, so even huge farms cost almost nothing in server tick time.
 
 Made by **Redkeep** for Minecraft **26.1.2** and NeoForge.
 
-## Machines
+## Machines (Starter and Entropic for now, new mid tiers coming)
 
 ### Starter Farm Matrix
 
 An early-game farm for one kind of plant.
 
-- One seed slot and one soil slot: plots = the smaller of the two counts, up to 64.
-- Water Provider Upgrade slot: without water the machine grows at 25% speed.
-- Four Growth Speed Upgrade slots (+50% speed each, up to 3x).
-- Hoe slot: plants that need tilled soil (wheat on dirt) need a hoe; tilled soils (farmland) do not. Any hoe works.
-- 9 output slots plus 27 hidden overflow slots; auto-export into adjacent inventories, per face.
-- Harvest filter (whitelist or blacklist) to throw away what you do not want; no power needed.
+*   One seed slot and one soil slot: plots = the smaller of the two counts, up to 64.
+*   Water Provider Upgrade slot: without water the machine grows at only 25% speed (by default).
+*   Four Growth Speed Upgrade slots (+50% speed each, up to 3x by default).
+*   Hoe slot: plants that need tilled soil (wheat on dirt) need a hoe; tilled soils (farmland) do not. Any hoe from any mod works.
+*   Auto-export into adjacent inventories, per face.
+*   Fertilized Essence switch (ON/OFF): with Mystical Agriculture installed, choose whether its crops also drop Fertilized Essence.
+*   Harvest filter (whitelist or blacklist) to throw away the drops you do not want.
+*   No power needed.
 
-![Starter Farm Matrix growing Mystical Agriculture seeds at 3x speed](docs/images/starter_working.png)
+![Starter Farm Matrix](docs/images/starter_working.png)
 
 ### Entropic Farm Matrix
 
 The endgame farm: up to 3,840 plots in one block.
 
-- 60 plant groups in two 4x15 grids (plantables on top, soils below), each up to 64 plots. No hoe needed.
-- Powered by FE: 90 FE per active plot per tick by default. With too little FE it keeps running, slower
-  (RUNNING WITH LOW FE); at 0 FE it stops.
-- Six modes per face: NONE, OUTPUT ONLY SEED PRODUCTION, OUTPUT ONLY CRAFTED, OUTPUT ALL PRODUCED (both, never the
-  grids' seeds and soils), INPUT SEEDS AND SOILS and OUTPUT ONLY SEEDS AND SOILS. INPUT faces accept pipes and pull
-  seeds and soils from adjacent inventories, pairing them into the grids; OUTPUT ONLY SEEDS AND SOILS gives the
-  planted seeds and soils back, to pipes or a chest glued to that face. Hovering a face explains its mode.
-- Replant: seeds and saplings from the harvest go into free soil first, before the output (a switch on each machine).
-- Built-in autocrafter: up to 100 crafting-table recipes, set by hand or with JEI's "+" button. Harvests are crafted as
-  they come out, recipes chain (essence -> ingots -> blocks), and the machine also crafts from what its output holds. A
-  catalyst slot takes Mystical Agriculture's Master Infusion Crystal, so higher essence tiers craft automatically.
-  The recipes stay on the machine item when you break it.
-- 24 output slots plus 72 hidden overflow slots, harvest filter, the same upgrades as the Starter.
+*   60 plant kinds in two 4x15 grids (plantables on top, soils below), each up to 64 plots. No hoe needed.
+*   Powered by FE: 90 FE per active plot per tick by default. With too little FE it keeps running, only slower; at 0 FE it stops.
+*   Six modes per face (click a face to cycle, hover it to read what the mode does):
+    *   **NONE**: gives and takes nothing.
+    *   **OUTPUT ONLY SEED PRODUCTION**: exports what the plants produced, not crafted items.
+    *   **OUTPUT ONLY CRAFTED**: exports only what the autocrafter made.
+    *   **OUTPUT ALL PRODUCED**: exports the harvest and the crafted items, never the seeds and soils in the grids.
+    *   **INPUT SEEDS AND SOILS**: pipes and adjacent inventories fill the grids, pairing seeds with soils.
+    *   **OUTPUT ONLY SEEDS AND SOILS**: gives back the seeds and soils planted in the grids, to pipes or a chest placed against that face. Handy to empty a machine or move its plants to another one.
+*   Replant: when it is on and a plant drops new seeds, those seeds plant themselves in the machine's free soils (when there are more soils than seeds).
+*   Built-in autocrafter: up to 100 crafting recipes, set by hand or with JEI's "+" button. Harvests are crafted as they come out, recipes chain (essence -> ingots -> blocks), and the machine also crafts from what its output holds. A catalyst slot takes Mystical Agriculture's Master Infusion Crystal, so higher essence tiers craft automatically. The recipes stay on the machine item when you break it.
+*   The same upgrades as the Starter.
 
-![Entropic Farm Matrix with all 3,840 plots active on Supremium Farmland](docs/images/entropic_working.png)
+![Entropic Farm Matrix with all 3,840 plots active](docs/images/entropic_working.png)
 
-![The autocrafter chaining Mystical Agriculture essences, with the Master Infusion Crystal as catalyst](docs/images/entropic_crafter.png)
+![Autocrafter](docs/images/entropic_crafter.png)
 
 ## Plants
 
@@ -103,11 +105,35 @@ one by one, never load chunks and do nothing while their chunk is unloaded.
 
 ## For server owners and pack makers
 
-- Server config `virtualfarmworks-server.toml`: growth time, speed and yield multipliers, FE per plot, plot limits,
-  hidden output size, autocrafter limits, replanting, hoe wear, auto-export interval, and seed/soil blacklists (global
-  and per machine). Changes apply without a restart.
-- Datapacks: tags for universal soils and autocrafter catalysts, and data maps for soil speed bonuses and fixed yields
-  (`data/virtualfarmworks/`).
+Everything below is in the server config `virtualfarmworks-server.toml` and applies without a restart. Modpacks are welcome, no need to ask.
+
+**Per machine (Starter and Entropic separately)**
+
+*   `growthTicks`: length of one growth cycle at 1.0x speed (default 600 = 30 seconds).
+*   `noWaterSpeedMultiplier`: speed without a Water Provider (default 0.25).
+*   `productionMultiplier`: yield multiplier for that machine (default 1.0).
+*   `internalBufferSlots`: hidden output slots behind the visible ones (Starter 27, Entropic 72).
+*   `seedBlacklist` / `soilBlacklist`: seeds and soils that machine refuses.
+
+**Entropic only**
+
+*   `seedsPerSlot` / `soilsPerSlot`: items each grid slot holds (default 64; capacity = 60 x the smaller one).
+*   `energyPerPlot`: FE per active plot per tick (default 90; the FE buffer follows).
+*   `replant`: allows the replant button (default on).
+*   `crafterRecipes`: recipes the autocrafter holds (default and maximum 100).
+*   `crafterBufferLimit`: items of one kind the autocrafter keeps while waiting for the rest of a recipe (default 1024).
+
+**Everything else**
+
+*   Growth Speed Upgrades: `bonusPerUpgrade` (default +50%) and `upgradesPerSlot` (default 1).
+*   Hoe: `requireHoe` (default on), `consumeDurability` (default off) and `wearIntervalTicks` (default 1200 = 1 durability per minute).
+*   Output: `autoExportIntervalTicks`, ticks between auto-exports (default 20; 0 = never).
+*   Drops: `productionMultiplier` (global yield, default 1.0), `secondaryDropMultiplier` (extra seeds and by-products, default 1.0) and `otherPlantYield` (items per plot for flowers, grass and other plants without their own harvest, default 10).
+*   Mystical Agriculture: `secondarySeedChanceMultiplier` (default 1.0) and `requiresEffectiveFarmland` (seeds only grow on their tier's farmland, default off).
+*   Performance: `maxLootRollsPerHarvest` (default 64) and `maxTreesGrownPerHarvest` (default 4).
+*   Global `seedBlacklist` / `soilBlacklist`. Blacklist entries can be an item (`mysticalagriculture:diamond_seeds`), a whole mod (`mysticalagriculture:*`) or an item tag (`#c:seeds`).
+
+Datapacks can also change the tags (universal soils, mushroom and glow berry soils, autocrafter catalysts) and the data maps (soil speed bonuses, fixed yields).
 
 ## Requirements and download
 
