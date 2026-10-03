@@ -319,13 +319,15 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   26.1's `TRY_WITH_EMPTY_HAND` did); the contents drop in `FarmMatrixBlock#onRemove` (26.1:
   `BlockEntity#preRemoveSideEffects`), before the block entity goes, only when the block itself changes; the loot table
   still reads the captured block entity, so the recipes stay on the item. 1.21.1 shows no tooltip for modded item
-  components and has no `RegisterTooltipAppendersEvent`: a block item asks its block, so `FarmMatrixBlock#appendHoverText`
-  adds "Autocrafter recipes: N" (no client event needed). `applyImplicitComponents(DataComponentInput)`,
+  components and has no `RegisterTooltipAppendersEvent`: a block item asks its block, so
+  `FarmMatrixBlock#appendHoverText` adds "Autocrafter recipes: N" (no client event needed).
+  `applyImplicitComponents(DataComponentInput)`,
   `BlockEntityType.Builder.of(...).build(null)`, `registerBlock(name, factory, Properties)`.
 - Item models: 1.21.1 reads `models/item/<id>.json` only (26.1's `items/` definitions are ignored), so the two machines
   got `models/item/*_farm_matrix.json` with the block model as parent.
 - Found while checking assets: the owner's block models use 26.1's multi-axis element rotations (90 / 180 degrees),
-  which 1.21.1's model reader refuses ("Missing axis"). Left for the owner (rule 7), see the plan.
+  which 1.21.1's model reader refuses ("Missing axis"). Left for the owner (rule 7), see the plan; solved after step 8
+  ("Block models", below).
 
 ### Step 7 — integrations
 - JEI 19: the recipe type is `mezz.jei.api.recipe.RecipeType` (26.1's JEI calls it `IRecipeType`); the crafting type
@@ -366,7 +368,31 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
 - Result: the 45 game tests (every VFW test of main; main's 46th is a vanilla one) pass with Mystical Agriculture
   8.0.28 loaded, with no VFW warning and no data map error in the log. Load benchmark: 2026-10-02 in the log below.
 - Not run by Claude: anything on the client (screens, JEI, Jade, tooltips, the GUI scale fit, models) and a dedicated
-  server. That is the owner's in-game test, with the block models (step 6) still open.
+  server. That is the owner's in-game test.
+
+### Block models (owner OK, 2026-10-02)
+- The owner chose converted copies on this branch ("same look, textures untouched") over exporting new models.
+  26.1 reads `"rotation": {"x", "y", "z", "origin"}` as `Matrix4f.rotationZYX(z, y, x)` (X turns first; read in its
+  `CuboidModelElement$Deserializer` / `EulerXYZRotation` with `javap`, the order checked by running JOML on the unit
+  vectors) around the origin; 1.21.1 only reads one axis at 0, +-22.5 or +-45 degrees. The five models share their
+  geometry (only the tier color, texture #1, differs), and every Euler rotation in them is made of quarter turns (per
+  model: 16 x -90 on X, 9 x -90 on Z, 4 x 90 on Y, 4 x -90 on X and Z, 2 x -180 on X; 32 more elements have 0-degree
+  one-axis rotations, valid in 1.21.1, and one element none). A quarter-turned box is another axis-aligned box:
+  `tools/convert_block_models.py` writes each one that way, with new corners, every face moved to the side it faces
+  after the turn with its texture and UV rectangle, and the face rotation that puts the same texture point on each
+  corner (both versions walk a face's corners in the same order and look up UVs the same way, read in their
+  `FaceInfo` and face UV code). It keeps every other byte of the owner's file (groups, display, textures, order).
+- Proof, with the games' own code: a small program on the 1.21.1 dev classpath parses the models with
+  `BlockModel.fromString` (the originals fail with "Missing axis", as in game; the converted ones load) and bakes every
+  face with 1.21.1's `FaceBakery`; another, on 26.1's client jar and libraries, bakes the ORIGINAL models with 26.1's
+  `FaceBakery`. All 2,040 quads (5 models x 408 faces) match: same direction, texture, corners and texture point at
+  each corner. In 770 the corners are listed from another start (1.21.1 puts an unrotated face's corners in its
+  standard order), which only changes how per-corner light blends across the face. Sanity check: with the turns as
+  read, every element of the model lies inside the block (0-16 on each axis); turned the other way, 27 would stick
+  out.
+- The script verifies the same way (exact decimal arithmetic) before writing and refuses what it cannot convert
+  exactly (angles that are not quarter turns, faces without UVs). When the owner re-exports a model on main, bring it
+  here and run the script again.
 
 ## Benchmark results log
 

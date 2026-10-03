@@ -103,10 +103,9 @@ branch compiles and runs with Gradle's Java 21 toolchain (a JDK 21 is installed;
 **This checkout is the 1.21.1 line** (branch `1.21.1`, worktree folder `virtualfarmworks-1.21.1`, created from main
 at 544812d). The port is DONE up to the owner's checks (2026-10-02): every step of `docs/port-1.21.1.md` is committed
 (the plan says what each step changed, `docs/history.md` "Port to 1.21.1" why); the 45 game tests pass with Mystical
-Agriculture 8.0.28, JUnit passes, the benchmark is measured. Left for the owner: the in-game test (client, dedicated
-server, ATM10's mods) and 1.21.1-compatible block models (until then the machines show the missing model). The
-Starter and Entropic features below are main's, all ported; where an API differs, "The 1.21.1 line" section below
-says how.
+Agriculture 8.0.28, JUnit passes, the benchmark is measured, and the owner's block models are converted for 1.21.1
+(owner OK). Left for the owner: the in-game test (client, dedicated server, ATM10's mods). The Starter and Entropic
+features below are main's, all ported; where an API differs, "The 1.21.1 line" section below says how.
 
 **Starter Farm Matrix: DONE** (declared by the owner on 2026-09-29, after the plantables and the benchmark), tested in
 game by the owner (single player; dedicated server before the JEI packet was added). Features: one global growth
@@ -183,8 +182,11 @@ The sections below describe main; where they differ, this list wins.
   fill. `mouseClicked(double, double, int)` (no double-click flag), `hasClickedOutside(..., button)`.
 - Blocks/items: `useItemOn` -> `ItemInteractionResult`; contents drop in `FarmMatrixBlock#onRemove`; modded component
   tooltips come from `FarmMatrixBlock#appendHoverText`; item models in `models/item` (the `items/` folder is ignored).
-- OPEN (owner): the owner's block models use 26.1's multi-axis element rotations, which 1.21.1 refuses: missing model
-  on 1.21.1 until the owner exports compatible ones (see `docs/port-1.21.1.md`).
+- Block models (owner OK, 2026-10-02, the one exception to rule 7 on this branch): main's Blockbench exports use 26.1's
+  multi-axis element rotations, which 1.21.1 refuses ("Missing axis"), so this branch carries them converted by
+  `tools/convert_block_models.py` (quarter-turned elements written as the same boxes already turned; verified against
+  both games' bakers). After the owner re-exports a model on main, bring the file here and run
+  `python tools/convert_block_models.py`; never hand-edit the converted files.
 - Integrations: JEI 19 (`RecipeType`, the 6-argument `transferRecipe`), Jade 15, Mystical Agriculture 8.0.28 (same
   formulas as 9.0.9, checked in its bytecode; no always-effective farmland tag, no Awakened Supremium farmland, so the
   `soil_properties` data map has no entry for it). Server config: `config/virtualfarmworks-server.toml`, overridable per

@@ -81,8 +81,8 @@ list: after each step, no error is left in the files and areas it covers.
    lists in 1.21.1 (`!isSpecial() && !isIncomplete()`, `ClientRecipeBook`'s own test). The 7 recipe JSONs use
    ingredient objects. JEI's side is step 7.
 5. Plants and tags. **DONE** (2026-10-02): the soil rules of 1.21.1 read from its sources (`#minecraft:dirt`,
-   `#minecraft:sand`, `#minecraft:bamboo_plantable_on`, `#minecraft:jungle_logs`, end stone, soul sand, any `FarmBlock`),
-   NeoForge's own `TriState`, `FarmBlock` (1.21.1's farmland class), no pale hanging moss; `VirtualLevel` / `SoilView`
+   `#minecraft:sand`, `#minecraft:bamboo_plantable_on`, `#minecraft:jungle_logs`, end stone, soul sand, any
+   `FarmBlock`), NeoForge's own `TriState`, `FarmBlock` (1.21.1's farmland class), no pale hanging moss; `VirtualLevel` / `SoilView`
    on 1.21.1's level interfaces; the three block tags' defaults (`universal_soils`, `supports_mushrooms`,
    `supports_glow_berries`). The reflected fields and methods (stem fruit, tree growers, fungi) have the same names in
    1.21.1. The plants newer than 1.21.1 in `PlantablesGameTests` are step 8.
@@ -94,11 +94,14 @@ list: after each step, no error is left in the files and areas it covers.
    `ItemInteractionResult`, contents dropped in `Block#onRemove`, the "Autocrafter recipes" line from
    `FarmMatrixBlock#appendHoverText`, `applyImplicitComponents(DataComponentInput)`, `BlockEntityType.Builder`, item
    models for the machines in `models/item`).
-   **Open (owner):** the owner's Blockbench block models (`models/block/*_farm_matrix.json`) use 26.1's element
-   rotation format (`"rotation": {"origin", "x", "y", "z"}`, 90 and 180 degrees, two axes at once). 1.21.1 only reads
-   `{"origin", "axis", "angle"}` with one axis and an angle of 0, +-22.5 or +-45 (it throws "Missing axis"), so on
-   1.21.1 the machines show the missing model until the owner exports 1.21.1-compatible models (rule 7: art is not
-   changed by Claude without the owner).
+   **Block models (owner OK, 2026-10-02):** the owner's Blockbench block models (`models/block/*_farm_matrix.json`)
+   use 26.1's element rotation format (`"rotation": {"origin", "x", "y", "z"}`, 90 and 180 degrees, two axes at
+   once). 1.21.1 only reads `{"origin", "axis", "angle"}` with one axis and an angle of 0, +-22.5 or +-45 (it throws
+   "Missing axis"). The owner authorized converted copies on this branch, same look, textures untouched:
+   `tools/convert_block_models.py` writes each quarter-turned element as the same box already turned (35 of 68
+   elements per model). Verified with both games' own code: 1.21.1's parser accepts the five converted models, and
+   its FaceBakery bakes the same 2,040 quads (positions, faces, textures, texture points) that 26.1's FaceBakery bakes
+   from the originals.
 7. Integrations. **DONE** (2026-10-02): JEI 19 (`mezz.jei.api.recipe.RecipeType`; the 6-argument `transferRecipe`
    is the one JEI 19 still declares abstract), Jade 15 (same API; `CompoundTag` getters with defaults), Mystical
    Agriculture 8.0.28 re-read from its bytecode: drop formulas (resource and Inferium crops), secondary chance, crux,
@@ -131,6 +134,6 @@ list: after each step, no error is left in the files and areas it covers.
 
    **Left for the owner** (nothing on the client was run by Claude): the in-game test — both screens, JEI's "+" and
    drag and drop, Jade, tooltips, the GUI scale fit, a dedicated server, ATM10's pipes and FE sources — in a copy of
-   the ATM10 instance or a new world with a backup; and the block models of step 6 (missing model until then).
+   the ATM10 instance or a new world with a backup (the block models of step 6 are converted, see there).
 
 Commit on this branch after every finished step; the owner pushes the branch.
