@@ -371,7 +371,7 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   server. That is the owner's in-game test.
 
 ### Block models (owner OK, 2026-10-02)
-- The owner chose converted copies on this branch ("same look, textures untouched") over exporting new models.
+- The owner chose converted copies on the 1.21.1 branch ("same look, textures untouched") over exporting new models.
   26.1 reads `"rotation": {"x", "y", "z", "origin"}` as `Matrix4f.rotationZYX(z, y, x)` (X turns first; read in its
   `CuboidModelElement$Deserializer` / `EulerXYZRotation` with `javap`, the order checked by running JOML on the unit
   vectors) around the origin; 1.21.1 only reads one axis at 0, +-22.5 or +-45 degrees. The five models share their
@@ -405,6 +405,12 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   stayed current: the next frame crashed. Fix: `added()` (and `removed()`, for symmetry) use `Minecraft.getInstance()`;
   `resize` already receives it. The rest of the screen only runs after `init`. Reviewed the whole Entropic screen for
   other uses before `init`: none (the constructor only reads the menu, items and tags).
+- OPEN, owner report after the fix: on 1.21.1 the Starter's progress bar moves in steps ("10 straight to 15") while
+  the Entropic's moves smoothly; on main both are smooth. Postponed by the owner (I/O modes first). Measured so far:
+  with the owner's own Starter (Mystical Agriculture diamond seeds on Supremium farmland, 4 growth upgrades, crux
+  provider, no Water Provider: 1.01x) the server sends the progress every 5 ticks in regular steps of 0.84%, exactly
+  like the Entropic; the client code (`SmoothProgress`, called once per frame in `renderBg`) is the same for both
+  screens and both lines. Next step: measure the values the client receives and draws, frame by frame.
 - Also in the owner's crash reports, not VFW: on the first start of the new `run/` folder, closing the accessibility
   onboarding screen opened the title screen, and Jade 15.10.6's screen-init handler (`JadeClient.onGui`) threw
   `AssertionError: Missing config translation: config.jade.plugin_pipez.pipe` (Pipez's Jade plugin lacks a

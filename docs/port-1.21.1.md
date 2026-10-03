@@ -5,10 +5,10 @@ made on the 26.1.2 code (main at commit 544812d): file counts below are measured
 
 ## Why and how (owner's policy, see CLAUDE.md "Two Minecraft versions")
 
-- 26.x (branch `main`) is the base for everything; 1.21.1 (this branch, worktree folder `virtualfarmworks-1.21.1`)
+- 26.x (branch `main`) is the base for everything; 1.21.1 (branch `1.21.1`, worktree folder `virtualfarmworks-1.21.1`)
   is "the stubborn old one that still needs attention": ATM10 gets every feature after 26.x, ported to the old API.
 - Never shape 26.x code around 1.21.1; solve 1.21.1's own problems here. A bug in shared logic is fixed in both.
-- Starting point: this branch was created from main at 544812d, the 26.1.2 code with the 1.0.1 content (logo
+- Starting point: the `1.21.1` branch was created from main at 544812d, the 26.1.2 code with the 1.0.1 content (logo
   included). It does not build for 1.21.1 until the first steps below are done.
 - First release here: `mod_version` 1.0.1, file `virtualfarmworks-1.21.1-1.0.1.jar`, on the same CurseForge and
   Modrinth projects as 26.x.
@@ -55,14 +55,14 @@ never against memory of 26.1 or of other versions.
 | 8 | Integrations | JEI 19 (crafting recipe type over `RecipeHolder<CraftingRecipe>`, transfer and ghost handlers), Jade 15, Mystical Agriculture 8.0.28 with Cucumber 8.0.16: re-verify every MA finding (essence formula, cruxes, farmland tiers, Fertilized Essence, Master Infusion Crystal as `BaseReusableItem`) against the 8.x jars, since the integration was written from 9.0.9. | medium |
 | 9 | Tests | Game tests use 26.1's test-function registry; 1.21.1 uses `@GameTest` methods registered through `RegisterGameTestsEvent` with a structure template (an empty one). Test bodies follow the other areas. JUnit (`sim/`, `GuiScaleFit`, `SmoothProgress`, `ConfigFileLayout`) is plain Java and should pass unchanged. Then the load benchmark and the owner's test in ATM10. | medium |
 | 10 | Assets and data | Textures, GUI textures, lang, models, blockstates, loot tables (`copy_components` exists), advancements and data maps stay; only the recipe JSONs (area 4) and tags (area 5) change. | almost none |
-| 11 | Config | `ModConfigSpec` is the same. To confirm: 1.21.1 probably keeps the server config inside each world (`serverconfig/`); if so, say it in this line's README. | light |
+| 11 | Config | `ModConfigSpec` is the same. To confirm: 1.21.1 probably keeps the server config inside each world (`serverconfig/`); if so, say it in the 1.21.1 line's README. | light |
 
 ## Order
 
-Progress is marked here as the port goes (DONE = committed on this branch); `docs/history.md` ("Port to 1.21.1") has
-the details and the reasons. The code does not compile until every area of `src/main` is ported (javac compiles the
-whole source set at once), so the steps are committed as they are finished and checked against the compiler's error
-list: after each step, no error is left in the files and areas it covers.
+Progress is marked here as the port goes (DONE = committed on the `1.21.1` branch); `docs/history.md` ("Port to
+1.21.1") has the details and the reasons. The code does not compile until every area of `src/main` is ported (javac
+compiles the whole source set at once), so the steps are committed as they are finished and checked against the
+compiler's error list: after each step, no error is left in the files and areas it covers.
 
 1. Build and base, until the code compiles again together with steps 2 and 3. **DONE** (2026-10-02): versions,
    Java 21 toolchain, `data()` run, CI JDK, FML 4's `modLoader` / `loaderVersion` in the mods.toml template, the
@@ -82,10 +82,10 @@ list: after each step, no error is left in the files and areas it covers.
    ingredient objects. JEI's side is step 7.
 5. Plants and tags. **DONE** (2026-10-02): the soil rules of 1.21.1 read from its sources (`#minecraft:dirt`,
    `#minecraft:sand`, `#minecraft:bamboo_plantable_on`, `#minecraft:jungle_logs`, end stone, soul sand, any
-   `FarmBlock`), NeoForge's own `TriState`, `FarmBlock` (1.21.1's farmland class), no pale hanging moss; `VirtualLevel` / `SoilView`
-   on 1.21.1's level interfaces; the three block tags' defaults (`universal_soils`, `supports_mushrooms`,
-   `supports_glow_berries`). The reflected fields and methods (stem fruit, tree growers, fungi) have the same names in
-   1.21.1. The plants newer than 1.21.1 in `PlantablesGameTests` are step 8.
+   `FarmBlock`), NeoForge's own `TriState`, `FarmBlock` (1.21.1's farmland class), no pale hanging moss;
+   `VirtualLevel` / `SoilView` on 1.21.1's level interfaces; the three block tags' defaults (`universal_soils`,
+   `supports_mushrooms`, `supports_glow_berries`). The reflected fields and methods (stem fruit, tree growers,
+   fungi) have the same names in 1.21.1. The plants newer than 1.21.1 in `PlantablesGameTests` are step 8.
 6. GUI (with area 6, blocks and items, where it touches screens). **DONE** (2026-10-02): both screens on 1.21.1's
    `GuiGraphics` (`renderBg` / `renderLabels` / `renderTooltip` called from `render`, `blit(texture, ...)`,
    `drawString`, `PoseStack`, ghost items covered with a fill plus vanilla's ghost-recipe overlay, `mouseClicked(x, y,
@@ -97,7 +97,7 @@ list: after each step, no error is left in the files and areas it covers.
    **Block models (owner OK, 2026-10-02):** the owner's Blockbench block models (`models/block/*_farm_matrix.json`)
    use 26.1's element rotation format (`"rotation": {"origin", "x", "y", "z"}`, 90 and 180 degrees, two axes at
    once). 1.21.1 only reads `{"origin", "axis", "angle"}` with one axis and an angle of 0, +-22.5 or +-45 (it throws
-   "Missing axis"). The owner authorized converted copies on this branch, same look, textures untouched:
+   "Missing axis"). The owner authorized converted copies on the 1.21.1 branch, same look, textures untouched:
    `tools/convert_block_models.py` writes each quarter-turned element as the same box already turned (35 of 68
    elements per model). Verified with both games' own code: 1.21.1's parser accepts the five converted models, and
    its FaceBakery bakes the same 2,040 quads (positions, faces, textures, texture points) that 26.1's FaceBakery bakes
@@ -107,9 +107,9 @@ list: after each step, no error is left in the files and areas it covers.
    Agriculture 8.0.28 re-read from its bytecode: drop formulas (resource and Inferium crops), secondary chance, crux,
    effective farmland (tier's own farmland only: MA 8 has no always-effective tag), config fields, Master Infusion
    Crystal (Cucumber's `BaseReusableItem`, unbreakable, gives itself back) all as VFW reproduces them; no Awakened
-   Supremium farmland in MA 8 (its `soil_properties` entry is left out on this line). Area 11: the server config is
-   still `config/virtualfarmworks-server.toml`; a world may override it in `<world>/serverconfig/`. `src/main`
-   compiles with no error or warning.
+   Supremium farmland in MA 8 (its `soil_properties` entry is left out on the 1.21.1 line). Area 11: the server
+   config is still `config/virtualfarmworks-server.toml`; a world may override it in `<world>/serverconfig/`.
+   `src/main` compiles with no error or warning.
 8. Game tests, JUnit and the load benchmark; then the owner's in-game test in ATM10. **DONE** (2026-10-02) up to the
    owner's in-game test: JUnit passes unchanged (86 tests, Java 21); the 45 game tests (every VFW test of main) pass
    with Mystical Agriculture 8.0.28 loaded; the load benchmark runs (3 runs, every game closed; numbers and the
@@ -139,4 +139,4 @@ list: after each step, no error is left in the files and areas it covers.
    models look right. The Entropic crashed on opening its GUI (`added()` used the screen's `minecraft` before 1.21.1
    sets it; fixed, see `docs/history.md`); the Entropic is to be tested again, in full.
 
-Commit on this branch after every finished step; the owner pushes the branch.
+Commit on the `1.21.1` branch after every finished step; the owner pushes it.
