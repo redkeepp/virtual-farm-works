@@ -784,8 +784,10 @@ public class EntropicFarmMatrixScreen extends AbstractContainerScreen<EntropicFa
                     menu.crafterRecipeLimit(), onOff(menu.isCrafterEnabled())));
         } else if (faceBoxOpen && faceAt(mouseX, mouseY) != null) {
             RelativeSide side = faceAt(mouseX, mouseY);
+            FaceMode mode = menu.faceMode(side);
             lines.add(Component.translatable("gui.virtualfarmworks.face_mode", Component.translatable(side.translationKey()),
-                    Component.translatable(menu.faceMode(side).translationKey())));
+                    Component.translatable(mode.translationKey())));
+            lines.add(Component.translatable(mode.descriptionKey())); // what the mode does, one short line (owner)
             lines.add(Component.translatable("gui.virtualfarmworks.face_mode.hint"));
         } else if (filterBoxOpen && isInFilterStrip(mouseX, mouseY)) {
             boolean whitelist = menu.isFilterWhitelist();

@@ -416,6 +416,30 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   `AssertionError: Missing config translation: config.jade.plugin_pipez.pipe` (Pipez's Jade plugin lacks a
   translation). Nothing of VFW in that trace.
 
+## Entropic face modes: new names and a sixth mode (2026-10-02, both lines)
+
+- Owner's request, for main and 1.21.1: the Entropic's face modes get names that say what leaves (OUTPUT ONLY SEED
+  PRODUCTION, OUTPUT ONLY CRAFTED, OUTPUT ALL PRODUCED, INPUT SEEDS AND SOILS; NONE stays), a sixth mode OUTPUT ONLY
+  SEEDS AND SOILS (purple) that gives back the plantables and soils of the two grids, and a one-line explanation of
+  each mode in the face box's tooltip. The Starter's ON/OFF faces are untouched. Decisions:
+  `docs/specs/entropic-farm-matrix.md` ("Face modes").
+- Code: `FaceMode` gains `OUTPUT_SEEDS_AND_SOILS` at the end (the ordinal is saved, so existing machines keep their
+  modes; it is also the last in the click cycle), `exports()` became `exportsOutput()` (the output buffer) next to
+  `exportsGrids()`, and `descriptionKey()` points at the explanation. `machine/GridOutput` is the extract-only view
+  of the grid slots `[0, 2 x groups)`, like `GridInput` the other way round: it is the face's capability and the
+  source `autoTransfer` empties into a glued inventory. Taking seeds or soils out goes through the inventory's change
+  callback, so the next tick re-validates the plots exactly as when a player takes them by hand: no special case, no
+  dupe. The lang keeps the keys (only the shown names change) and adds `<key>.desc`. On the 1.21.1 line
+  `GridOutput` is an `IItemHandler` (an extraction gives at most a stack, as from any `ItemStackHandler`) and
+  `FarmMatrixBlockEntity#exportGridsTo` pushes each grid slot out a stack at a time with `insertItemStacked`, the way
+  `exportTo` does for the output.
+- The original Entropic spec said pipes never take seeds or soils out (`GridInput` refuses extraction); the new mode
+  is the owner's explicit way out, and INPUT still refuses extraction.
+- Tests: `entropic_faces_and_pipe_input` follows the new cycle (INPUT -> OUTPUT ONLY SEEDS AND SOILS -> NONE) and
+  checks that the new face shows the grids and takes nothing in; new `entropic_seeds_and_soils_face`: a pipe takes
+  planted carrots out, a chest glued to the face receives every seed and soil and nothing else (not the harvest in
+  the output, not the upgrade), the grids end empty with 0 plots, and OUTPUT ALL PRODUCED never shows the grids.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game

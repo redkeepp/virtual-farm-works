@@ -113,6 +113,7 @@ public final class VfwGameTests {
             test("entropic_energy_runs_the_machine", EntropicGameTests::energyRunsTheMachine, 20),
             test("entropic_energy_drains_to_zero", EntropicGameTests::energyDrainsToZero, 20),
             test("entropic_faces_and_pipe_input", EntropicGameTests::facesAndPipeInput, 20),
+            test("entropic_seeds_and_soils_face", EntropicGameTests::seedsAndSoilsFaceEmptiesTheGrids, 20),
             test("entropic_groups_harvest_together", EntropicGameTests::groupsHarvestTogether, 40),
             test("entropic_menu_works", EntropicGameTests::menuWorks, 20),
             test("entropic_replants_extra_seeds", EntropicGameTests::replantsExtraSeeds, 20),

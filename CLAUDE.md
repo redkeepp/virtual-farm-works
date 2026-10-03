@@ -130,14 +130,15 @@ drag-and-drop); smooth progress bar; Jade tooltip; JEI exclusion areas; recipes.
 
 **Entropic Farm Matrix: DONE** (declared by the owner on 2026-09-30, after the in-game tests, a dedicated-server test
 and the final benchmark; the strongest tier, built before the middle ones to balance the midgame). Spec and every
-decision: `docs/specs/entropic-farm-matrix.md`; how it was built: `docs/history.md`. Features: 60 plot groups (two
-4x15 grids, up to 3,840 plots) on one growth bar, every group must be valid; FE (90 per active plot per tick, a
-buffer of 3 ticks that drains to 0; RUNNING WITH LOW FE, MISSING FE); five modes per face (NONE, OUTPUT, OUTPUT
-CRAFTED, OUTPUT ALL, INPUT) with pipe input and pulling from glued inventories; replant (option (b), per-machine
+decision: `docs/specs/entropic-farm-matrix.md`; how it was built: `docs/history.md`. Features: 60 plot groups (two 4x15
+grids, up to 3,840 plots) on one growth bar, every group must be valid; FE (90 per active plot per tick, a buffer of 3
+ticks that drains to 0; RUNNING WITH LOW FE, MISSING FE); six modes per face (NONE, OUTPUT ONLY SEED PRODUCTION, OUTPUT
+ONLY CRAFTED, OUTPUT ALL PRODUCED, INPUT SEEDS AND SOILS, OUTPUT ONLY SEEDS AND SOILS; names of 2026-10-02) with pipe
+input, pulling from glued inventories and giving the grids' seeds and soils back; replant (option (b), per-machine
 button, config switch); autocrafter (up to 100 crafting-table recipes, chains in order, circles stop, uses what the
-output holds, Master Infusion Crystal catalyst, JEI "+", recipes kept on the broken machine's item); Water Provider,
-4 Growth Speed Upgrades, Crux Provider; Fertilized Essence switch; harvest filter; 24 visible + 72 hidden output
-slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; recipes. Git tag `entropic-complete`.
+output holds, Master Infusion Crystal catalyst, JEI "+", recipes kept on the broken machine's item); Water Provider, 4
+Growth Speed Upgrades, Crux Provider; Fertilized Essence switch; harvest filter; 24 visible + 72 hidden output slots;
+Jade; a GUI that lowers the GUI scale while open when it would not fit; recipes. Git tag `entropic-complete`.
 
 **Released:** 1.0.0 on GitHub Releases (2026-09-30, published by the owner, without the logo). In progress: 1.0.1
 (`mod_version`; adds the logo), meant as the first CurseForge/Modrinth upload (page texts: `docs/publishing.md`).
@@ -157,7 +158,7 @@ slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; r
 
 **Next:** Voltaic, Ionic and Resonant (the middle tiers; they will reuse `MachineLayout`), when the owner specifies
 them.
-Tests: game tests (main: 46 = 45 VFW + 1 vanilla; 1.21.1: 45, every VFW test), 86 JUnit, load benchmark.
+Tests: game tests (main: 47 = 46 VFW + 1 vanilla; 1.21.1: 46, every VFW test), 86 JUnit, load benchmark.
 
 Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says "scaffolding"). Outside VFW:
 MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or with JEI; Trash Cans 1.1.1
@@ -179,6 +180,7 @@ The sections below describe main; where they differ, this list wins.
   VFW's OWN buffers: plan, then `commit()`; dropped = nothing changed, no callback) and `SlotRange`. Neighbours get
   plain `IItemHandler` simulate/execute calls. Menus use `menu/HandlerSlot`, which reports vanilla's in-place stack
   edits (`Slot#setChanged`) to the inventory. `GridInput` routes EVERY insertion (1.21.1 pipes insert slot by slot).
+  `GridOutput` is an `IItemHandler`; auto-export empties the grids a stack per slot at a time (`exportGridsTo`).
 - Capabilities: `Capabilities.ItemHandler.BLOCK` / `Capabilities.EnergyStorage.BLOCK`; `MachineEnergy` extends
   `EnergyStorage`.
 - Saves: NBT (`saveAdditional` / `loadAdditional(CompoundTag, HolderLookup.Provider)`), main's keys. `machine/Saves`
@@ -388,7 +390,10 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
   HUD get the player's scale back.
 - INPUT faces pull from glued inventories every `output.autoExportIntervalTicks` (`autoTransfer`), through
   `ResourceHandlerUtil.move` (index-less insertion, so `GridInput` routing pairs seeds and soils; `moveStacking`
-  would insert slot by slot and skip the routing).
+  would insert slot by slot and skip the routing). OUTPUT ONLY SEEDS AND SOILS faces push the grids out in the same
+  pass (`moveStacking` from `GridOutput`, the extract-only view of the grid slots that is also their capability).
+- Face box tooltip (Entropic): side and mode name, the mode's one-line explanation (`FaceMode#descriptionKey`, lang
+  `<name key>.desc`), then the click hint. The Starter's face box shows ON/OFF with its own keys, never these names.
 
 ### Plants and soils (`plant/`)
 - Seed slot (`PlantRules#isPlantable`): the item places a NATIVE plant (`isSupportedPlantBlock`: CropBlock, StemBlock,
@@ -573,7 +578,8 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
 - `machine/` — `FarmMatrixBlockEntity` (the running machine, every tier), `MachineLayout` (per tier: plot groups,
   slot indices, visible output size, features; groups = 1 reproduces the Starter's persisted slot order),
   `MachineInventory`, `OutputBuffer` (visible output), `InternalBuffer` (hidden output), `MachineEnergy` (FE buffer),
-  `FaceMode` (NONE/OUTPUT/OUTPUT CRAFTED/OUTPUT ALL/INPUT, ordinal persisted), `GridInput` (pipe input routing),
+  `FaceMode` (NONE/OUTPUT/OUTPUT_CRAFTED/OUTPUT_ALL/INPUT/OUTPUT_SEEDS_AND_SOILS, ordinal persisted; the GUI names
+  are in its Javadoc), `GridInput` (pipe input routing), `GridOutput` (the grids, extract-only),
   `MachineCrafter` (autocrafter), `CrafterRecipes` (its recipes on a broken machine's item), `MachineFilter`
   (harvest filter), `MachineSlots` (Starter indices — persisted, never
   reorder), `MachineTier` (order = progression, `accepts()`), `RelativeSide` (faces relative to the front; order

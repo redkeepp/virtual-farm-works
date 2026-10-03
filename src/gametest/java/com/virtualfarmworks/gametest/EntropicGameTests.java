@@ -1,19 +1,23 @@
 /*
  * EntropicGameTests — game tests of the Entropic Farm Matrix (owner spec 2026-09-29): 60 plot groups that must all be
- * valid, waiting plots, FE consumption and MISSING FE, face modes with pipe and chest input into the grids, replant,
- * the menu, and groups with the same plant harvested together.
+ * valid, waiting plots, FE consumption and MISSING FE, face modes (pipe and chest input into the grids, the grids'
+ * seeds and soils given back), replant, the menu, and groups with the same plant harvested together.
  */
 package com.virtualfarmworks.gametest;
+
+import org.jetbrains.annotations.Nullable;
 
 import com.virtualfarmworks.machine.FaceMode;
 import com.virtualfarmworks.machine.FarmMatrixBlockEntity;
 import com.virtualfarmworks.machine.MachineEnergy;
 import com.virtualfarmworks.machine.MachineInventory;
 import com.virtualfarmworks.machine.MachineLayout;
+import com.virtualfarmworks.machine.MachineTier;
 import com.virtualfarmworks.machine.RelativeSide;
 import com.virtualfarmworks.menu.AbstractFarmMatrixMenu;
 import com.virtualfarmworks.menu.EntropicFarmMatrixMenu;
 import com.virtualfarmworks.registry.ModBlocks;
+import com.virtualfarmworks.registry.ModItems;
 import com.virtualfarmworks.sim.MachineStatus;
 import com.virtualfarmworks.transfer.ItemResource;
 
@@ -198,7 +202,8 @@ final class EntropicGameTests {
 
     /**
      * Face modes: OUTPUT ALL by default; INPUT takes plantables into the seed grid and soils into the soil grid, pairing
-     * them; NONE shows nothing; OUTPUT shows an extract-only output.
+     * them; OUTPUT ONLY SEEDS AND SOILS shows the grids, extract-only; NONE shows nothing; OUTPUT shows an extract-only
+     * output.
      */
     static void facesAndPipeInput(GameTestHelper helper) {
         FarmMatrixBlockEntity machine = placeMachine(helper);
@@ -218,9 +223,19 @@ final class EntropicGameTests {
         check(helper, inputs.getAmountAsInt(LAYOUT.soilSlot(0)) == 64 && inputs.getAmountAsInt(LAYOUT.soilSlot(1)) == 6,
                 "soils go under their seeds");
 
-        // NONE: nothing on that face. Top: INPUT -> NONE.
+        // OUTPUT ONLY SEEDS AND SOILS (after INPUT): the grids themselves, nothing goes in.
         machine.cycleFaceMode(RelativeSide.TOP, true);
-        check(helper, machine.faceMode(RelativeSide.TOP) == FaceMode.NONE, "INPUT -> NONE");
+        check(helper, machine.faceMode(RelativeSide.TOP) == FaceMode.OUTPUT_SEEDS_AND_SOILS,
+                "INPUT -> OUTPUT ONLY SEEDS AND SOILS");
+        IItemHandler grids = itemHandler(helper, Direction.UP);
+        check(helper, grids != null && grids.getSlots() == 2 * LAYOUT.groups()
+                && grids.getStackInSlot(LAYOUT.seedSlot(0)).getCount() == 64, "the face shows the two grids");
+        check(helper, grids.insertItem(LAYOUT.seedSlot(1), new ItemStack(Items.WHEAT_SEEDS), true).getCount() == 1,
+                "a seeds-and-soils output takes nothing in");
+
+        // NONE: nothing on that face. Top: OUTPUT ONLY SEEDS AND SOILS -> NONE.
+        machine.cycleFaceMode(RelativeSide.TOP, true);
+        check(helper, machine.faceMode(RelativeSide.TOP) == FaceMode.NONE, "OUTPUT ONLY SEEDS AND SOILS -> NONE");
         check(helper, itemHandler(helper, Direction.UP) == null, "a NONE face shows nothing");
 
         // OUTPUT (NONE -> OUTPUT): extract-only.
@@ -230,6 +245,82 @@ final class EntropicGameTests {
         check(helper, out.insertItem(0, new ItemStack(Items.WHEAT_SEEDS), false).getCount() == 1,
                 "outputs refuse input");
         helper.succeed();
+    }
+
+    /**
+     * Owner (2026-10-02): an OUTPUT ONLY SEEDS AND SOILS face gives the grids' seeds and soils and nothing else. A pipe
+     * on it takes planted items out but puts nothing in; a chest glued to it receives every seed and soil (their plots
+     * go with them), never the harvest, the upgrades or anything else; OUTPUT ALL PRODUCED never shows the grids.
+     */
+    static void seedsAndSoilsFaceEmptiesTheGrids(GameTestHelper helper) {
+        var level = helper.getLevel();
+        FarmMatrixBlockEntity machine = placeMachine(helper);
+        MachineInventory inputs = machine.inputs();
+        Item growth = ModItems.GROWTH_SPEED_UPGRADES.get(MachineTier.ENTROPIC).get();
+        put(inputs, LAYOUT.seedSlot(0), Items.WHEAT_SEEDS, 20);
+        put(inputs, LAYOUT.soilSlot(0), Items.FARMLAND, 20);
+        put(inputs, LAYOUT.seedSlot(5), Items.CARROT, 10);
+        put(inputs, LAYOUT.soilSlot(5), Items.FARMLAND, 10);
+        put(inputs, LAYOUT.growthSlot(0), growth, 1);
+        machine.output().set(0, ItemResource.of(Items.WHEAT), 7); // a harvest waiting in the output
+        machine.revalidate();
+        check(helper, machine.totalPlots() == 30, "30 plots planted, got " + machine.totalPlots());
+
+        IItemHandler all = itemHandler(helper, Direction.UP); // the default mode, OUTPUT ALL
+        check(helper, holds(all, Items.WHEAT) && !holds(all, Items.WHEAT_SEEDS) && !holds(all, Items.FARMLAND),
+                "OUTPUT ALL PRODUCED shows the harvest, never the grids");
+
+        while (machine.faceMode(RelativeSide.TOP) != FaceMode.OUTPUT_SEEDS_AND_SOILS) {
+            machine.cycleFaceMode(RelativeSide.TOP, true);
+        }
+        IItemHandler grids = itemHandler(helper, Direction.UP);
+        check(helper, grids != null && !holds(grids, Items.WHEAT) && !holds(grids, growth),
+                "the seeds-and-soils face shows neither the harvest nor the upgrades");
+        check(helper, grids.insertItem(LAYOUT.seedSlot(5), new ItemStack(Items.CARROT), false).getCount() == 1,
+                "nothing goes in");
+        check(helper, grids.extractItem(LAYOUT.seedSlot(5), 3, false).getCount() == 3, "a pipe takes 3 carrots");
+
+        helper.setBlock(MACHINE.above(), Blocks.CHEST);
+        ChestBlockEntity chest = helper.<ChestBlockEntity>getBlockEntity(MACHINE.above());
+        for (int tick = 0; tick < 25; tick++) { // one transfer window (output.autoExportIntervalTicks, 20), then a tick
+            machine.serverTick(level);
+        }
+        check(helper, countIn(chest, Items.WHEAT_SEEDS) == 20 && countIn(chest, Items.FARMLAND) == 30
+                && countIn(chest, Items.CARROT) == 7, "the chest gets every planted seed and soil");
+        check(helper, countIn(chest, Items.WHEAT) == 0 && countIn(chest, growth) == 0,
+                "never the harvest or the upgrades");
+        for (int group = 0; group < LAYOUT.groups(); group++) {
+            check(helper, inputs.getAmountAsLong(LAYOUT.seedSlot(group)) == 0
+                    && inputs.getAmountAsLong(LAYOUT.soilSlot(group)) == 0, "the grids are empty");
+        }
+        check(helper, inputs.getResource(LAYOUT.growthSlot(0)).is(growth), "the upgrade stays in the machine");
+        check(helper, machine.output().getAmountAsInt(0) == 7, "the harvest stays in the output");
+        check(helper, machine.totalPlots() == 0 && machine.status() == MachineStatus.MISSING_SEED,
+                "the plots left with their seeds, got " + machine.totalPlots() + " / " + machine.status());
+        helper.succeed();
+    }
+
+    /** Whether a face's handler shows (and would give) an item. */
+    private static boolean holds(@Nullable IItemHandler handler, Item item) {
+        if (handler == null) {
+            return false;
+        }
+        for (int i = 0; i < handler.getSlots(); i++) {
+            if (handler.getStackInSlot(i).is(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int countIn(ChestBlockEntity chest, Item item) {
+        int count = 0;
+        for (int i = 0; i < chest.getContainerSize(); i++) {
+            if (chest.getItem(i).is(item)) {
+                count += chest.getItem(i).getCount();
+            }
+        }
+        return count;
     }
 
     /** Several groups of the same plant and one of another: one harvest yields exactly one wheat per wheat plot. */
