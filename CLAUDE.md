@@ -591,8 +591,8 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
 - `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`, `client/GuiScaleFit`,
   `config/ConfigFileLayout`).
 - `src/main/resources/data/virtualfarmworks/` — tags, data maps, recipes, loot tables (see `docs/resources.md`).
-- `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata: description, links, authors, optional
-  dependencies (Gradle expands it from `gradle.properties`; the logo line waits for the owner's logo).
+- `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata: loader (FML 4 on this line), description, links,
+  authors, the owner's logo, optional dependencies (Gradle expands it from `gradle.properties`).
 
 ## Docs (read the specs before implementing)
 
