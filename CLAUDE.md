@@ -140,8 +140,10 @@ output holds, Master Infusion Crystal catalyst, JEI "+", recipes kept on the bro
 Growth Speed Upgrades, Crux Provider; Fertilized Essence switch; harvest filter; 24 visible + 72 hidden output slots;
 Jade; a GUI that lowers the GUI scale while open when it would not fit; recipes. Git tag `entropic-complete`.
 
-**Released:** 1.0.0 on GitHub Releases (2026-09-30, published by the owner, without the logo). In progress: 1.0.1
-(`mod_version`; adds the logo), meant as the first CurseForge/Modrinth upload (page texts: `docs/publishing.md`).
+**Released:** 1.0.0 on GitHub Releases (2026-09-30, without the logo); 1.0.1 (the logo) as the first
+CurseForge/Modrinth upload; 1.0.2 (2026-10-03: the Entropic's face modes renamed plus OUTPUT ONLY SEEDS AND SOILS,
+and the first 1.21.1 jar) on GitHub Releases, tag `1.0.2`. Both lines are at `mod_version` 1.0.2; the next
+change moves them to the next version.
 
 **Two Minecraft versions, side by side (owner, 2026-10-01).**
 - **26.x** (branch `main`): "the base for everything from now on, on the new, up-to-date API". Every feature is

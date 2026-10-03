@@ -3,11 +3,10 @@
 All notable changes to Virtual Farm Works. Versions follow [Semantic Versioning](https://semver.org/); release files
 are named `virtualfarmworks-<Minecraft version>-<mod version>.jar`.
 
-## [Unreleased]
+## [1.0.2] - 2026-10-03
 
 ### Added
 
-- The mod's logo in the mods list.
 - A version for Minecraft 1.21.1 (NeoForge 21.1.251 or newer, e.g. All the Mods 10), with every feature of this one.
 - Entropic: a sixth face mode, OUTPUT ONLY SEEDS AND SOILS (purple), which gives back the seeds and soils planted in
   the two grids, to pipes or to a chest glued to that face.
@@ -17,6 +16,12 @@ are named `virtualfarmworks-<Minecraft version>-<mod version>.jar`.
 
 - Entropic face modes renamed, same colors and behavior: OUTPUT ONLY SEED PRODUCTION, OUTPUT ONLY CRAFTED, OUTPUT ALL
   PRODUCED (never the grids' seeds and soils) and INPUT SEEDS AND SOILS.
+
+## [1.0.1] - 2026-09-30
+
+### Added
+
+- The mod's logo in the mods list.
 
 ## [1.0.0] - 2026-09-30
 
