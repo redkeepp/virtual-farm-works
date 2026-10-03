@@ -180,6 +180,7 @@ The sections below describe main; where they differ, this list wins.
   VFW's OWN buffers: plan, then `commit()`; dropped = nothing changed, no callback) and `SlotRange`. Neighbours get
   plain `IItemHandler` simulate/execute calls. Menus use `menu/HandlerSlot`, which reports vanilla's in-place stack
   edits (`Slot#setChanged`) to the inventory. `GridInput` routes EVERY insertion (1.21.1 pipes insert slot by slot).
+  `GridOutput` is an `IItemHandler`; auto-export empties the grids a stack per slot at a time (`exportGridsTo`).
 - Capabilities: `Capabilities.ItemHandler.BLOCK` / `Capabilities.EnergyStorage.BLOCK`; `MachineEnergy` extends
   `EnergyStorage`.
 - Saves: NBT (`saveAdditional` / `loadAdditional(CompoundTag, HolderLookup.Provider)`), main's keys. `machine/Saves`

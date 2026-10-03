@@ -429,7 +429,10 @@ NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 2
   of the grid slots `[0, 2 x groups)`, like `GridInput` the other way round: it is the face's capability and the
   source `autoTransfer` empties into a glued inventory. Taking seeds or soils out goes through the inventory's change
   callback, so the next tick re-validates the plots exactly as when a player takes them by hand: no special case, no
-  dupe. The lang keeps the keys (only the shown names change) and adds `<key>.desc`.
+  dupe. The lang keeps the keys (only the shown names change) and adds `<key>.desc`. On the 1.21.1 line
+  `GridOutput` is an `IItemHandler` (an extraction gives at most a stack, as from any `ItemStackHandler`) and
+  `FarmMatrixBlockEntity#exportGridsTo` pushes each grid slot out a stack at a time with `insertItemStacked`, the way
+  `exportTo` does for the output.
 - The original Entropic spec said pipes never take seeds or soils out (`GridInput` refuses extraction); the new mode
   is the owner's explicit way out, and INPUT still refuses extraction.
 - Tests: `entropic_faces_and_pipe_input` follows the new cycle (INPUT -> OUTPUT ONLY SEEDS AND SOILS -> NONE) and
