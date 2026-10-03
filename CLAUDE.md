@@ -38,7 +38,8 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
 4. **Nothing hard-coded for balance**: numbers go to config (`ModConfigSpec`), datapack data maps or tags, so pack
    makers can tune them. Tier numbers are not final unless written here or in the specs.
 5. **Do not read the parent folder** (`..\`, the owner's "Virtual Farm Works" folder): it holds an older, flawed
-   prototype the owner does not want to influence this code. The repository is the `virtualfarmworks` subfolder.
+   prototype the owner does not want to influence this code. The repository is the `virtualfarmworks` subfolder
+   (branch `main`) and its git worktree `virtualfarmworks-1.21.1` (branch `1.21.1`).
 6. **Chat**: the owner writes in Portuguese — answer in Portuguese (repo stays English). When the owner asks a
    question or says "discuss" (DISCUTIR), answer and WAIT for an explicit go-ahead before changing code. Once a
    feature is authorized, implement it directly: no plan or file list for approval first (owner, 2026-09-29). Report
@@ -56,10 +57,17 @@ virtual representation. It is convenience + infrastructure reduction + lag preve
    "Redkeep" wherever a name is shown; the GitHub account is `redkeepp` (two p: `redkeep` was taken), used only
    where the account itself is needed (URLs). The owner's previous personal account is not used any more: never
    write the owner's personal name, old username or e-mail in any file, doc, metadata or commit.
+10. **The docs are the same on both lines** (owner, 2026-10-02: "as equal as possible"): `CLAUDE.md`, `docs/`,
+    `CHANGELOG.md` and the issue templates are identical on `main` and `1.21.1`. A doc change made on one branch is
+    made on the other in the same session, written so it holds on both ("on main" / "on the 1.21.1 line" where they
+    differ). Only code, build files, `gradle.properties`, the CI workflow and `README.md` (versions, requirements,
+    measured numbers) differ.
 
 ## Commands
 
-Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on the owner's machine).
+Run from the root of the checkout you work in (see Current state). `JAVA_HOME` must point to JDK 25 (configured on
+the owner's machine); main builds with it, the 1.21.1 branch with Gradle's Java 21 toolchain (a JDK 21 is installed;
+there `JAVA_HOME` only runs Gradle).
 
 ```
 .\gradlew.bat build               # compile + jar + JUnit (build/test-results/test/*.xml)
@@ -74,11 +82,13 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
 
 - Game tests and the benchmark run in `run-gametest/` (default config, own world and logs; the `syncTestMods` task
   copies `run/mods` into it). Never point them back to `run/`: `run/config` holds the owner's manual test values.
-- Dev test mods go as jars in `run/mods/` (MA 9.0.9, Agradditions 9.0.3, Cucumber, Jade, JEI, and others; 26.1 is
-  unobfuscated, so production jars load in dev). `run/` and `run-gametest/` are git-ignored. CI (GitHub Actions)
+- Dev test mods go as jars in `run/mods/` (main: MA 9.0.9, Agradditions 9.0.3, Cucumber, Jade, JEI, and others; 26.1
+  is unobfuscated, so production jars load in dev; the 1.21.1 checkout has ATM10's jars, see its section). `run/` and
+  `run-gametest/` are git-ignored. CI (GitHub Actions)
   runs `gradlew build` only (JUnit, and it compiles the game tests without running them).
 - Release jar (`gradlew build` -> `build/libs/virtualfarmworks-<minecraft_version>-<mod_version>.jar`, e.g.
-  `virtualfarmworks-26.1.2-1.0.0.jar`; `mod_version` alone goes into `neoforge.mods.toml`): built from `main` only.
+  `virtualfarmworks-26.1.2-1.0.0.jar`; `mod_version` alone goes into `neoforge.mods.toml`): built from `main` (and
+  the 1.21.1 jar, e.g. `virtualfarmworks-1.21.1-1.0.1.jar`, from `1.21.1`), never from another branch.
   Optional metadata lines (home page, issue tracker) are Groovy `if` blocks in the template, left out when their
   property is empty.
   The game tests and the benchmark are the `gametest` source set (`src/gametest/java`), part of the mod in dev runs
@@ -96,7 +106,18 @@ Run from the repository root. `JAVA_HOME` must point to JDK 25 (configured on th
   (GitHub release tag `v<mod_version>`, then CurseForge and Modrinth). Right after a release, `mod_version` moves
   to the next version, so a build never carries the number of a published jar it differs from.
 
-## Current state (2026-09-30)
+## Current state (2026-10-02)
+
+**Two lines, one repository, and this file is the same on both** (rule 10). `main` = Minecraft 26.1.2 (folder
+`virtualfarmworks`); `1.21.1` = Minecraft 1.21.1 for ATM10 (folder `virtualfarmworks-1.21.1`, a git worktree of the
+same repository, created from main at 544812d). `git branch --show-current` tells which one a checkout is. The 1.21.1
+port is DONE (2026-10-02): every step of `docs/port-1.21.1.md` is committed (the plan says what each step changed,
+`docs/history.md` "Port to 1.21.1" why), its game tests pass with Mystical Agriculture 8.0.28, and the owner's block
+models are converted for 1.21.1 (owner OK). Owner's in-game test on 1.21.1 (2026-10-02): the Starter works in full;
+the Entropic crashed on opening its GUI (fixed) and is to be tested again in full; OPEN: the Starter's progress bar
+moves in steps instead of smoothly on 1.21.1 only (owner report; the server side syncs regularly, see
+`docs/history.md`). The Starter and Entropic features below are main's, all ported; where 1.21.1 differs, "The 1.21.1
+line" section says how.
 
 **Starter Farm Matrix: DONE** (declared by the owner on 2026-09-29, after the plantables and the benchmark), tested in
 game by the owner (single player; dedicated server before the JEI packet was added). Features: one global growth
@@ -124,24 +145,76 @@ slots; Jade; a GUI that lowers the GUI scale while open when it would not fit; r
 **Two Minecraft versions, side by side (owner, 2026-10-01).**
 - **26.x** (branch `main`): "the base for everything from now on, on the new, up-to-date API". Every feature is
   designed and built here first, the 26.x way: never shape 26.x code around 1.21.1. Target: ATM11 and later.
-- **1.21.1** (branch `1.21.1`, not created yet): "the stubborn old one that has not died yet and still needs
-  attention". ATM10 (NeoForge 21.1) is the second most played CurseForge pack, so it gets every feature after 26.x,
-  ported to its old API (no transfer API, old GUI, NBT saves, old game tests...). Its own problems are solved in
-  that branch only; a bug in logic both versions share is fixed in both. It pins the versions ATM10 ships (owner,
-  2026-10-01; all checked on their mavens): NeoForge 21.1.228, Mystical Agriculture 1.21.1-8.0.26, Mystical
-  Agradditions 1.21.1-8.0.13, Cucumber 1.21.1-8.0.16 (MA's library, needed at runtime), JEI 19.27.0.340
-  (`jei-1.21.1-*-api`), Jade 15.10.5+neoforge (Modrinth maven).
+- **1.21.1** (branch `1.21.1`, folder `virtualfarmworks-1.21.1`): "the stubborn old one that has not died yet and
+  still needs attention". ATM10 (NeoForge 21.1) is the second most played CurseForge pack, so it gets every feature
+  after 26.x, ported to its old API (no transfer API, old GUI, NBT saves, old game tests...). Its own problems are
+  solved in that branch only; a bug in logic both versions share is fixed in both. It pins the versions ATM10 ships,
+  kept in `docs/port-1.21.1.md` (2026-10-02: NeoForge 21.1.251, Mystical Agriculture 1.21.1-8.0.28, Mystical
+  Agradditions 1.21.1-8.0.14, Cucumber 1.21.1-8.0.16, JEI 19.57.0.446, Jade 15.10.6+neoforge).
 - Same mod version for the same features on both lines (the file name carries the Minecraft version); both jars go
-  to the same CurseForge/Modrinth projects. Port analysis (what changes and its weight): this session's notes in
-  `docs/history.md` once the port starts. Nothing is ported until the owner asks.
+  to the same CurseForge/Modrinth projects. The first port: plan and progress in `docs/port-1.21.1.md`, how it went
+  in `docs/history.md`. A new main feature is ported when the owner asks.
 
 **Next:** Voltaic, Ionic and Resonant (the middle tiers; they will reuse `MachineLayout`), when the owner specifies
 them.
-Tests: 46 game tests (45 VFW + 1 vanilla), 86 JUnit, load benchmark.
+Tests: game tests (main: 46 = 45 VFW + 1 vanilla; 1.21.1: 45, every VFW test), 86 JUnit, load benchmark.
 
 Deferred by the owner: EMI (no 26.1.2 release), publishing metadata (README still says "scaffolding"). Outside VFW:
 MA 9.0.9's creative tab crashes (it lists "Inferium Essence" twice) — test in survival or with JEI; Trash Cans 1.1.1
 crashes when anything exports into its Item Trash Can (its own bug, see `docs/history.md`).
+
+## The 1.21.1 line (branch `1.21.1`): what differs from main
+
+What the 1.21.1 line does differently from main, by area (details: `docs/port-1.21.1.md`; reasons: `docs/history.md`).
+The sections below describe main; where they differ, this list wins.
+- Sources (1.21.1, gitignored): `build/moddev/artifacts/neoforge-21.1.251-sources.jar` holds Minecraft AND NeoForge
+  (extracted to `build/mcsrc/`); vanilla data from
+  `~/.gradle/caches/neoformruntime/artifacts/minecraft_1.21.1_client.jar` (extracted to `build/vanilla/`). FML,
+  Mystical Agriculture (no sources jar on its maven), JEI and Jade: `javap` on their jars (JDK 21's,
+  `C:\Program Files\Java\jdk-21\bin`). Dev mods in `run/mods`: ATM10's jars (list in the plan); NeoForge 21.1 also
+  runs with official names, so production jars load in dev.
+- Items: no NeoForge transfer API. `transfer/` holds VFW's stand-ins with the 26.1 names: `ItemResource` (item type,
+  cached hash; compare stacks with `matches` in hot loops), `ItemSlots` (base of the machine's inventories, a NeoForge
+  `ItemStackHandler`; saves resource + count so counts above 99 survive), `SlotTransaction` (all-or-nothing changes to
+  VFW's OWN buffers: plan, then `commit()`; dropped = nothing changed, no callback) and `SlotRange`. Neighbours get
+  plain `IItemHandler` simulate/execute calls. Menus use `menu/HandlerSlot`, which reports vanilla's in-place stack
+  edits (`Slot#setChanged`) to the inventory. `GridInput` routes EVERY insertion (1.21.1 pipes insert slot by slot).
+- Capabilities: `Capabilities.ItemHandler.BLOCK` / `Capabilities.EnergyStorage.BLOCK`; `MachineEnergy` extends
+  `EnergyStorage`.
+- Saves: NBT (`saveAdditional` / `loadAdditional(CompoundTag, HolderLookup.Provider)`), main's keys. `machine/Saves`
+  writes codec values with registry ops and reads booleans with a default (NBT's default is false).
+- Recipes: ids are `ResourceLocation`s; `getRecipeManager().getRecipeFor(type, input, level, hint)`; "placeable" =
+  `!isSpecial() && !isIncomplete()`; recipe JSON ingredients are objects (`{"item": ...}`).
+- Plants: no `#supports_*` tags in 1.21.1 (soil rules are code: `#dirt`, `#sand`, `#bamboo_plantable_on`,
+  `#jungle_logs`, end stone, soul sand, any `FarmBlock`); NeoForge's `TriState`; farmland class `FarmBlock`; VFW tag
+  defaults use 1.21.1 tags (`#minecraft:dirt`, `#minecraft:mushroom_grow_block`). `VirtualLevel` must override
+  `getMinBuildHeight` (the default asks the dimension).
+- GUI: `GuiGraphics` (`renderBg`, `renderLabels`, `renderTooltip` called from `render`), depth instead of 26.1's
+  layering by overlap: cover an item with `FarmMatrixScreen#coverItem` (fill + ghost-recipe overlay), not a plain
+  fill. `mouseClicked(double, double, int)` (no double-click flag), `hasClickedOutside(..., button)`.
+  `Minecraft#setScreen` calls `added()` BEFORE `init(Minecraft, w, h)`, which is what sets a screen's `minecraft`
+  and `font` (26.1 sets both in the constructor): in `added()` use `Minecraft.getInstance()`. An exception there
+  leaves an uninitialized screen open and the next frame crashes on its null font (Entropic GUI, 2026-10-02).
+- Blocks/items: `useItemOn` -> `ItemInteractionResult`; contents drop in `FarmMatrixBlock#onRemove`; modded component
+  tooltips come from `FarmMatrixBlock#appendHoverText`; item models in `models/item` (the `items/` folder is ignored).
+- Block models (owner OK, 2026-10-02, the one exception to rule 7, on 1.21.1 only): main's Blockbench exports use 26.1's
+  multi-axis element rotations, which 1.21.1 refuses ("Missing axis"), so the 1.21.1 branch carries them converted by
+  `tools/convert_block_models.py` (quarter-turned elements written as the same boxes already turned; verified against
+  both games' bakers). After the owner re-exports a model on main, bring the file here and run
+  `python tools/convert_block_models.py`; never hand-edit the converted files.
+- Integrations: JEI 19 (`RecipeType`, the 6-argument `transferRecipe`), Jade 15, Mystical Agriculture 8.0.28 (same
+  formulas as 9.0.9, checked in its bytecode; no always-effective farmland tag, no Awakened Supremium farmland, so the
+  `soil_properties` data map has no entry for it). Server config: `config/virtualfarmworks-server.toml`, overridable per
+  world in `<world>/serverconfig/`.
+- Game tests: `RegisterGameTestsEvent` registers `VfwGameTests`, whose static `@GameTestGenerator` turns the same list
+  into `TestFunction`s (add a test there as on main). Every test runs in `virtualfarmworks:empty`
+  (`src/gametest/resources/data/virtualfarmworks/structure/empty.nbt`, 8x4x8; 1.21.1 ships no empty template).
+  Relative (0, 0, 0) is the test's STRUCTURE BLOCK: place blocks from y 1. `GameTestHelper#assertTrue(boolean,
+  String)`, `getBlockEntity(pos)` (generic).
+- Benchmark (2026-10-02, owner's PC, every game closed, Java 21, average of 3 runs): Starter busy wheat farm 0.24 us,
+  growing 0.025 us (runs 0.012-0.041), harvest 76 us (64 wheat); Entropic busy 3,840 wheat plots 2.4 us (3.9 with the
+  autocrafter), mixed 0.89 us, revalidation of 60 groups 15 us. The rows that store many items cost less than on
+  main (probably `SlotTransaction` vs 26.1's journaled transactions; not profiled). Full rows: `docs/history.md`.
 
 ## Core design (owner's spec, source of truth)
 
@@ -535,8 +608,8 @@ Breaking drops contents in `preRemoveSideEffects`; the autocrafter's recipes lea
 - `src/test/java/com/virtualfarmworks/` — JUnit (`sim/`, `client/SmoothProgress`, `client/GuiScaleFit`,
   `config/ConfigFileLayout`).
 - `src/main/resources/data/virtualfarmworks/` — tags, data maps, recipes, loot tables (see `docs/resources.md`).
-- `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata: description, links, authors, optional
-  dependencies (Gradle expands it from `gradle.properties`; the logo line waits for the owner's logo).
+- `src/main/templates/META-INF/neoforge.mods.toml` — mod metadata: loader (FML 4, 1.21.1 only), description, links,
+  authors, the owner's logo, optional dependencies (Gradle expands it from `gradle.properties`).
 
 ## Docs (read the specs before implementing)
 

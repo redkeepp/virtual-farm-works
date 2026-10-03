@@ -203,6 +203,219 @@ Delight, Mystical Agriculture, JEI; checked through the GitHub API) and approved
   `docs/publishing.md`, and `mod_version` 1.0.1 for the next release. License: the owner wants it as free as
   possible; MIT stays (code and assets), modpacks welcome without asking.
 
+## Port to 1.21.1 (branch 1.21.1, from 2026-10-02)
+
+The owner keeps a 1.21.1 line for All the Mods 10 (CLAUDE.md, "Two Minecraft versions"). The plan, with the areas,
+their weight and the order, is `docs/port-1.21.1.md`; this section records how each step went and why. Every API was
+checked against the 1.21.1 sources (NeoForge 21.1.251's `neoforge-21.1.251-sources.jar`, which holds Minecraft and
+NeoForge together; FML 4.0.44 read with `javap`), never against what holds for 26.1.
+
+### Step 1 — build and base
+- Versions from ATM10 (`gradle.properties`), Java 21 toolchain (a JDK 21 is installed; JAVA_HOME may stay on 25, it
+  only runs Gradle), the 1.21.1 MDK's `data()` run type (`clientData()` is 1.21.4+), JDK 21 in CI.
+- FML 4 refuses a mod file without `modLoader` and `loaderVersion` ("Missing ModLoader in file", read in
+  `ModFileInfo`); later FML versions dropped them, so the 26.1 template had neither. Added, with the range in
+  `gradle.properties` (`loader_version_range=[4,)`, as in the 1.21.1 MDK).
+- NeoForge runs Minecraft with its official names in production since 1.20.5 (checked: Mystical Agriculture 8.0.28's
+  jar calls `CropBlock.randomTick` by name), so VFW's reflection by official names (stem fruit, tree growers,
+  `mayPlaceOn`) keeps working in 1.21.1 jars.
+- Renames: `Identifier` -> `ResourceLocation`, `ContainerInput` -> `ClickType`, `NetherFungusBlock` -> `FungusBlock`,
+  `VegetationBlock` -> `BushBlock`, `FMLEnvironment.isProduction()` -> `FMLEnvironment.production`,
+  `ClientPacketDistributor` -> `PacketDistributor`, `Registry#getValue` -> `get`, `ItemStack#typeHolder` ->
+  `getItemHolder`. jspecify is not on the 1.21.1 classpath: `org.jetbrains.annotations.Nullable` (also a TYPE_USE
+  annotation, what NeoForge 21.1 itself uses) replaces it, so `ModConfigSpec.@Nullable IntValue` still compiles.
+
+### Step 2 — inventories and energy
+- 1.21.1 has `IItemHandler` (one call at a time, simulate or execute) instead of the 26.1 transfer API. A harvest
+  batch holds several item types and must be stored all-or-nothing, and simulating it item by item would let two
+  items be promised the same empty slot. Since the harvest only ever stores into the machine's OWN buffers, VFW plans
+  the whole batch on `transfer/SlotTransaction` (its own view of each slot it changed) and writes the slots only on
+  commit: one `setStackInSlot`, hence one change callback, per changed slot; a batch that does not fit changes nothing
+  and fires no callback (otherwise the failed attempt would look like an output change and the machine would retry
+  every tick). Same for the autocrafter taking from the output, the refill of the visible output and upgrades taken
+  from the hand. Neighbours (other mods) get plain simulate-then-execute calls: auto-export inserts a copy with
+  `insertItemStacked` and keeps the rest; INPUT faces simulate the extraction and the grid insertion first and only
+  extract what the grids accept (what a broken neighbour hands over beyond that goes back to it, or drops: never
+  voided).
+- `transfer/ItemResource` replaces NeoForge 26.1's `ItemResource` with the same method names (`of`, `EMPTY`, `getItem`,
+  `toStack`, `getMaxStackSize`, `CODEC`), so the shared logic (harvest, autocrafter, held drops) reads the same on both
+  lines and a fix can be carried over. Its hash is cached per object, but every `of(stack)` is a new object, so hot
+  loops compare stacks in place with `matches` (the output stock scan, the replant plan, the grid routing) instead of
+  building a resource per slot.
+- `transfer/ItemSlots` (base of the machine's inventories) extends NeoForge's `ItemStackHandler` and keeps the 26.1
+  accessor names. Two 1.21.1 traps it handles: vanilla's item codec refuses counts above 99 (grid slots may hold more:
+  each slot is saved as resource + count), and vanilla's shift-click merge grows a slot's stack IN PLACE and only
+  calls `Slot#setChanged`, which a plain `SlotItemHandler` sends to a dummy container — the machine would not notice.
+  `menu/HandlerSlot` forwards it (`ItemSlots#slotChanged`) and uses the inventory's own limit, so grid slots configured
+  above a stack fill above a stack by hand too.
+- Pipe input: 1.21.1 handlers have no index-less insertion, which `GridInput` used to route seeds and soils. Pipes,
+  hoppers and `insertItemStacked` insert slot by slot, so every insertion into `GridInput` is routed whatever slot it
+  names; the caller only looks at what is returned. Simulated and real insertions plan the same way.
+- Energy: `MachineEnergy` extends NeoForge's `EnergyStorage` (int, like 26.1's `SimpleEnergyHandler`); insertion by
+  cables reports the change; the capacity is clamped to `Integer.MAX_VALUE`.
+
+### Step 3 — saving
+- 26.1's `ValueOutput` / `ValueInput` become a `CompoundTag` plus the registries (`saveAdditional` /
+  `loadAdditional(CompoundTag, HolderLookup.Provider)` in 1.21.1). The keys are main's, so the two lines stay easy to
+  compare, though saves never move between Minecraft versions.
+- `machine/Saves` holds what 26.1's value classes did for free: a codec value written under a key with registry ops
+  (held drops and the crafter's buffer carry item components, the crafter's recipes recipe ids), a failed value logged
+  and left out instead of breaking the save, and booleans that default to true when missing (NBT's own default is
+  false: a machine saved without the key would come back switched off).
+- The filter decodes its entries one by one, as 26.1's `listOrEmpty` did, so one unreadable entry costs only itself.
+- The energy amount is restored as saved: the capacity is set by the first revalidation, which also trims an amount
+  above a lowered capacity (clamping at load, before the capacity is known, would empty every buffer).
+
+### Step 4 — recipes and autocrafter
+- 1.21.1 identifies recipes by `ResourceLocation` (`RecipeHolder#id`), not by `ResourceKey<Recipe<?>>`: the
+  autocrafter's recipe hint and its saved form (`ResourceLocation.CODEC`, key "recipe") follow. The lookup is
+  `level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, input, level, hint)`, which prefers the hinted recipe
+  while it still matches, as 26.1's `recipeAccess()` did. `assemble` takes the registries.
+- 26.1 refused recipes whose `placementInfo()` is impossible to place. 1.21.1 has no placement info; its recipe book
+  shows a recipe when `!isSpecial() && !isIncomplete()` (`ClientRecipeBook`), i.e. it has ingredients and every one of
+  them has items. The autocrafter uses that same test.
+- `CraftingInput.ofPositioned` and `getRemainingItems` exist in 1.21.1 as in 26.1: the catalyst bookkeeping (remainders
+  indexed by the TRIMMED input) is unchanged.
+- Recipe JSONs: 1.21.1 reads ingredient objects (`{"item": ...}`), checked against vanilla 1.21.1's own recipes; the
+  results already used `{"id": ...}`. Advancements are unchanged (same format in vanilla 1.21.1).
+
+### Step 5 — plants and tags
+- 1.21.1 has no `#minecraft:supports_*` block tags: each plant's soil rule is code. Read from the 1.21.1 sources:
+  `BushBlock#mayPlaceOn` = `#minecraft:dirt` or any `FarmBlock`; crops and stems = any `FarmBlock`; nether wart =
+  soul sand; sugar cane = `#minecraft:dirt` or `#minecraft:sand` (+ water, ignored); cactus = `#minecraft:sand`;
+  bamboo = `#minecraft:bamboo_plantable_on`; cocoa = `#minecraft:jungle_logs`; chorus flower = end stone. `PlantRules`
+  uses exactly these for the plants that are not BushBlocks and as the fallback when `mayPlaceOn` cannot be called.
+- NeoForge 21.1's `canSustainPlant` returns its own `net.neoforged.neoforge.common.util.TriState` (26.1 moved it to
+  vanilla). The farmland class is `FarmBlock` (renamed `FarmlandBlock` later); Mystical Agriculture 8's farmlands
+  extend it, so "every farmland counts" still covers them.
+- Tag defaults: `universal_soils` = `#minecraft:dirt` + farmland (the same blocks as 26.1's `supports_vegetation`, minus
+  pale moss, which does not exist); `supports_mushrooms` = `#minecraft:mushroom_grow_block` (the later
+  `overrides_mushroom_light_requirement`); `supports_glow_berries` names the moss block (no `#minecraft:moss_blocks`).
+- `VirtualLevel` against 1.21.1's `WorldGenLevel` hierarchy (listed with `javap`): `getMinBuildHeight` (MUST be
+  overridden: the default asks `dimensionType()`, which a rule-check level without a server cannot answer),
+  `getShade`, `playSound` / `levelEvent` with a `Player`, no environment attributes.
+- The private fields and methods read by reflection have the same names in 1.21.1 (`StemBlock#fruit`,
+  `SaplingBlock#treeGrower`, `FungusBlock#feature` / `requiredBlock`, `TreeGrower#getConfiguredFeature` /
+  `getConfiguredMegaFeature`).
+
+### Step 6 — GUI, blocks and items
+- 26.1 draws through an "extract" API that layers elements by overlap in drawing order; 1.21.1 draws at once through
+  `GuiGraphics`, with depth. `AbstractContainerScreen#render` draws the background (`renderBg`), then the active slots,
+  then `renderLabels` translated to the GUI origin; screens call `renderTooltip` themselves at the end of `render`. The
+  code keeps 26.1's structure: `extractBackground` -> `renderBg`, `extractLabels` -> `renderLabels`,
+  `extractTooltip` -> `renderTooltip`; the private helpers are `draw*`.
+- Items are drawn in front of the flat GUI (z 150), so a fill drawn after an item does not cover it. The 40% ghost
+  items (and the greyed-out replant icon) get their cover twice: a plain fill for the cell around the item, and the
+  same color through `RenderType.guiGhostRecipeOverlay()`, which only draws where something is in front (vanilla's
+  recipe-book ghost technique). Together they equal 26.1's single cover over the whole cell.
+- The Entropic's crafter panel still works as a modal: vanilla does not draw inactive slots, so the grid items under
+  the panel are not drawn and the panel's own slots, drawn after the background, are on top.
+- Input: `mouseClicked(double, double, int)`; 1.21.1 passes no double-click flag, so the Entropic screen measures it
+  (two left clicks within vanilla's 250 ms) and still requires both clicks on the same recipe.
+  `hasClickedOutside` takes the button too.
+- GUI scale fit (owner, 2026-09-30): same flow as 26.1 (`Minecraft#setScreen` calls the old screen's `removed()`, then
+  the new one's `added()`, then sizes it), with 1.21.1's `double` scale and `resize(Minecraft, int, int)`.
+- Blocks and items: `useItemOn` returns an `ItemInteractionResult` (`PASS_TO_DEFAULT_BLOCK_INTERACTION` opens the GUI as
+  26.1's `TRY_WITH_EMPTY_HAND` did); the contents drop in `FarmMatrixBlock#onRemove` (26.1:
+  `BlockEntity#preRemoveSideEffects`), before the block entity goes, only when the block itself changes; the loot table
+  still reads the captured block entity, so the recipes stay on the item. 1.21.1 shows no tooltip for modded item
+  components and has no `RegisterTooltipAppendersEvent`: a block item asks its block, so
+  `FarmMatrixBlock#appendHoverText` adds "Autocrafter recipes: N" (no client event needed).
+  `applyImplicitComponents(DataComponentInput)`,
+  `BlockEntityType.Builder.of(...).build(null)`, `registerBlock(name, factory, Properties)`.
+- Item models: 1.21.1 reads `models/item/<id>.json` only (26.1's `items/` definitions are ignored), so the two machines
+  got `models/item/*_farm_matrix.json` with the block model as parent.
+- Found while checking assets: the owner's block models use 26.1's multi-axis element rotations (90 / 180 degrees),
+  which 1.21.1's model reader refuses ("Missing axis"). Left for the owner (rule 7), see the plan; solved after step 8
+  ("Block models", below).
+
+### Step 7 — integrations
+- JEI 19: the recipe type is `mezz.jei.api.recipe.RecipeType` (26.1's JEI calls it `IRecipeType`); the crafting type
+  is the same `RecipeHolder<CraftingRecipe>`. JEI 19 marks the 6-argument `transferRecipe` for removal but still
+  declares it abstract (its context form calls it): implemented, with the warning suppressed and explained. The "+"
+  refuses what the autocrafter refuses (`isSpecial() || isIncomplete()`).
+- Jade 15: same provider API; the tooltip reads the server data with 1.21.1's `CompoundTag` getters (0 when missing)
+  and its own default for the two multipliers.
+- Mystical Agriculture 8.0.28 (ATM10's), checked in its bytecode with `javap -c` (no sources jar on its maven):
+  `MysticalCropBlock#getDrops` and `InferiumCropBlock#getDrops` are exactly the formulas `MysticalDropSource`
+  reproduces; `Crop#getSecondaryChance` adds the tier's base (0.1 by default) on essence farmland and 0.1 more on the
+  effective one, capped at 1; `canGrow` checks the crux two blocks down and, with `requiresEffectiveFarmland`, the
+  tier's farmland: in MA 8 `CropTier#isEffectiveFarmland` is an exact match only (MA 9's always-effective tag does not
+  exist yet), and VFW calls MA's own method, so it follows the installed version. The Master Infusion Crystal extends
+  Cucumber's `BaseReusableItem` (unbreakable: its remainder is itself), so the catalyst rule holds. Farmland classes
+  extend `FarmBlock`. MA 8 has no Awakened Supremium farmland: its `soil_properties` entry would make NeoForge log an
+  error on every reload (`DataMapLoader` resolves values as required), so the 1.21.1 data map leaves it out.
+- Area 11 (config): NeoForge 21.1 loads SERVER configs from `config/` with an optional per-world override in
+  `<world>/serverconfig/` (`ServerLifecycleHooks`), so the file is where main has it. The pack-maker comments now name
+  MA 8.0.x and drop the always-effective tag lines.
+
+### Step 8 — tests and benchmark
+- JUnit (the Minecraft-free core, `GuiScaleFit`, `SmoothProgress`, `ConfigFileLayout`) passed unchanged on Java 21:
+  86 tests.
+- Game tests: 1.21.1 has no test-function registry. NeoForge's `RegisterGameTestsEvent` registers `VfwGameTests`,
+  whose static `@GameTestGenerator` method turns main's list into `TestFunction`s, so the list and the test bodies
+  keep main's shape. Every 1.21.1 test needs a structure template and the game ships no empty one: VFW's
+  `virtualfarmworks:empty` (8 x 4 x 8 of air, written by a script with 1.21.1's DataVersion, 3955) lives in the
+  gametest source set, so it never reaches the release jar; its namespace also keeps the generated tests inside the
+  runs' `neoforge.enabledGameTestNamespaces` filter.
+- Positions: in 1.21.1, relative (0, 0, 0) is the test's structure block, one block BELOW the template, so the tests
+  place machines, chests and farmland from y 1.
+- The bodies follow the other steps: `IItemHandler` / `IEnergyStorage` calls (simulated where a test only needs the
+  answer, as main's never-committed transactions did), `ItemInteractionResult`, recipe ids as `ResourceLocation`s,
+  `assertTrue(boolean, String)`. The plants newer than 1.21.1 left `PlantablesGameTests`; the MA tests use MA 8's
+  `CropTier#getFarmland()` and lost the always-effective check (MA 8 has no such tag). Two small accessors were added
+  to `src/main` for the tests (`ItemResource#is(Item)`, `MachineEnergy#set(int)`).
+- Result: the 45 game tests (every VFW test of main; main's 46th is a vanilla one) pass with Mystical Agriculture
+  8.0.28 loaded, with no VFW warning and no data map error in the log. Load benchmark: 2026-10-02 in the log below.
+- Not run by Claude: anything on the client (screens, JEI, Jade, tooltips, the GUI scale fit, models) and a dedicated
+  server. That is the owner's in-game test.
+
+### Block models (owner OK, 2026-10-02)
+- The owner chose converted copies on the 1.21.1 branch ("same look, textures untouched") over exporting new models.
+  26.1 reads `"rotation": {"x", "y", "z", "origin"}` as `Matrix4f.rotationZYX(z, y, x)` (X turns first; read in its
+  `CuboidModelElement$Deserializer` / `EulerXYZRotation` with `javap`, the order checked by running JOML on the unit
+  vectors) around the origin; 1.21.1 only reads one axis at 0, +-22.5 or +-45 degrees. The five models share their
+  geometry (only the tier color, texture #1, differs), and every Euler rotation in them is made of quarter turns (per
+  model: 16 x -90 on X, 9 x -90 on Z, 4 x 90 on Y, 4 x -90 on X and Z, 2 x -180 on X; 32 more elements have 0-degree
+  one-axis rotations, valid in 1.21.1, and one element none). A quarter-turned box is another axis-aligned box:
+  `tools/convert_block_models.py` writes each one that way, with new corners, every face moved to the side it faces
+  after the turn with its texture and UV rectangle, and the face rotation that puts the same texture point on each
+  corner (both versions walk a face's corners in the same order and look up UVs the same way, read in their
+  `FaceInfo` and face UV code). It keeps every other byte of the owner's file (groups, display, textures, order).
+- Proof, with the games' own code: a small program on the 1.21.1 dev classpath parses the models with
+  `BlockModel.fromString` (the originals fail with "Missing axis", as in game; the converted ones load) and bakes every
+  face with 1.21.1's `FaceBakery`; another, on 26.1's client jar and libraries, bakes the ORIGINAL models with 26.1's
+  `FaceBakery`. All 2,040 quads (5 models x 408 faces) match: same direction, texture, corners and texture point at
+  each corner. In 770 the corners are listed from another start (1.21.1 puts an unrotated face's corners in its
+  standard order), which only changes how per-corner light blends across the face. Sanity check: with the turns as
+  read, every element of the model lies inside the block (0-16 on each axis); turned the other way, 27 would stick
+  out.
+- The script verifies the same way (exact decimal arithmetic) before writing and refuses what it cannot convert
+  exactly (angles that are not quarter turns, faces without UVs). When the owner re-exports a model on main, bring it
+  here and run the script again.
+
+### Owner's in-game test (2026-10-02)
+- Dev client with the ATM10 mods: the Starter works in full, and both machines' converted block models look right.
+- The Entropic crashed when its GUI opened ("Rendering screen", `this.font` is null in `drawFittedCentered`). The
+  log showed the cause just before: NeoForge's "Failed to handle advanced open screen from server", a
+  NullPointerException on `this.minecraft` in `EntropicFarmMatrixScreen#added` -> `fitGuiScale`. In 1.21.1,
+  `Minecraft#setScreen` makes the new screen current, calls its `added()`, and only then `init(Minecraft, w, h)`, which
+  is what sets the screen's `minecraft` and `font` (26.1 screens have both from their constructor, which is why main
+  never hit it). The exception skipped `init`, NeoForge's payload handler only logged it, and the uninitialized screen
+  stayed current: the next frame crashed. Fix: `added()` (and `removed()`, for symmetry) use `Minecraft.getInstance()`;
+  `resize` already receives it. The rest of the screen only runs after `init`. Reviewed the whole Entropic screen for
+  other uses before `init`: none (the constructor only reads the menu, items and tags).
+- OPEN, owner report after the fix: on 1.21.1 the Starter's progress bar moves in steps ("10 straight to 15") while
+  the Entropic's moves smoothly; on main both are smooth. Postponed by the owner (I/O modes first). Measured so far:
+  with the owner's own Starter (Mystical Agriculture diamond seeds on Supremium farmland, 4 growth upgrades, crux
+  provider, no Water Provider: 1.01x) the server sends the progress every 5 ticks in regular steps of 0.84%, exactly
+  like the Entropic; the client code (`SmoothProgress`, called once per frame in `renderBg`) is the same for both
+  screens and both lines. Next step: measure the values the client receives and draws, frame by frame.
+- Also in the owner's crash reports, not VFW: on the first start of the new `run/` folder, closing the accessibility
+  onboarding screen opened the title screen, and Jade 15.10.6's screen-init handler (`JadeClient.onGui`) threw
+  `AssertionError: Missing config translation: config.jade.plugin_pipez.pipe` (Pipez's Jade plugin lacks a
+  translation). Nothing of VFW in that trace.
+
 ## Benchmark results log
 
 - 2026-09-26, owner's PC, game closed (16 threads, Java 25), average of the owner's last 3 runs (a run with the game
@@ -252,3 +465,21 @@ Delight, Mystical Agriculture, JEI; checked through the GitHub API) and approved
   input change every tick 11.3 us. No regression: every row is within the ~10-20% run-to-run noise of the
   2026-09-29 reference (Starter revalidation read 3.3 us against 2.8, and 3.9 in another session of 2026-09-29;
   it runs only on changes).
+- 2026-10-02, the 1.21.1 line after the port (owner's PC, every game closed, Java 21, average of 3 runs by Claude):
+  Starter growing 0.025 us (64 plots; the runs read 0.012 / 0.041 / 0.022), OUTPUT FULL 0.030 us, harvest tick
+  76 us (64 wheat; median 71) / 3.3 us (1 wheat) / 3.8 us (64 MA) / 9.1 us (64 poppies) / 284 us (32 oak saplings;
+  median 277) / 83 us (8 crimson fungi), busy wheat farm 0.24 us (~4,200 busy machines per ms), busy oak farm
+  1.3 us, pipe 0.25 us with and without a filter, revalidation 2.8 us, export 52 us. Entropic: growing with 3,840
+  plots 0.027 us, busy 3,840 wheat plots 2.4 us (3.9 with the autocrafter), busy mixed farm of 60 plants 0.89 us,
+  revalidation of 60 groups 15.3 us (median 14.9), an input change every tick 11.4 us.
+  Against main's 2026-09-30 reference (Java 25): the harvest ticks, the busy oak farm, both revalidations, the
+  Entropic's growing and input rows are within noise (oak saplings +11% by the median: the tree features are 1.21.1's
+  own). The rows that store many items are cheaper: busy wheat farm 0.24 vs 0.30 us, pipe 0.25 vs 0.33, export 52 vs
+  94, busy Entropic 2.4 vs 4.8, mixed Entropic 0.89 vs 2.2. Probably (not profiled) because VFW's `SlotTransaction`
+  plans in plain arrays and writes each changed slot once, where 26.1's transfer API journals changes in its
+  transactions, and export is a plain `insertItemStacked`. For the same reason the autocrafter now adds 1.5 us
+  instead of saving 0.4: the crafting itself costs about the same, but the storing it saves is cheap here
+  (inference). The two nanosecond rows read higher (growing 0.025 vs 0.011, OUTPUT FULL 0.030 vs 0.014) and swing
+  2-3x between runs; their per-tick path is main's code (a few flag checks and one addition) and one run matched
+  main exactly, so Java 21's JIT or noise; ~15 ns per machine per tick (0.015 ms for 1,000 machines), not
+  investigated further.
